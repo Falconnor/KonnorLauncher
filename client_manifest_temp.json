@@ -1,0 +1,523 @@
+{
+    "minecraft":  "1.21.1",
+    "fabric":  "fabric-loader-0.19.3-1.21.1",
+    "clientVersion":  "1.0.0",
+    "files":  {
+                  "libraries\\org\\lwjgl\\lwjgl\\3.3.3\\lwjgl-3.3.3-natives-windows-x86.jar":  {
+                                                                                                   "sha256":  "22A22338262554EB5E133C8441DEEEDAC84DA082EB3BAC84D032DA4FAF369749",
+                                                                                                   "size":  139653
+                                                                                               },
+                  "libraries\\io\\netty\\netty-codec\\4.1.97.Final\\netty-codec-4.1.97.Final.jar":  {
+                                                                                                        "sha256":  "BCC96737A0F912FCF031CF8C45EBDA352A90A40437DB0832CAAD3D5A63618B38",
+                                                                                                        "size":  345274
+                                                                                                    },
+                  "libraries\\org\\lwjgl\\lwjgl-openal\\3.3.3\\lwjgl-openal-3.3.3-natives-windows-x86.jar":  {
+                                                                                                                 "sha256":  "852CA4E36B1FDFDD3EFB6CE42F08B7D0F957B04C4BCFBD78057B0C799F399231",
+                                                                                                                 "size":  638424
+                                                                                                             },
+                  "libraries\\org\\lwjgl\\lwjgl\\3.3.3\\lwjgl-3.3.3.jar":  {
+                                                                               "sha256":  "DC9C7B2D48E8396D68895F8902FFA01E46253DE44DFE927533FF09457EBFEEC4",
+                                                                               "size":  785029
+                                                                           },
+                  "versions\\1.21.1\\natives\\lwjgl_stb.dll":  {
+                                                                   "sha256":  "DE03F38F8C7471B4924AA8BDF8724C181D1A7C20428DBCE2ED301877E1D387E4",
+                                                                   "size":  510464
+                                                               },
+                  "libraries\\org\\apache\\httpcomponents\\httpcore\\4.4.16\\httpcore-4.4.16.jar":  {
+                                                                                                        "sha256":  "6C9B3DD142A09DC468E23AD39AAD6F75A0F2B85125104469F026E52A474E464F",
+                                                                                                        "size":  327891
+                                                                                                    },
+                  "libraries\\commons-logging\\commons-logging\\1.2\\commons-logging-1.2.jar":  {
+                                                                                                    "sha256":  "DADDEA1EA0BE0F56978AB3006B8AC92834AFEEFBD9B7E4E6316FCA57DF0FA636",
+                                                                                                    "size":  61829
+                                                                                                },
+                  "mods\\krypton-0.2.8.jar":  {
+                                                  "sha256":  "94F195819B24E5DA64EFFDC9DA15CDD84836CC75E8FF0FD098BAB6BC2F49E3FE",
+                                                  "size":  161045
+                                              },
+                  "libraries\\io\\netty\\netty-handler\\4.1.97.Final\\netty-handler-4.1.97.Final.jar":  {
+                                                                                                            "sha256":  "BD4771D19149CBC9C7464ED2D58035D79CDFED7ADB59D38718B0D8E7A3DCC2DE",
+                                                                                                            "size":  560040
+                                                                                                        },
+                  "mods\\BadOptimizations-2.4.1-1.21.1.jar":  {
+                                                                  "sha256":  "22E2467892D3706F43D1CF2AA637785BB8601C20B0098A82AB956E6A8FC4D2BA",
+                                                                  "size":  283566
+                                                              },
+                  "libraries\\v1\\objects\\30c73b1c5da787909b2f73340419fdf13b9def88\\client.jar":  {
+                                                                                                       "sha256":  "499F6897D1837516680F3114072D8106E11C9ADCD933FE5CF051B551089B0C99",
+                                                                                                       "size":  26836906
+                                                                                                   },
+                  "libraries\\org\\lwjgl\\lwjgl-openal\\3.3.3\\lwjgl-openal-3.3.3.jar":  {
+                                                                                             "sha256":  "AE0E82767CACF08921F578FBA9D84753DDEB00CEADA0510A2B4A882BE28FBF95",
+                                                                                             "size":  110586
+                                                                                         },
+                  "libraries\\org\\tlauncher\\tl_skin_cape_1.21_1.21.1\\1.38\\tl_skin_cape_1.21_1.21.1-1.38.jar":  {
+                                                                                                                       "sha256":  "890CA834E121BEA0583DBB608B1BF4942B4E6A4D6C88944682D822F0C0F9A468",
+                                                                                                                       "size":  1219432
+                                                                                                                   },
+                  "libraries\\io\\netty\\netty-common\\4.1.97.Final\\netty-common-4.1.97.Final.jar":  {
+                                                                                                          "sha256":  "A8ACA0C8E9347ACC75C885ECC749195D9775369AA520B9276F2D1128210A6C17",
+                                                                                                          "size":  659930
+                                                                                                      },
+                  "libraries\\org\\lwjgl\\lwjgl-tinyfd\\3.3.3\\lwjgl-tinyfd-3.3.3-natives-windows-x86.jar":  {
+                                                                                                                 "sha256":  "43C9264F0661087B06AE29D78AAB98121DFAD69EFE3202424E3419738D5E9994",
+                                                                                                                 "size":  111797
+                                                                                                             },
+                  "libraries\\io\\netty\\netty-buffer\\4.1.97.Final\\netty-buffer-4.1.97.Final.jar":  {
+                                                                                                          "sha256":  "A4393F5B395486CC74D0325C9B41311ABB9513BA0FD7EF8CF46E9345C3BFFBEA",
+                                                                                                          "size":  306590
+                                                                                                      },
+                  "libraries\\org\\lwjgl\\lwjgl\\3.3.3\\lwjgl-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                     "sha256":  "D35582CA7EDFF59D4A5C8F4A0EDEC779CAEA4CA8E26C9AFF8244710049BB4350",
+                                                                                                     "size":  133378
+                                                                                                 },
+                  "libraries\\org\\joml\\joml\\1.10.5\\joml-1.10.5.jar":  {
+                                                                              "sha256":  "CAC9F22F83A7AA33EEBDA73C16FF5261E3CB4911B6BAFCF4C79EA486099D0C9A",
+                                                                              "size":  712082
+                                                                          },
+                  "libraries\\io\\netty\\netty-transport-classes-epoll\\4.1.97.Final\\netty-transport-classes-epoll-4.1.97.Final.jar":  {
+                                                                                                                                            "sha256":  "EE65FA17FE65F18FD22269F92BDDAD85BFB3A263CF65EBA01E116A2F30B86FF5",
+                                                                                                                                            "size":  147139
+                                                                                                                                        },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\jna4053992498294538162.dll":  {
+                                                                                                     "sha256":  "69C45175ECFD25AF023F96AC0BB2C45E6A95E3BA8A5A50EE7969CCAB14825C44",
+                                                                                                     "size":  254464
+                                                                                                 },
+                  "libraries\\org\\lwjgl\\lwjgl-freetype\\3.3.3\\lwjgl-freetype-3.3.3-natives-windows-x86.jar":  {
+                                                                                                                     "sha256":  "75A798A5F492E1376D05DC637A9105198E71D06F38A11E9BCE1C5072E0D60B3A",
+                                                                                                                     "size":  877480
+                                                                                                                 },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\glfw.dll":  {
+                                                                                   "sha256":  "AFFA7E54EB0DEDCE4A5721C327C1A16035EDBBD039CD402E08107D6D2D55EB1A",
+                                                                                   "size":  496128
+                                                                               },
+                  "libraries\\org\\ow2\\asm\\asm\\9.10.1\\asm-9.10.1.jar":  {
+                                                                                "sha256":  "ED825D10AB1399C8C0CB669E688CF0C8C82629B4C8399B58352B68E92CA10FCB",
+                                                                                "size":  126151
+                                                                            },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\fabric-loader-0.19.3-1.21.1.jar":  {
+                                                                                                 "sha256":  "499F6897D1837516680F3114072D8106E11C9ADCD933FE5CF051B551089B0C99",
+                                                                                                 "size":  26836906
+                                                                                             },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\fabric-loader-0.19.3-1.21.1.json":  {
+                                                                                                  "sha256":  "18B93EE2778DD0AA7946ACA8801C889ADCFE1B7FF03EB3FF44B1456692EA9E74",
+                                                                                                  "size":  51636
+                                                                                              },
+                  "libraries\\org\\lwjgl\\lwjgl\\3.3.3\\lwjgl-3.3.3-natives-windows.jar":  {
+                                                                                               "sha256":  "5EE63A19187EFE5BB8747FD24F7B13257DB348DF5AD641113A3695E43F213959",
+                                                                                               "size":  165442
+                                                                                           },
+                  "libraries\\net\\java\\dev\\jna\\jna-platform\\5.14.0\\jna-platform-5.14.0.jar":  {
+                                                                                                        "sha256":  "AE4CACEB3840730C2537F9B7FB55A01BABA580286B4122951488BCEE558C2449",
+                                                                                                        "size":  1369287
+                                                                                                    },
+                  "versions\\1.21.1\\1.21.1.json":  {
+                                                        "sha256":  "E59FF2810C451EA14EA17DCD0462323A7E7D590831E75B30212D5BF8407A5CFB",
+                                                        "size":  38408
+                                                    },
+                  "versions\\1.21.1\\natives\\lwjgl.dll":  {
+                                                               "sha256":  "A39ADF52947FAFD954C2A86CE031ABB8C59825F7EE50337AC8C41E4280ABE82D",
+                                                               "size":  479232
+                                                           },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\jna4053992498294538162.dll.x":  {
+                                                                                                       "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                                                                       "size":  0
+                                                                                                   },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\TLauncherAdditional.json":  {
+                                                                                          "sha256":  "EC5727A6571AA1CB5022518D93BBB7E0AFD1DE71C0A5D65DBD4E899C0A9E72E7",
+                                                                                          "size":  181
+                                                                                      },
+                  "libraries\\org\\lwjgl\\lwjgl-openal\\3.3.3\\lwjgl-openal-3.3.3-natives-windows.jar":  {
+                                                                                                             "sha256":  "E3DA7C3DB25C81DB8D425EF1E3DBFA15000B040D669F008B0813C94333AC96C8",
+                                                                                                             "size":  698720
+                                                                                                         },
+                  "libraries\\org\\lwjgl\\lwjgl-jemalloc\\3.3.3\\lwjgl-jemalloc-3.3.3-natives-windows.jar":  {
+                                                                                                                 "sha256":  "9949C8E49998BD0C878D842884011F1383E2851005091E0B2BCF7B7671B848EB",
+                                                                                                                 "size":  180344
+                                                                                                             },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\lwjgl.dll":  {
+                                                                                    "sha256":  "A39ADF52947FAFD954C2A86CE031ABB8C59825F7EE50337AC8C41E4280ABE82D",
+                                                                                    "size":  479232
+                                                                                },
+                  "versions\\1.21.1\\natives\\OpenAL.dll":  {
+                                                                "sha256":  "0630AA42492F78126DA1C4D99769632E03C55B2E63B050EFE7E3005E07E3E6FC",
+                                                                "size":  1338368
+                                                            },
+                  "mods\\lithium-fabric-0.15.4+mc1.21.1.jar":  {
+                                                                   "sha256":  "92329D98C57F5A22091A0ADB509FDB1D60113A5602C708B799B13134BAD13BAA",
+                                                                   "size":  797454
+                                                               },
+                  "mods\\dynamic-fps-3.11.4+minecraft-1.21.0-fabric.jar":  {
+                                                                               "sha256":  "F66B13835282603BD6F8902FAA5142E1311BB6393496B04A5DF7008415B2FDF8",
+                                                                               "size":  217532
+                                                                           },
+                  "libraries\\com\\google\\guava\\guava\\32.1.2-jre\\guava-32.1.2-jre.jar":  {
+                                                                                                 "sha256":  "BC65DEA7CFD9E4DACF8419D8AF0E741655857D27885BB35D943D7187FC3A8FCE",
+                                                                                                 "size":  3041591
+                                                                                             },
+                  "libraries\\org\\apache\\logging\\log4j\\log4j-core\\2.22.1\\log4j-core-2.22.1.jar":  {
+                                                                                                            "sha256":  "46DCCECAC556623D8E2CE8648496824A82951D139062A4E61148AFF1A25ED18D",
+                                                                                                            "size":  1900022
+                                                                                                        },
+                  "libraries\\it\\unimi\\dsi\\fastutil\\8.5.12\\fastutil-8.5.12.jar":  {
+                                                                                           "sha256":  "B5543EE08D062D551CF0A5C9BC0FB70588B0382079029BA48941FA9C9BE8A5D4",
+                                                                                           "size":  23326598
+                                                                                       },
+                  "mods\\sodium-fabric-0.6.0+mc1.21.1.jar":  {
+                                                                 "sha256":  "21B3371F52AB2B2D9ABD05E28A4EBA3675FB2DBD174614719569D0C365BBF01E",
+                                                                 "size":  1281394
+                                                             },
+                  "libraries\\org\\lwjgl\\lwjgl-opengl\\3.3.3\\lwjgl-opengl-3.3.3-natives-windows.jar":  {
+                                                                                                             "sha256":  "F45E5F60596B03B2E3D8B98A123C855EBD0B5154C8155DC2A56B890CCC907477",
+                                                                                                             "size":  101535
+                                                                                                         },
+                  "mods\\ImmediatelyFast-Fabric-1.6.11+1.21.1.jar":  {
+                                                                         "sha256":  "05A5F3C716AE631AF3CC925C8144894368C632156F2D581DD8295CC223EA2F6D",
+                                                                         "size":  336763
+                                                                     },
+                  "versions\\1.21.1\\natives\\jna9540341017747732421.dll.x":  {
+                                                                                  "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                                                  "size":  0
+                                                                              },
+                  "libraries\\com\\mojang\\brigadier\\1.3.10\\brigadier-1.3.10.jar":  {
+                                                                                          "sha256":  "C8EE4136E474AC7723CA2B432EC8D1A2BC88EF7D1EC57C314BA9E33CDC83DD75",
+                                                                                          "size":  80082
+                                                                                      },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\lwjgl_opengl.dll":  {
+                                                                                           "sha256":  "FE200DC96AB31237A52FACD6345D31F9740EF16DD411E5F9BE014EAA30F89FB6",
+                                                                                           "size":  364032
+                                                                                       },
+                  "libraries\\com\\mojang\\blocklist\\1.0.10\\blocklist-1.0.10.jar":  {
+                                                                                          "sha256":  "830BFD639C8DB49236BBD8E45D3A2B8C96C56FF654A10118654958A6235D4C44",
+                                                                                          "size":  964
+                                                                                      },
+                  "libraries\\org\\lwjgl\\lwjgl-glfw\\3.3.3\\lwjgl-glfw-3.3.3.jar":  {
+                                                                                         "sha256":  "BEDC757FD2B1B255146DB26B74B9CBD1FCF5644B89B47B104FA721C741604259",
+                                                                                         "size":  135546
+                                                                                     },
+                  "libraries\\org\\lwjgl\\lwjgl-freetype\\3.3.3\\lwjgl-freetype-3.3.3-natives-windows.jar":  {
+                                                                                                                 "sha256":  "022E59514B1ECB45249413AE62AD094971D7AC88C0DCE9A32C627D06A3C01A1F",
+                                                                                                                 "size":  1035586
+                                                                                                             },
+                  "mods\\cloth-config-15.0.140-fabric.jar":  {
+                                                                 "sha256":  "33894E95DA3AF59014B39D126586D5241E07EA39F8618763E30DAB637405F95F",
+                                                                 "size":  1157166
+                                                             },
+                  "libraries\\io\\netty\\netty-transport\\4.1.97.Final\\netty-transport-4.1.97.Final.jar":  {
+                                                                                                                "sha256":  "197FD2D6C6B4AFE677D9E95BF2E36B49A0BCABDFCE0583683FB73F29A3F5A407",
+                                                                                                                "size":  489624
+                                                                                                            },
+                  "versions\\1.21.1\\natives\\lwjgl_opengl.dll":  {
+                                                                      "sha256":  "FE200DC96AB31237A52FACD6345D31F9740EF16DD411E5F9BE014EAA30F89FB6",
+                                                                      "size":  364032
+                                                                  },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\lwjgl_stb.dll":  {
+                                                                                        "sha256":  "DE03F38F8C7471B4924AA8BDF8724C181D1A7C20428DBCE2ED301877E1D387E4",
+                                                                                        "size":  510464
+                                                                                    },
+                  "libraries\\org\\lwjgl\\lwjgl-opengl\\3.3.3\\lwjgl-opengl-3.3.3-natives-windows-x86.jar":  {
+                                                                                                                 "sha256":  "9D99D203DE4E31286CAE753A1DFB981367C93734F1944644BA71BE521B3AF2CC",
+                                                                                                                 "size":  88612
+                                                                                                             },
+                  "libraries\\org\\apache\\commons\\commons-compress\\1.26.0\\commons-compress-1.26.0.jar":  {
+                                                                                                                 "sha256":  "051ACEB8BBCC62D0F5B2B8AC72C53767F9C59BFBD050151E65BEF6F51C8ED9C9",
+                                                                                                                 "size":  1078328
+                                                                                                             },
+                  "libraries\\org\\lwjgl\\lwjgl-jemalloc\\3.3.3\\lwjgl-jemalloc-3.3.3.jar":  {
+                                                                                                 "sha256":  "E99E31269E6678A4BFC62EF24C50A481C01CBDD004861ECE9A59BA12768C6516",
+                                                                                                 "size":  43896
+                                                                                             },
+                  "libraries\\com\\mojang\\patchy\\2.2.10\\patchy-2.2.10.jar":  {
+                                                                                    "sha256":  "16D70E7968B45CAFFC81576268EB000F473FB60BF257182D3447DEA8EC919D5A",
+                                                                                    "size":  4439
+                                                                                },
+                  "libraries\\org\\ow2\\asm\\asm-tree\\9.1\\asm-tree-9.1.jar":  {
+                                                                                    "sha256":  "FD00AFA49E9595D7646205B09CECB4A776A8FF0BA06F2D59B8F7BF9C704B4A73",
+                                                                                    "size":  52662
+                                                                                },
+                  "libraries\\org\\lwjgl\\lwjgl-stb\\3.3.3\\lwjgl-stb-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                             "sha256":  "3D1454DFBAD9E1B8A7DA25E2928C16A4A63A14050B27DA1912C3BE0C60B02E7C",
+                                                                                                             "size":  219511
+                                                                                                         },
+                  "libraries\\org\\ow2\\asm\\asm\\9.5\\asm-9.5.jar":  {
+                                                                          "sha256":  "B62E84B5980729751B0458C534CF1366F727542BB8D158621335682A460F0353",
+                                                                          "size":  121863
+                                                                      },
+                  "libraries\\com\\github\\oshi\\oshi-core\\6.4.10\\oshi-core-6.4.10.jar":  {
+                                                                                                "sha256":  "FEF001A7A13515C273F30915915580782AFBC45273CC07AA15994E51563EF310",
+                                                                                                "size":  979212
+                                                                                            },
+                  "versions\\1.21.1\\natives\\glfw.dll":  {
+                                                              "sha256":  "AFFA7E54EB0DEDCE4A5721C327C1A16035EDBBD039CD402E08107D6D2D55EB1A",
+                                                              "size":  496128
+                                                          },
+                  "libraries\\org\\lwjgl\\lwjgl-glfw\\3.3.3\\lwjgl-glfw-3.3.3-natives-windows-x86.jar":  {
+                                                                                                             "sha256":  "9646555D405F0D2A3A9576B506F57C1632AF64F69A8AE58CB0448AE04A9C7824",
+                                                                                                             "size":  157123
+                                                                                                         },
+                  "versions\\1.21.1\\natives\\jemalloc.dll":  {
+                                                                  "sha256":  "9ABF0095066EBAB37B78968E11370A8078313E48CB5BE8EDA01F67623C6A6248",
+                                                                  "size":  398336
+                                                              },
+                  "libraries\\io\\github\\classgraph\\classgraph\\4.8.110\\classgraph-4.8.110.jar":  {
+                                                                                                         "sha256":  "A070B599DA15FD66F892A09B7D7D47785E276943B570E382AAF8AAC0F0F211B2",
+                                                                                                         "size":  535019
+                                                                                                     },
+                  "libraries\\org\\lwjgl\\lwjgl-tinyfd\\3.3.3\\lwjgl-tinyfd-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                                   "sha256":  "71076FC5C01788577719F4B1983473026B2EB8CBB02D3DC736F8B5724A49FD8C",
+                                                                                                                   "size":  110867
+                                                                                                               },
+                  "libraries\\org\\lwjgl\\lwjgl-opengl\\3.3.3\\lwjgl-opengl-3.3.3.jar":  {
+                                                                                             "sha256":  "5062DA750E5F7EC89E27E8B67B7D40FA8C4B16890159E35F828116CE6C8ECA1E",
+                                                                                             "size":  929192
+                                                                                         },
+                  "libraries\\org\\lwjgl\\lwjgl-jemalloc\\3.3.3\\lwjgl-jemalloc-3.3.3-natives-windows-x86.jar":  {
+                                                                                                                     "sha256":  "D9B4E06E2A84205583FB05440D2238385A91CB01A060DDB1D376223AE225F14A",
+                                                                                                                     "size":  148612
+                                                                                                                 },
+                  "libraries\\org\\slf4j\\slf4j-api\\2.0.9\\slf4j-api-2.0.9.jar":  {
+                                                                                       "sha256":  "0818930DC8D7DEBB403204611691DA58E49D42C50B6FFCFDCE02DADB7C3C2B6C",
+                                                                                       "size":  64579
+                                                                                   },
+                  "libraries\\org\\lwjgl\\lwjgl-freetype\\3.3.3\\lwjgl-freetype-3.3.3.jar":  {
+                                                                                                 "sha256":  "E1A7AB07106349D9A8A68F6860B7B73B353C502B81E662ACA77F931C6FDD3DE8",
+                                                                                                 "size":  450896
+                                                                                             },
+                  "libraries\\org\\ow2\\asm\\asm-tree\\9.10.1\\asm-tree-9.10.1.jar":  {
+                                                                                          "sha256":  "3DFB0D5B6A106CD40B5B250E39935FBF2F927F4477546A5369A3AC609CF0506B",
+                                                                                          "size":  51958
+                                                                                      },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\jemalloc.dll":  {
+                                                                                       "sha256":  "9ABF0095066EBAB37B78968E11370A8078313E48CB5BE8EDA01F67623C6A6248",
+                                                                                       "size":  398336
+                                                                                   },
+                  "mods\\fabric-api-0.116.14+1.21.1.jar":  {
+                                                               "sha256":  "333F15BCEB117A0AC41E3396EAC9873FA6C325C31E746D679809F9A7A0228196",
+                                                               "size":  2451978
+                                                           },
+                  "libraries\\net\\fabricmc\\fabric-loader\\0.19.3\\fabric-loader-0.19.3.jar":  {
+                                                                                                    "sha256":  "73EED8C34BBAD0320A2A3CBA5346351E822F74F82B3F3C060574068474132958",
+                                                                                                    "size":  1976502
+                                                                                                },
+                  "libraries\\org\\lwjgl\\lwjgl-tinyfd\\3.3.3\\lwjgl-tinyfd-3.3.3-natives-windows.jar":  {
+                                                                                                             "sha256":  "02285911F1C881735FA4D0EB141FFEAAFD9A2BB9349D98F7C1FB8A9CB49C0F58",
+                                                                                                             "size":  130253
+                                                                                                         },
+                  "libraries\\org\\apache\\logging\\log4j\\log4j-slf4j2-impl\\2.22.1\\log4j-slf4j2-impl-2.22.1.jar":  {
+                                                                                                                          "sha256":  "1920CD69D8682C7EF249BB407A3D0685723AA1785867CF4C53258DA6BF14DA97",
+                                                                                                                          "size":  27364
+                                                                                                                      },
+                  "mods\\ftb-library-fabric-2101.1.33.jar":  {
+                                                                 "sha256":  "6C5A1831DAEF95C362FCDD4646674EB3179A4BDC8BD91E95323D465AFEB72EF8",
+                                                                 "size":  1421231
+                                                             },
+                  "libraries\\org\\lwjgl\\lwjgl-stb\\3.3.3\\lwjgl-stb-3.3.3-natives-windows.jar":  {
+                                                                                                       "sha256":  "D12AB866FE1169E924AC5B4D6BB7767AE7842A9FC8652798682C0069BB73FCF2",
+                                                                                                       "size":  261297
+                                                                                                   },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\OpenAL.dll":  {
+                                                                                     "sha256":  "0630AA42492F78126DA1C4D99769632E03C55B2E63B050EFE7E3005E07E3E6FC",
+                                                                                     "size":  1338368
+                                                                                 },
+                  "libraries\\com\\mojang\\logging\\1.2.7\\logging-1.2.7.jar":  {
+                                                                                    "sha256":  "3DC3190204BAC5F4184D8405BFE1F724F73A6A15A0D3F36EC7F69E6872C1A76C",
+                                                                                    "size":  15343
+                                                                                },
+                  "libraries\\org\\lwjgl\\lwjgl-openal\\3.3.3\\lwjgl-openal-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                                   "sha256":  "875F81451731DF2CAC48BBE3C4559834A94D36FC15F461C933E4D4ACDD2F1F26",
+                                                                                                                   "size":  630410
+                                                                                                               },
+                  "libraries\\org\\lwjgl\\lwjgl-jemalloc\\3.3.3\\lwjgl-jemalloc-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                                       "sha256":  "1F204ACE18E3512765003D83B9A853856F65DDA70B63B9722638483F2D5D34C2",
+                                                                                                                       "size":  154415
+                                                                                                                   },
+                  "libraries\\com\\mojang\\authlib\\6.0.54\\authlib-6.0.54.jar":  {
+                                                                                      "sha256":  "319EA7B53B5E52F62AD3E2B81E9DB7F0751240EDAC548BD74F5F19E35DC21A3B",
+                                                                                      "size":  115242
+                                                                                  },
+                  "versions\\1.21.1\\TLauncherAdditional.json":  {
+                                                                     "sha256":  "4488F4DA13F4988FC24ED1AFD39703AD8BD9FD59EB16BF6080EF0316C96C35CF",
+                                                                     "size":  208
+                                                                 },
+                  "libraries\\org\\ow2\\asm\\asm-commons\\9.10.1\\asm-commons-9.10.1.jar":  {
+                                                                                                "sha256":  "6D0ABEFB7CBF972EA16EDB37EC14835372505063A45F976AB7EA889ED9497895",
+                                                                                                "size":  74840
+                                                                                            },
+                  "libraries\\com\\ibm\\icu\\icu4j\\73.2\\icu4j-73.2.jar":  {
+                                                                                "sha256":  "29280822F4B0796ACEF1F79B90B1D0C1EDD86C10E876A848E04B8A6298A16BF9",
+                                                                                "size":  14567819
+                                                                            },
+                  "mods\\modernfix-fabric-5.25.1+mc1.21.1.jar":  {
+                                                                     "sha256":  "3CE5A9CE75066961B7FA5382692BB1387CC3536CC984B064AB7D70B97F3C674C",
+                                                                     "size":  471258
+                                                                 },
+                  "versions\\1.21.1\\1.21.1.jar":  {
+                                                       "sha256":  "499F6897D1837516680F3114072D8106E11C9ADCD933FE5CF051B551089B0C99",
+                                                       "size":  26836906
+                                                   },
+                  "mods\\iris-fabric-1.8.14-beta.1+mc1.21.1.jar":  {
+                                                                       "sha256":  "0CEB694040B4628BF3FA02286CFE5F0DB833195669AB07F8CAA4001359763EFF",
+                                                                       "size":  2791343
+                                                                   },
+                  "libraries\\org\\tlauncher\\authlib\\6.0.54.2\\authlib-6.0.54.2.jar":  {
+                                                                                             "sha256":  "8A354B9D4FDD7F0EA95499A8319144D161B4B01FBA63445FB3D166B422DCE4EF",
+                                                                                             "size":  122405
+                                                                                         },
+                  "mods\\chloride-FABRIC-mc1.21.1-v1.8.1.jar":  {
+                                                                    "sha256":  "B88B0E0D2FD3F50FDD2FD3649065444568E8AD29E8E3F2F2BF6C22BAF7FA2011",
+                                                                    "size":  527475
+                                                                },
+                  "mods\\sodium-extra-fabric-0.9.3+mc1.21.1.jar":  {
+                                                                       "sha256":  "C99DFBFE2FE310AA43B322F784E3D314F574F85BA1C87DC932DBFA68F349BAC1",
+                                                                       "size":  469925
+                                                                   },
+                  "libraries\\org\\lwjgl\\lwjgl-freetype\\3.3.3\\lwjgl-freetype-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                                       "sha256":  "B589983EC143FF09ACD8D9A215B4EF3F80750855646C1B96279066EA5E44F40C",
+                                                                                                                       "size":  886068
+                                                                                                                   },
+                  "libraries\\com\\google\\guava\\failureaccess\\1.0.1\\failureaccess-1.0.1.jar":  {
+                                                                                                       "sha256":  "A171EE4C734DD2DA837E4B16BE9DF4661AFAB72A41ADAF31EB84DFDAF936CA26",
+                                                                                                       "size":  4617
+                                                                                                   },
+                  "libraries\\org\\ow2\\asm\\asm-commons\\9.1\\asm-commons-9.1.jar":  {
+                                                                                          "sha256":  "AFCB26DC1FC12C0C4A99ADA670908DD82E18DFC488CAF5EE92546996B470C00C",
+                                                                                          "size":  72641
+                                                                                      },
+                  "libraries\\org\\lz4\\lz4-java\\1.8.0\\lz4-java-1.8.0.jar":  {
+                                                                                   "sha256":  "D74A3334FB35195009B338A951F918203D6BBCA3D1D359033DC33EDD1CADC9EF",
+                                                                                   "size":  682804
+                                                                               },
+                  "mods\\ferritecore-7.0.3-fabric.jar":  {
+                                                             "sha256":  "98C3AB1D5AAB8F14B5D082D3F1A467727FD335F02D124555C94339761C4C18F2",
+                                                             "size":  123450
+                                                         },
+                  "libraries\\org\\apache\\logging\\log4j\\log4j-api\\2.22.1\\log4j-api-2.22.1.jar":  {
+                                                                                                          "sha256":  "5D7BEAE7FF15D8516D6517121D7F12A79A6AC180DF64B5FCEC55D5BE21056E53",
+                                                                                                          "size":  335001
+                                                                                                      },
+                  "libraries\\com\\mojang\\datafixerupper\\8.0.16\\datafixerupper-8.0.16.jar":  {
+                                                                                                    "sha256":  "FFC138BC2596C291781B0D5E211CCAC51F0F2345F27FC2742F335CEDF7E2870D",
+                                                                                                    "size":  724313
+                                                                                                },
+                  "mods\\architectury-13.0.8-fabric.jar":  {
+                                                               "sha256":  "10CBBB6F5F96A2F1853B0CC68428424CEC8903409517B299FF02350756B6399D",
+                                                               "size":  600915
+                                                           },
+                  "libraries\\org\\ow2\\asm\\asm-util\\9.10.1\\asm-util-9.10.1.jar":  {
+                                                                                          "sha256":  "1BB99D091FBA2597DC6D51193E9BBCF0D8447E7ED96BD8F0198B18152F09655C",
+                                                                                          "size":  95628
+                                                                                      },
+                  "libraries\\org\\tlauncher\\patchy\\2.2.101\\patchy-2.2.101.jar":  {
+                                                                                         "sha256":  "051645A22A88F020A971C2B637B29C296CE1B4F23466CFB10374F40475E0AF32",
+                                                                                         "size":  4438
+                                                                                     },
+                  "libraries\\org\\jcraft\\jorbis\\0.0.17\\jorbis-0.0.17.jar":  {
+                                                                                    "sha256":  "E067F29A3701426B67ED973036949C6E58CA5BB53EEF7240B2E71E286D252A9E",
+                                                                                    "size":  99701
+                                                                                },
+                  "libraries\\net\\java\\dev\\jna\\jna\\5.14.0\\jna-5.14.0.jar":  {
+                                                                                      "sha256":  "34ED1E1F27FA896BCA50DBC4E99CF3732967CEC387A7A0D5E3486C09673FE8C6",
+                                                                                      "size":  1878533
+                                                                                  },
+                  "libraries\\org\\lwjgl\\lwjgl-glfw\\3.3.3\\lwjgl-glfw-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                               "sha256":  "70CA9DB0D2764CB9DBC8FB5FD425318C5AF597173B134D03259E2030652E94B5",
+                                                                                                               "size":  141970
+                                                                                                           },
+                  "versions\\1.21.1\\natives\\jna9540341017747732421.dll":  {
+                                                                                "sha256":  "69C45175ECFD25AF023F96AC0BB2C45E6A95E3BA8A5A50EE7969CCAB14825C44",
+                                                                                "size":  254464
+                                                                            },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\jna15447519931684562377.dll":  {
+                                                                                                      "sha256":  "69C45175ECFD25AF023F96AC0BB2C45E6A95E3BA8A5A50EE7969CCAB14825C44",
+                                                                                                      "size":  254464
+                                                                                                  },
+                  "libraries\\org\\lwjgl\\lwjgl-stb\\3.3.3\\lwjgl-stb-3.3.3.jar":  {
+                                                                                       "sha256":  "0CFF7AA46EA9D70FCC20857015293EA80FBF21ADCAC34600C84DA9B81A44CA93",
+                                                                                       "size":  120283
+                                                                                   },
+                  "libraries\\net\\fabricmc\\sponge-mixin\\0.17.3+mixin.0.8.7\\sponge-mixin-0.17.3+mixin.0.8.7.jar":  {
+                                                                                                                          "sha256":  "9E90EFEC71D2BAD5B96C9089F019D14A8603227D3C5F408D12F53FAE89D99D41",
+                                                                                                                          "size":  1540060
+                                                                                                                      },
+                  "libraries\\org\\apache\\httpcomponents\\httpclient\\4.5.13\\httpclient-4.5.13.jar":  {
+                                                                                                            "sha256":  "6FE9026A566C6A5001608CF3FC32196641F6C1E5E1986D1037CCDBD5F31EF743",
+                                                                                                            "size":  780321
+                                                                                                        },
+                  "libraries\\org\\lwjgl\\lwjgl-tinyfd\\3.3.3\\lwjgl-tinyfd-3.3.3.jar":  {
+                                                                                             "sha256":  "EE0515054EE19A3F4088426FEE9D879EB2EE657B07E5064E4E2C851F6ADCF14B",
+                                                                                             "size":  13400
+                                                                                         },
+                  "mods\\Nuevo documento de texto.txt":  {
+                                                             "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                             "size":  0
+                                                         },
+                  "libraries\\commons-io\\commons-io\\2.15.1\\commons-io-2.15.1.jar":  {
+                                                                                           "sha256":  "A58AF12EE1B68CFD2EBB0C27CAEF164F084381A00EC81A48CC275FD7EA54E154",
+                                                                                           "size":  501218
+                                                                                       },
+                  "versions\\fabric-loader-0.19.3-1.21.1\\natives\\jna15447519931684562377.dll.x":  {
+                                                                                                        "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                                                                                                        "size":  0
+                                                                                                    },
+                  "libraries\\org\\ow2\\asm\\asm-analysis\\9.10.1\\asm-analysis-9.10.1.jar":  {
+                                                                                                  "sha256":  "DEDE75A21306B65974ECD8F87114FF6970F09FB794157A4CA09AB25C888C2BFC",
+                                                                                                  "size":  35140
+                                                                                              },
+                  "mods\\reeses-sodium-options-fabric-2.2.3+mc1.21.1.jar":  {
+                                                                                "sha256":  "6F5A2964656552DA24E015B6F6E03D4BAAC8CFED919978785E94920F3FD0F568",
+                                                                                "size":  259211
+                                                                            },
+                  "libraries\\org\\lwjgl\\lwjgl-opengl\\3.3.3\\lwjgl-opengl-3.3.3-natives-windows-arm64.jar":  {
+                                                                                                                   "sha256":  "68C8DBC41436E421FF0B3927E62D2AA533552D8F02D73DE3FD928D7A51FD797A",
+                                                                                                                   "size":  83095
+                                                                                                               },
+                  "libraries\\commons-codec\\commons-codec\\1.16.0\\commons-codec-1.16.0.jar":  {
+                                                                                                    "sha256":  "56595FB20B0B85BC91D0D503DAD50BB7F1B9AFC0EED5DFFA6CBB25929000484D",
+                                                                                                    "size":  360738
+                                                                                                },
+                  "libraries\\com\\mojang\\text2speech\\1.17.9\\text2speech-1.17.9.jar":  {
+                                                                                              "sha256":  "C2A95B499E76FADA7DD63E9B0EC797B678D411C2B0EE6F37F4DC674662BFB0AF",
+                                                                                              "size":  12243
+                                                                                          },
+                  "libraries\\org\\tlauncher\\tl_skin_cape_1.21_1.21.1\\1.38d\\tl_skin_cape_1.21_1.21.1-1.38d.jar":  {
+                                                                                                                         "sha256":  "890CA834E121BEA0583DBB608B1BF4942B4E6A4D6C88944682D822F0C0F9A468",
+                                                                                                                         "size":  1219432
+                                                                                                                     },
+                  "libraries\\org\\lwjgl\\lwjgl-glfw\\3.3.3\\lwjgl-glfw-3.3.3-natives-windows.jar":  {
+                                                                                                         "sha256":  "98155B451DFC6F585089DEC77A12F9C05789C4DCEB8DA472F9D308160101A70D",
+                                                                                                         "size":  166368
+                                                                                                     },
+                  "libraries\\net\\sf\\jopt-simple\\jopt-simple\\5.0.4\\jopt-simple-5.0.4.jar":  {
+                                                                                                     "sha256":  "DF26CC58F235F477DB07F753BA5A3AB243EBE5789D9F89ECF68DD62EA9A66C28",
+                                                                                                     "size":  78146
+                                                                                                 },
+                  "libraries\\org\\lwjgl\\lwjgl-stb\\3.3.3\\lwjgl-stb-3.3.3-natives-windows-x86.jar":  {
+                                                                                                           "sha256":  "46424E45459733B26C4A7B0DD2695209CB6938DAFA3A9012C6A5682C94A2C40E",
+                                                                                                           "size":  227800
+                                                                                                       },
+                  "libraries\\net\\fabricmc\\intermediary\\1.21.1\\intermediary-1.21.1.jar":  {
+                                                                                                  "sha256":  "6059157DFB4A536EC151697004F74F6004B7D346B289C2F89849E0E585AA36FA",
+                                                                                                  "size":  657725
+                                                                                              },
+                  "libraries\\io\\netty\\netty-transport-native-unix-common\\4.1.97.Final\\netty-transport-native-unix-common-4.1.97.Final.jar":  {
+                                                                                                                                                      "sha256":  "412FE140257C2DDA5A5E15BEE911298BD61928D03EE6BE4DB588E82C196C5DC6",
+                                                                                                                                                      "size":  43897
+                                                                                                                                                  },
+                  "libraries\\org\\apache\\commons\\commons-lang3\\3.14.0\\commons-lang3-3.14.0.jar":  {
+                                                                                                           "sha256":  "7B96BF3EE68949ABB5BC465559AC270E0551596FA34523FDDF890EC418DDE13C",
+                                                                                                           "size":  657952
+                                                                                                       },
+                  "libraries\\io\\netty\\netty-resolver\\4.1.97.Final\\netty-resolver-4.1.97.Final.jar":  {
+                                                                                                              "sha256":  "38A018C6D9FB2CB11B72881354782B45080BBD20B9A0AD6CDE28B80D431ED0B1",
+                                                                                                              "size":  37792
+                                                                                                          },
+                  "libraries\\com\\google\\code\\gson\\gson\\2.10.1\\gson-2.10.1.jar":  {
+                                                                                            "sha256":  "4241C14A7727C34FEEA6507EC801318A3D4A90F070E4525681079FB94EE4C593",
+                                                                                            "size":  283367
+                                                                                        },
+                  "mods\\sodium-fabric-0.8.12+mc1.21.1.jar":  {
+                                                                  "sha256":  "9AD11A616D1CA759867DE8A5BBAFCDE5AB50B68DBD674110C7B90AEEA251B793",
+                                                                  "size":  1573180
+                                                              }
+              }
+}

@@ -1,0 +1,14 @@
+{
+    "player": {
+        "username": "Luis",
+        "uuid": "00000000-0000-0000-0000-000000000000",
+        "accessToken": "0"
+    },
+    "java": {
+        "memory": "4G"
+    },
+    "server": {
+        "address": "play.fkonnor.com",
+        "autoJoin": false
+    }
+}
