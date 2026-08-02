@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Minecraft logs
+**/logs/
+
+# Minecraft saves
+**/saves/
+
+# Fabric cache
+**/.fabric/
+
+# Minecraft generated files
+Minecraft/options.txt
+Minecraft/usercache.json
+
+# Crash reports
+**/crash-reports/
+
+# Launcher generated files
+Launcher/${game_directory}/
