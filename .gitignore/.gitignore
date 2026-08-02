@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Logs del launcher
+Launcher/logs/
+
+# Logs de Minecraft
+Minecraft/logs/
+
+# Mundos guardados
+Minecraft/saves/
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Configuración generada por mods (si no querés versionarla)
+Minecraft/config/
+
+# Archivos del sistema
+Thumbs.db
+.DS_Store
