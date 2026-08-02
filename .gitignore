@@ -2,22 +2,21 @@
 __pycache__/
 *.pyc
 
-# Logs del launcher
-Launcher/logs/
+# Minecraft logs
+**/logs/
 
-# Logs de Minecraft
-Minecraft/logs/
+# Minecraft saves
+**/saves/
 
-# Mundos guardados
-Minecraft/saves/
+# Fabric cache
+**/.fabric/
 
-# Archivos temporales
-*.tmp
-*.temp
+# Minecraft generated files
+Minecraft/options.txt
+Minecraft/usercache.json
 
-# Configuración generada por mods (si no querés versionarla)
-Minecraft/config/
+# Crash reports
+**/crash-reports/
 
-# Archivos del sistema
-Thumbs.db
-.DS_Store
+# Launcher generated files
+Launcher/${game_directory}/
