@@ -1,27 +1,27 @@
-[01:42:58] [Datafixer Bootstrap/INFO]: 226 Datafixer optimizations took 366 milliseconds
-[01:43:02] [Render thread/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
-[01:43:02] [Render thread/INFO]: Setting user: Luis
-[01:43:02] [Render thread/INFO]: Backend library: LWJGL version 3.3.3+5
-[01:43:03] [Render thread/INFO]: Reloading ResourceManager: vanilla
-[01:43:03] [Worker-Main-2/INFO]: Found unifont_all_no_pua-15.1.05.hex, loading
-[01:43:03] [Worker-Main-2/INFO]: Found unifont_jp_patch-15.1.05.hex, loading
-[01:43:04] [Render thread/WARN]: Missing sound for event: minecraft:item.goat_horn.play
-[01:43:04] [Render thread/WARN]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
-[01:43:04] [Render thread/INFO]: OpenAL initialized on device OpenAL Soft on Altavoces (High Definition Audio Device)
-[01:43:04] [Render thread/INFO]: Sound engine started
-[01:43:04] [Render thread/INFO]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 256x128x0 minecraft:textures/atlas/mob_effects.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 64x64x0 minecraft:textures/atlas/map_decorations.png-atlas
-[01:43:04] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/gui.png-atlas
-[01:43:04] [Render thread/WARN]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
-[01:43:15] [Render thread/INFO]: Stopping!
+[02:18:22] [Datafixer Bootstrap/INFO]: 226 Datafixer optimizations took 366 milliseconds
+[02:18:25] [Render thread/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[02:18:25] [Render thread/INFO]: Setting user: Luis
+[02:18:26] [Render thread/INFO]: Backend library: LWJGL version 3.3.3+5
+[02:18:27] [Render thread/INFO]: Reloading ResourceManager: vanilla
+[02:18:27] [Worker-Main-1/INFO]: Found unifont_all_no_pua-15.1.05.hex, loading
+[02:18:27] [Worker-Main-1/INFO]: Found unifont_jp_patch-15.1.05.hex, loading
+[02:18:28] [Render thread/WARN]: Missing sound for event: minecraft:item.goat_horn.play
+[02:18:28] [Render thread/WARN]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[02:18:28] [Render thread/INFO]: OpenAL initialized on device OpenAL Soft on Altavoces (High Definition Audio Device)
+[02:18:28] [Render thread/INFO]: Sound engine started
+[02:18:29] [Render thread/INFO]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 256x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 64x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[02:18:29] [Render thread/INFO]: Created: 1024x512x0 minecraft:textures/atlas/gui.png-atlas
+[02:18:29] [Render thread/WARN]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[02:18:44] [Render thread/INFO]: Stopping!
