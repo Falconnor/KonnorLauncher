@@ -25,40 +25,39 @@ $javaPath = Get-Property `
     $propertiesFile `
     "java.path"
 
-
 $java = Join-Path `
     $game `
     $javaPath
 
-$versions = Get-ChildItem "$game\versions" -Directory | ForEach-Object {
+$version = Get-Property `
+    $propertiesFile `
+    "minecraft.version"
 
-    $jsonFile = Join-Path $_.FullName "$($_.Name).json"
+$json = Get-Content `
+    "$game\versions\$version\$version.json" |
+    ConvertFrom-Json
 
-    if (Test-Path $jsonFile) {
+    if ($version -like "fabric-loader-*") {
 
-        $json = Get-Content $jsonFile | ConvertFrom-Json
+    $minecraftVersion =
+        $version -replace '^fabric-loader-[^-]+-',''
 
-        [PSCustomObject]@{
-            Name = $json.id
-            MainClass = $json.mainClass
-            Path = $_.FullName
-        }
-    }
+}
+elseif ($version -like "forge-*") {
+
+    # lógica Forge
+
+}
+else {
+
+    # Vanilla
+
+    $minecraftVersion = $version
+
 }
 
-# Elegir la versiï¿½n Fabric
-$selectedVersion = $versions | Where-Object {
-    $_.Name -like "fabric-loader-*"
-} | Select-Object -First 1
-
-$version = $selectedVersion.Name
 
 $natives = "$game\versions\$version\natives"
-
-# Obtener versiï¿½n base de Minecraft
-$minecraftVersion = $json.id -replace '^fabric-loader-[^-]+-',''
-
-# Leer JSON de Minecraft base
 
 # Crear classpath
 $classpath = $json.libraries | ForEach-Object {
@@ -80,10 +79,25 @@ $classpath = $json.libraries | ForEach-Object {
 } | Where-Object { Test-Path $_ }
 
 
-$classpath = ($classpath -join ";") + ";" +
-"$game\versions\$minecraftVersion\$minecraftVersion.jar" + ";" +
-"$game\versions\$version\$version.jar"
+$classpath = ($classpath -join ";")
+$mainJar = "$game\versions\$version\$version.jar"
 
+if (Test-Path $mainJar) {
+
+    $classpath += ";$mainJar"
+
+}
+
+$baseJar = "$game\versions\$minecraftVersion\$minecraftVersion.jar"
+
+if (
+    $minecraftVersion -ne $version -and
+    (Test-Path $baseJar)
+) {
+
+    $classpath += ";$baseJar"
+
+}
 
 # Ejecutar Minecraft
 & $java `
