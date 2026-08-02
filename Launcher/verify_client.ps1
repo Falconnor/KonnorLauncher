@@ -5,6 +5,18 @@ $launcher = $PSScriptRoot
 
 $propertiesFile = Join-Path $launcher "launcher.properties"
 
+$verifyEnabled = Get-BooleanProperty `
+    $propertiesFile `
+    "enable.verify"
+
+
+if (!$verifyEnabled) {
+
+    Write-Host "Verificacion desactivada"
+
+    exit 0
+
+}
 
 $gameRelative = Get-Property `
     $propertiesFile `
@@ -25,10 +37,10 @@ $game = Join-Path `
 $game = (Resolve-Path $game).Path
 
 
-Write-Host "GAME PATH: $game"
-Write-Host "EXISTE MODS:" (Test-Path "$game\mods")
-Write-Host "EXISTE LIBRARIES:" (Test-Path "$game\libraries")
-Write-Host "EXISTE VERSIONS:" (Test-Path "$game\versions")
+#Write-Host "GAME PATH: $game"
+#Write-Host "EXISTE MODS:" (Test-Path "$game\mods")
+#Write-Host "EXISTE LIBRARIES:" (Test-Path "$game\libraries")
+#Write-Host "EXISTE VERSIONS:" (Test-Path "$game\versions")
 
 
 
