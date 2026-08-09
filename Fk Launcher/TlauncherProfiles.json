@@ -1,4 +1,15 @@
 {
   "clientToken": "d7bccd93-d6cc-4ebd-af1f-1c4421e220ad",
-  "accounts": {}
+  "accounts": {
+    "39528c19bc54408dae79b3a44924870c": {
+      "username": "0000",
+      "userID": "0000",
+      "displayName": "0000",
+      "uuid": "39528c19bc54408dae79b3a44924870c",
+      "type": "free",
+      "premiumAccount": false
+    }
+  },
+  "selectedAccountUUID": "39528c19bc54408dae79b3a44924870c",
+  "freeAccountUUID": "39528c19bc54408dae79b3a44924870c"
 }

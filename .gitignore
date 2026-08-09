@@ -12,11 +12,18 @@ __pycache__/
 **/.fabric/
 
 # Minecraft generated files
-Minecraft/options.txt
-Minecraft/usercache.json
+
 
 # Crash reports
 **/crash-reports/
 
 # Launcher generated files
 Launcher/${game_directory}/
+
+# Minecraft generado/descargado
+Minecraft/assets/
+Minecraft/libraries/
+Minecraft/versions/
+Minecraft/runtime/
+Minecraft/options.txt
+Minecraft/usercache.json

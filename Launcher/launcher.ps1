@@ -107,8 +107,74 @@ else {
 
 
 
-# DEFINIR DIRECTORIO DE NATIVES
-$natives = "$game\versions\$version\natives"
+# DEFINIR DIRECTORIOS DE NATIVES
+$nativesRoot = "$game\versions\$version\natives"
+
+if (!(Test-Path $nativesRoot)) {
+
+    Write-Host "No se encontró el directorio de natives:"
+    Write-Host $nativesRoot
+
+    exit 1
+
+}
+
+
+# Detectar estructura de natives
+
+$nativeDirectories = @()
+
+
+# DLL directamente dentro de natives
+if (
+    Get-ChildItem `
+        $nativesRoot `
+        -File `
+        -Filter "*.dll" `
+        -ErrorAction SilentlyContinue
+) {
+
+    $nativeDirectories += $nativesRoot
+
+}
+
+
+# DLL dentro de subdirectorios
+$nativeDirectories += Get-ChildItem `
+    $nativesRoot `
+    -Directory `
+    -ErrorAction SilentlyContinue |
+    Where-Object {
+
+        Get-ChildItem `
+            $_.FullName `
+            -File `
+            -Filter "*.dll" `
+            -ErrorAction SilentlyContinue
+
+    } |
+    ForEach-Object {
+
+        $_.FullName
+
+    }
+
+
+# Eliminar duplicados
+$nativeDirectories = $nativeDirectories | Select-Object -Unique
+
+
+if ($nativeDirectories.Count -eq 0) {
+
+    Write-Host "No se encontraron DLLs nativas en:"
+    Write-Host $nativesRoot
+
+    exit 1
+
+}
+
+
+$natives = $nativeDirectories -join ";"
 
 
 
@@ -129,26 +195,84 @@ if ($parentJson -and $parentJson.libraries) {
 
 
 
-#OBTENER LIBRERIAS
+# OBTENER LIBRERIAS
 $classpath = $libraries | ForEach-Object {
 
-    if ($_.name -and $_.name -notmatch ":natives-") {
+    if ($_.rules) {
 
-        $parts = $_.name.Split(":")
+        $allowed = $true
 
-        if ($parts.Count -ge 3) {
+        foreach ($rule in $_.rules) {
 
-            $group = $parts[0].Replace(".", "\")
-            $artifact = $parts[1]
-            $versionLib = $parts[2]
+            if ($rule.os -and $rule.os.name -ne "windows") {
+                $allowed = $false
+            }
 
-            "$game\libraries\$group\$artifact\$versionLib\$artifact-$versionLib.jar"
+        }
+
+        if (!$allowed) {
+            return
         }
     }
 
-} | Where-Object { Test-Path $_ }
+    if ($_.name -and $_.name -notmatch ":natives-") {
+
+        # Usar la ruta indicada por el JSON cuando exista
+        if ($_.downloads -and $_.downloads.artifact -and $_.downloads.artifact.path) {
+
+            $libraryPath = Join-Path `
+                $game `
+                ("libraries\" + $_.downloads.artifact.path)
+
+            if (Test-Path $libraryPath) {
+
+                $libraryPath
+
+            }
+
+        }
+        else {
+
+            # Compatibilidad con JSON antiguos
+            $parts = $_.name.Split(":")
+
+            if ($parts.Count -ge 3) {
+
+                $group = $parts[0].Replace(".", "\")
+                $artifact = $parts[1]
+                $versionLib = $parts[2]
+
+                $libraryPath =
+                    "$game\libraries\$group\$artifact\$versionLib\$artifact-$versionLib.jar"
+
+                if (Test-Path $libraryPath) {
+
+                    $libraryPath
+
+                }
+
+            }
+
+        }
+
+    }
+
+} | Where-Object { $_ }
 
 
+####### DEBUG LWJGL 26.#######
+
+Write-Host ""
+Write-Host "===== LWJGL ====="
+
+$classpath -split ";" |
+    Where-Object { $_ -match "\\org\\lwjgl\\" } |
+    ForEach-Object {
+        Write-Host $_
+    }
+
+Write-Host "================="
+Write-Host ""
 
 # AGREGAR JAR
 $classpath = ($classpath -join ";")
@@ -174,6 +298,28 @@ if (
 
 }
 
+
+######## DEBUG TEMPORAL###################
+
+Write-Host ""
+Write-Host "===== DEBUG ====="
+
+Write-Host "VERSION:" $version
+Write-Host "TYPE:" $type
+Write-Host "MINECRAFT VERSION:" $minecraftVersion
+Write-Host "MAIN CLASS:" $json.mainClass
+Write-Host "ASSET INDEX:" $assetIndex
+
+Write-Host ""
+Write-Host "JAVA:"
+Write-Host $java
+
+Write-Host ""
+Write-Host "CLASSPATH LENGTH:"
+Write-Host $classpath.Length
+
+Write-Host "================="
+Write-Host ""
 
 
  #EJECUTAR MINECRAFT
