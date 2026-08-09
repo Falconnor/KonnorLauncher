@@ -3,7 +3,7 @@ import sys
 import launcher_core
 from PySide6.QtCore import QObject, QThread, Signal, Qt
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QPushButton, QMenu, QWidget
 
 
 class VerifyWorker(QObject):
@@ -93,15 +93,66 @@ class LauncherUI:
         self.status_label.setFont(QFont(self.font_family, 13, QFont.Bold))
         self.status_label.setStyleSheet("color: #b8f6b2; background: transparent;")
 
-        self.version_label = QLabel("Version 1.0.0", self.central_widget)
-        self.version_label.setGeometry(36, self.WINDOW_HEIGHT - 42, 160, 18)
+        selected_version = launcher_core.get_selected_version()
+        version_text = f"Versión: {selected_version}" if selected_version else "Versión: no definida"
+        self.version_label = QLabel(version_text, self.central_widget)
+        self.version_label.setGeometry(36, self.WINDOW_HEIGHT - 42, 220, 18)
         self.version_label.setFont(QFont(self.font_family, 10))
         self.version_label.setStyleSheet("color: #a9b6be; background: transparent;")
+
+        self.version_button = QPushButton("VERSION", self.central_widget)
+        self.version_button.setGeometry(self.WINDOW_WIDTH - 156, self.WINDOW_HEIGHT - 52, 120, 38)
+        self.version_button.setFont(QFont(self.font_family, 10, QFont.Bold))
+        self.version_button.setCursor(Qt.PointingHandCursor)
+        self.version_button.setStyleSheet(
+            "QPushButton {"
+            "background-color: rgba(255, 255, 255, 40);"
+            "color: #f8fbff;"
+            "border: 1px solid rgba(255, 255, 255, 80);"
+            "border-radius: 19px;"
+            "text-transform: uppercase;"
+            "}"
+            "QPushButton:hover { background-color: rgba(255, 255, 255, 55); }"
+        )
+
+        self.version_menu = QMenu(self.window)
+        self.version_menu.setStyleSheet(
+            "QMenu { background-color: rgba(18, 26, 38, 230); color: #f2f7ff; border: 1px solid rgba(255,255,255,18); }"
+            "QMenu::item:selected { background-color: rgba(76,192,107,180); }"
+        )
+        self.version_button.setMenu(self.version_menu)
+        self.version_menu.aboutToShow.connect(self._refresh_version_menu)
 
         self.play_button = QPushButton("JUGAR", self.central_widget)
         self.play_button.setGeometry((self.WINDOW_WIDTH - 280) // 2, self.WINDOW_HEIGHT - 110, 280, 70)
         self.play_button.setFont(QFont(self.font_family, 16, QFont.Bold))
         self.play_button.clicked.connect(self.start_verify)
+
+    def _refresh_version_menu(self):
+        self.version_menu.clear()
+        versions = launcher_core.get_installed_versions()
+
+        if not versions:
+            self.version_button.setEnabled(False)
+            action = self.version_menu.addAction("No hay versiones instaladas")
+            action.setEnabled(False)
+            return
+
+        self.version_button.setEnabled(True)
+        for version in versions:
+            action = self.version_menu.addAction(version)
+            action.triggered.connect(lambda checked, version=version: self.select_version(version))
+
+    def select_version(self, version):
+        try:
+            launcher_core.set_selected_version(version)
+            self.update_version_label(version)
+            self.update_status(f"Versión seleccionada: {version}")
+        except Exception as ex:
+            QMessageBox.warning(self.window, "Error", f"No se pudo guardar la versión:\n{ex}")
+
+    def update_version_label(self, version):
+        self.version_label.setText(f"Versión: {version}")
 
     def _apply_styles(self):
         self.central_widget.setStyleSheet("background: transparent;")
