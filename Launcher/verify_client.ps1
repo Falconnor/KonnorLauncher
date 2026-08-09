@@ -12,11 +12,13 @@ $verifyEnabled = Get-BooleanProperty `
 
 if (!$verifyEnabled) {
 
-    Write-Host "Verificacion desactivada"
+    Write-Host "verificador desactivado"
 
     exit 0
 
 }
+
+Write-Host "verificando archivos"
 
 $gameRelative = Get-Property `
     $propertiesFile `
@@ -48,12 +50,13 @@ try {
 
     $serverConfig = Invoke-RestMethod `
         -Uri $serverConfigUrl `
+        -TimeoutSec 3 `
         -ErrorAction Stop
 
 }
 catch {
 
-    Write-Host "No se pudo conectar al servidor"
+    Write-Host "Servidor no responde"
 
     exit 1
 
@@ -108,89 +111,67 @@ if (!(Test-Path $tempFolder)) {
 }
 
 # Verificar y reparar archivos
+$repairFiles = @()
 foreach ($file in $manifest.files.PSObject.Properties) {
-
     $relativePath = $file.Name
     $expectedHash = $file.Value.sha256
     $downloadUrl = "$baseUrl/$($relativePath.Replace('\','/'))"
-
     $localPath = Join-Path $game $relativePath
-
-
     $needsRepair = $false
 
-
     if (!(Test-Path $localPath)) {
-
         Write-Host "[FALTA] $relativePath"
-
         $needsRepair = $true
-
     } else {
-
         $currentHash = (Get-FileHash $localPath -Algorithm SHA256).Hash
-
-
         if ($currentHash -ne $expectedHash) {
-
             Write-Host "[CORRUPTO] $relativePath"
-
             $needsRepair = $true
-
         }
     }
-
-
 
     if ($needsRepair) {
-
-
-        $tempFile = Join-Path $tempFolder ([System.IO.Path]::GetFileName($relativePath))
-
-
-        Write-Host "Descargando $relativePath"
-
-
-        Invoke-WebRequest `
-            -Uri $downloadUrl `
-            -OutFile $tempFile
-
-
-
-        $downloadHash = (Get-FileHash $tempFile -Algorithm SHA256).Hash
-
-
-        if ($downloadHash -eq $expectedHash) {
-
-
-            $directory = Split-Path $localPath
-
-
-            if (!(Test-Path $directory)) {
-                New-Item $directory -ItemType Directory -Force | Out-Null
-            }
-
-
-            Move-Item $tempFile $localPath -Force
-
-
-            Write-Host "[REPARADO] $relativePath"
-
-
-        } else {
-
-            Write-Host "[ERROR HASH] Descarga inv�lida: $relativePath"
-
-            Remove-Item $tempFile -Force
-
+        $repairFiles += [pscustomobject]@{
+            RelativePath = $relativePath
+            ExpectedHash = $expectedHash
+            DownloadUrl = $downloadUrl
+            LocalPath = $localPath
         }
-
     }
-
 }
 
+$totalRepairs = $repairFiles.Count
+$repairIndex = 0
 
+foreach ($fileInfo in $repairFiles) {
+    $repairIndex++
+    $percentage = 0
+    if ($totalRepairs -gt 0) {
+        $percentage = [math]::Round(($repairIndex / $totalRepairs) * 100)
+    }
+    Write-Host "Descargando archivos $percentage%"
+    Write-Host "Descargando $($fileInfo.RelativePath)"
 
+    $tempFile = Join-Path $tempFolder ([System.IO.Path]::GetFileName($fileInfo.RelativePath))
+
+    Invoke-WebRequest `
+        -Uri $fileInfo.DownloadUrl `
+        -OutFile $tempFile
+
+    $downloadHash = (Get-FileHash $tempFile -Algorithm SHA256).Hash
+
+    if ($downloadHash -eq $fileInfo.ExpectedHash) {
+        $directory = Split-Path $fileInfo.LocalPath
+        if (!(Test-Path $directory)) {
+            New-Item $directory -ItemType Directory -Force | Out-Null
+        }
+        Move-Item $tempFile $fileInfo.LocalPath -Force
+        Write-Host "[REPARADO] $($fileInfo.RelativePath)"
+    } else {
+        Write-Host "[ERROR HASH] Descarga inválida: $($fileInfo.RelativePath)"
+        Remove-Item $tempFile -Force
+    }
+}
 # Eliminar archivos no autorizados
 
 $allowedFiles = $manifest.files.PSObject.Properties.Name

@@ -117,10 +117,18 @@ class LauncherUI:
         self.ram_label.setFont(QFont(self.font_family, 11))
         self.ram_label.setStyleSheet("color: #d7e8ff; background: transparent;")
 
-        self.status_label = QLabel("Estado: listo", self.central_widget)
-        self.status_label.setGeometry(36, 180, 320, 24)
-        self.status_label.setFont(QFont(self.font_family, 13, QFont.Bold))
-        self.status_label.setStyleSheet("color: #b8f6b2; background: transparent;")
+        # QLabel de estado aislado para uso futuro
+        # self.status_label = QLabel("Estado: listo", self.central_widget)
+        # self.status_label.setGeometry(36, 180, 320, 24)
+        # self.status_label.setFont(QFont(self.font_family, 13, QFont.Bold))
+        # self.status_label.setStyleSheet("color: #b8f6b2; background: transparent;")
+        # self.status_label.hide()
+
+        self.action_label = QLabel("", self.central_widget)
+        self.action_label.setGeometry(0, self.WINDOW_HEIGHT - 158, self.WINDOW_WIDTH, 24)
+        self.action_label.setAlignment(Qt.AlignCenter)
+        self.action_label.setFont(QFont(self.font_family, 12))
+        self.action_label.setStyleSheet("color: #ffffff; background: transparent;")
 
         selected_version = launcher_core.get_selected_version()
         version_text = f"Versión: {selected_version}" if selected_version else "Versión: no definida"
@@ -199,41 +207,64 @@ class LauncherUI:
 
     def _run_verification(self):
         self.verify_runnable = VerifyRunnable()
-        self.verify_runnable.signals.status_updated.connect(self.update_status)
+        self.verify_runnable.signals.status_updated.connect(self.update_action)
         self.verify_runnable.signals.finished.connect(self._verification_finished)
         QThreadPool.globalInstance().start(self.verify_runnable)
 
     def start_verify(self):
         self.play_button.setText("EN EJECUCIÓN")
         self.play_button.setEnabled(False)
-        self.update_status("Verificando...")
+        self.update_action("verificando archivos")
         self._run_verification()
 
     def _verification_finished(self, result):
         if result == 0:
-            self.update_status("Cliente listo")
+            if self.action_label.text().lower() != "verificador desactivado":
+                self.update_action("verificado")
             self._run_launch()
         else:
-            self.update_status("Error verificando")
+            # Si ya se detectó servidor no responde, no sobreescribir ese mensaje.
+            if self.action_label.text().lower() != "servidor no responde":
+                self.update_action("Error verificando")
             self.play_button.setEnabled(True)
             self.play_button.setText("JUGAR")
 
     def _run_launch(self):
         self.launch_runnable = LaunchRunnable()
         self.launch_runnable.signals.finished.connect(self._launch_finished)
-        self.launch_runnable.signals.status_updated.connect(self.update_status)
+        self.launch_runnable.signals.status_updated.connect(self.update_action)
         QThreadPool.globalInstance().start(self.launch_runnable)
 
     def _launch_finished(self, result):
         if result == 0:
-            self.update_status("Juego cerrado")
+            self.update_action("Juego cerrado")
         else:
-            self.update_status("Error iniciando el juego")
+            self.update_action("Error iniciando el juego")
         self.play_button.setEnabled(True)
         self.play_button.setText("JUGAR")
 
     def update_status(self, text):
-        self.status_label.setText(text)
+        # status_label desactivado para uso futuro
+        pass
+
+    def update_action(self, text):
+        normalized = text.strip()
+        lower = normalized.lower()
+        if lower.startswith("descargando archivos"):
+            self.action_label.setText(normalized)
+            return
+        if lower in [
+            "verificando archivos",
+            "verificado",
+            "servidor no responde",
+            "verificador desactivado",
+            "juego cerrado",
+            "error verificando",
+            "error al iniciar el juego"
+        ]:
+            self.action_label.setText(normalized)
+            return
+        # Ignorar otros mensajes y conservar el estado actual.
 
     def run(self):
         self.window.show()

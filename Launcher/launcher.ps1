@@ -100,7 +100,7 @@ elseif ($parentJson -and $parentJson.assetIndex) {
 }
 else {
 
-    Write-Host "No se encontró asset index"
+    Write-Host "No se encontrï¿½ asset index"
     exit 1
 
 }
@@ -112,7 +112,7 @@ $nativesRoot = "$game\versions\$version\natives"
 
 if (!(Test-Path $nativesRoot)) {
 
-    Write-Host "No se encontró el directorio de natives:"
+    Write-Host "No se encontrï¿½ el directorio de natives:"
     Write-Host $nativesRoot
 
     exit 1
@@ -317,6 +317,10 @@ Write-Host $java
 Write-Host ""
 Write-Host "CLASSPATH LENGTH:"
 Write-Host $classpath.Length
+Write-Host "GAME PATH: $game"
+Write-Host "EXISTE MODS:" (Test-Path "$game\mods")
+Write-Host "EXISTE LIBRARIES:" (Test-Path "$game\libraries")
+Write-Host "EXISTE VERSIONS:" (Test-Path "$game\versions")
 
 Write-Host "================="
 Write-Host ""
