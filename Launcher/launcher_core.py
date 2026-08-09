@@ -197,20 +197,16 @@ def verify_client(callback):
         text=True
     )
 
-
+    assert process.stdout is not None
     for line in process.stdout:
-
         callback(line.strip())
 
-
     process.wait()
-
     return process.returncode
 
 
 def launch_game():
-
-    subprocess.Popen(
+    process = subprocess.Popen(
         [
             "powershell",
             "-ExecutionPolicy",
@@ -220,7 +216,9 @@ def launch_game():
                 LAUNCH_PATH,
                 "launcher.ps1"
             )
-        ]
+        ],
+        cwd=LAUNCH_PATH,
     )
+    return process.wait()
     
     

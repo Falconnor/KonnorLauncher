@@ -1,18 +1,47 @@
 ﻿import os
 import sys
 import launcher_core
-from PySide6.QtCore import QObject, QThread, Signal, Qt
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QPushButton, QMenu, QWidget
 
 
-class VerifyWorker(QObject):
+class WorkerSignals(QObject):
     status_updated = Signal(str)
     finished = Signal(int)
 
+    def __init__(self):
+        super().__init__()
+
+
+class VerifyRunnable(QRunnable):
+    def __init__(self):
+        super().__init__()
+        self.signals = WorkerSignals()
+        self.setAutoDelete(True)
+
     def run(self):
-        result = launcher_core.verify_client(self.status_updated.emit)
-        self.finished.emit(result)
+        try:
+            result = launcher_core.verify_client(self.signals.status_updated.emit)
+        except Exception as ex:
+            self.signals.status_updated.emit(f"Error de verificación: {ex}")
+            result = -1
+        self.signals.finished.emit(result)
+
+
+class LaunchRunnable(QRunnable):
+    def __init__(self):
+        super().__init__()
+        self.signals = WorkerSignals()
+        self.setAutoDelete(True)
+
+    def run(self):
+        try:
+            result = launcher_core.launch_game()
+        except Exception as ex:
+            self.signals.status_updated.emit(f"Error al iniciar el juego: {ex}")
+            result = -1
+        self.signals.finished.emit(result)
 
 
 class LauncherUI:
@@ -169,16 +198,10 @@ class LauncherUI:
         )
 
     def _run_verification(self):
-        self.worker = VerifyWorker()
-        self.worker_thread = QThread()
-        self.worker.moveToThread(self.worker_thread)
-        self.worker_thread.started.connect(self.worker.run)
-        self.worker.status_updated.connect(self.update_status)
-        self.worker.finished.connect(self._verification_finished)
-        self.worker.finished.connect(self.worker_thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
-        self.worker_thread.start()
+        self.verify_runnable = VerifyRunnable()
+        self.verify_runnable.signals.status_updated.connect(self.update_status)
+        self.verify_runnable.signals.finished.connect(self._verification_finished)
+        QThreadPool.globalInstance().start(self.verify_runnable)
 
     def start_verify(self):
         self.play_button.setText("EN EJECUCIÓN")
@@ -189,11 +212,25 @@ class LauncherUI:
     def _verification_finished(self, result):
         if result == 0:
             self.update_status("Cliente listo")
-            launcher_core.launch_game()
+            self._run_launch()
         else:
             self.update_status("Error verificando")
             self.play_button.setEnabled(True)
             self.play_button.setText("JUGAR")
+
+    def _run_launch(self):
+        self.launch_runnable = LaunchRunnable()
+        self.launch_runnable.signals.finished.connect(self._launch_finished)
+        self.launch_runnable.signals.status_updated.connect(self.update_status)
+        QThreadPool.globalInstance().start(self.launch_runnable)
+
+    def _launch_finished(self, result):
+        if result == 0:
+            self.update_status("Juego cerrado")
+        else:
+            self.update_status("Error iniciando el juego")
+        self.play_button.setEnabled(True)
+        self.play_button.setText("JUGAR")
 
     def update_status(self, text):
         self.status_label.setText(text)

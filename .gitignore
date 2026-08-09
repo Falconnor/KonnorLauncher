@@ -21,6 +21,7 @@ __pycache__/
 Launcher/${game_directory}/
 
 # Minecraft generado/descargado
+Minecraft/
 Minecraft/assets/
 Minecraft/libraries/
 Minecraft/versions/
