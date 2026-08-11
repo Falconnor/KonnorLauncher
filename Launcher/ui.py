@@ -219,17 +219,17 @@ class LauncherUI:
 
     def _verification_finished(self, result):
         if result == 0:
-            if self.action_label.text().lower() != "verificador desactivado":
-                self.update_action("verificado")
+            if self.action_label.text().lower() not in ("verificacion exitosa", "verificador desactivado"):
+                self.update_action("verificacion exitosa")
             self._run_launch()
         else:
-            # Si ya se detectó servidor no responde, no sobreescribir ese mensaje.
-            if self.action_label.text().lower() != "servidor no responde":
-                self.update_action("Error verificando")
+            if self.action_label.text().lower() not in ("servidor no responde", "verificacion fallida"):
+                self.update_action("verificacion fallida")
             self.play_button.setEnabled(True)
             self.play_button.setText("JUGAR")
 
     def _run_launch(self):
+        self.update_action("iniciando juego")
         self.launch_runnable = LaunchRunnable()
         self.launch_runnable.signals.finished.connect(self._launch_finished)
         self.launch_runnable.signals.status_updated.connect(self.update_action)
@@ -255,12 +255,15 @@ class LauncherUI:
             return
         if lower in [
             "verificando archivos",
-            "verificado",
+            "verificacion exitosa",
+            "verificacion fallida",
             "servidor no responde",
             "verificador desactivado",
+            "iniciando juego",
             "juego cerrado",
             "error verificando",
-            "error al iniciar el juego"
+            "error al iniciar el juego",
+            "error iniciando el juego"
         ]:
             self.action_label.setText(normalized)
             return

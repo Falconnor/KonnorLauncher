@@ -2,6 +2,8 @@ import json
 import os
 import subprocess
 
+import verify_client as client_verifier
+
 
 LAUNCH_PATH = os.path.dirname(__file__)
 PROPERTIES_PATH = os.path.join(LAUNCH_PATH, "launcher.properties")
@@ -180,29 +182,7 @@ def load_config():
 
 
 def verify_client(callback):
-
-    process = subprocess.Popen(
-        [
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            os.path.join(
-                LAUNCH_PATH,
-                "verify_client.ps1"
-            )
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
-
-    assert process.stdout is not None
-    for line in process.stdout:
-        callback(line.strip())
-
-    process.wait()
-    return process.returncode
+    return client_verifier.verify_client(callback)
 
 
 def launch_game():
@@ -220,5 +200,3 @@ def launch_game():
         cwd=LAUNCH_PATH,
     )
     return process.wait()
-    
-    
