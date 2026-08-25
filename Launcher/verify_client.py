@@ -12,6 +12,8 @@ import os
 import re
 import sys
 import tempfile
+import zipfile
+import concurrent.futures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -26,7 +28,7 @@ LAUNCH_PATH = Path(__file__).resolve().parent
 PROPERTIES_PATH = LAUNCH_PATH / "launcher.properties"
 # Solo estas carpetas son administradas por el launcher. La limpieza no toca
 # config, saves, screenshots ni otros datos personales del jugador.
-PROTECTED_FOLDERS = ("mods", "versions", "libraries")
+PROTECTED_FOLDERS = ("mods", "versions", "libraries", "assets")
 SHA256_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -42,6 +44,16 @@ class ManifestFile:
     url_path: str
     sha256: str
     size: int
+
+
+@dataclass(frozen=True)
+class AssetBlock:
+    """Representa un bloque ZIP de assets con sus archivos internos."""
+
+    name: str
+    sha256: str
+    size: int
+    files: list[ManifestFile]
 
 
 # LECTURA DE launcher.properties
@@ -118,6 +130,59 @@ def parse_manifest(payload: object) -> list[ManifestFile]:
     return files
 
 
+def _parse_block_files(block_name: str, files_data: object) -> list[ManifestFile]:
+    """Parsea la sección ``files`` de un bloque de assets."""
+    if not isinstance(files_data, dict):
+        raise VerificationError(f"Sección files inválida en bloque {block_name}")
+
+    files: list[ManifestFile] = []
+    for raw_path, metadata in files_data.items():
+        if not isinstance(metadata, dict):
+            raise VerificationError(f"Metadatos inválidos para {raw_path} en {block_name}")
+
+        relative_path, url_path = normalize_manifest_path(raw_path)
+        sha256 = metadata.get("sha256")
+        size = metadata.get("size")
+        if not isinstance(sha256, str) or not SHA256_PATTERN.fullmatch(sha256):
+            raise VerificationError(f"SHA-256 inválido para {raw_path} en {block_name}")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise VerificationError(f"Tamaño inválido para {raw_path} en {block_name}")
+
+        files.append(ManifestFile(relative_path, url_path, sha256.upper(), size))
+    return files
+
+
+def parse_asset_blocks(payload: object) -> list[AssetBlock]:
+    """Parsea la sección ``asset_blocks`` del manifest.
+
+    Si no existe la sección, devuelve una lista vacía para mantener
+    compatibilidad con manifests antiguos.
+    """
+    if not isinstance(payload, dict):
+        return []
+
+    blocks_data = payload.get("asset_blocks")
+    if not blocks_data or not isinstance(blocks_data, dict):
+        return []
+
+    blocks: list[AssetBlock] = []
+    for block_name, block_meta in blocks_data.items():
+        if not isinstance(block_meta, dict):
+            raise VerificationError(f"Metadatos inválidos para bloque {block_name}")
+
+        sha256 = block_meta.get("sha256")
+        size = block_meta.get("size")
+        if not isinstance(sha256, str) or not SHA256_PATTERN.fullmatch(sha256):
+            raise VerificationError(f"SHA-256 inválido para bloque {block_name}")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise VerificationError(f"Tamaño inválido para bloque {block_name}")
+
+        block_files = _parse_block_files(block_name, block_meta.get("files"))
+        blocks.append(AssetBlock(block_name, sha256.upper(), size, block_files))
+
+    return blocks
+
+
 # DESCARGAS Y HASHES
 def download_json(url: str) -> object:
     """Descarga el manifest; los problemas de red se muestran en la UI."""
@@ -143,18 +208,24 @@ def download_file(
     expected_hash: str,
     on_progress: Callable[[int], None],
 ) -> None:
-    """Descarga un temporal, informa bytes recibidos y valida su hash."""
+    """Descarga un archivo, calcula el hash durante la descarga y lo valida.
+
+    El SHA-256 se computa en streaming mientras se escriben los datos,
+    evitando releer el archivo completo desde disco después de la descarga.
+    """
     try:
+        digest = hashlib.sha256()
         with urlopen(url, timeout=30) as response, destination.open("wb") as file:
             downloaded_bytes = 0
             while chunk := response.read(1024 * 1024):
                 file.write(chunk)
+                digest.update(chunk)
                 downloaded_bytes += len(chunk)
                 on_progress(downloaded_bytes)
     except (HTTPError, URLError, TimeoutError, OSError) as error:
         raise VerificationError(f"No se pudo descargar {destination.name}") from error
 
-    if sha256_file(destination) != expected_hash:
+    if digest.hexdigest().upper() != expected_hash:
         raise VerificationError(f"Hash inválido en la descarga: {destination.name}")
 
 
@@ -190,6 +261,57 @@ def find_files_to_repair(game_path: Path, files: list[ManifestFile]) -> list[Man
     return repair_files
 
 
+def find_blocks_to_repair(game_path: Path, blocks: list[AssetBlock]) -> list[AssetBlock]:
+    """Devuelve bloques que contienen al menos un asset faltante o corrupto.
+
+    Se verifica existencia y tamaño de cada archivo dentro del bloque.
+    Si cualquier archivo del bloque falta o tiene tamaño incorrecto,
+    el bloque entero se marca para descarga.
+    """
+    repair_blocks: list[AssetBlock] = []
+    for block in blocks:
+        for manifest_file in block.files:
+            path = local_path(game_path, manifest_file)
+            try:
+                same_size = path.is_file() and path.stat().st_size == manifest_file.size
+            except OSError:
+                same_size = False
+
+            if not same_size:
+                repair_blocks.append(block)
+                break
+    return repair_blocks
+
+
+def download_block(
+    base_url: str,
+    block: AssetBlock,
+    temp_path: Path,
+    on_progress: Callable[[int], None],
+) -> Path:
+    """Descarga un bloque ZIP y valida su hash."""
+    block_url = f"{base_url}/client/packages/{quote(block.name, safe='/')}"
+    zip_path = temp_path / block.name
+    download_file(block_url, zip_path, block.sha256, on_progress)
+    return zip_path
+
+def extract_block(
+    zip_path: Path,
+    game_path: Path,
+    block: AssetBlock,
+    on_status: Callable[[str], None] | None = None,
+) -> None:
+    """Extrae un bloque ZIP y lo borra."""
+    if on_status:
+        on_status(f"extrayendo {block.name}")
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        members = [mf.url_path for mf in block.files]
+        zf.extractall(game_path, members)
+
+    zip_path.unlink(missing_ok=True)
+
+
 def remove_unauthorized_files(game_path: Path, allowed_paths: set[Path]) -> int:
     """Elimina archivos fuera del manifest, únicamente en carpetas protegidas."""
     removed = 0
@@ -210,9 +332,11 @@ def verify_client(status: Callable[[str], None] = print, *, dry_run: bool = Fals
 
     Orden de ejecución:
     1. Lee configuración y manifest.
-    2. Detecta reparaciones por existencia y tamaño.
-    3. Descarga y valida con SHA-256 solo los archivos necesarios.
-    4. Si todo salió bien, elimina archivos no autorizados cuando corresponde.
+    2. Detecta bloques de assets que necesitan reparación.
+    3. Descarga y extrae solo los bloques faltantes.
+    4. Detecta archivos individuales que necesitan reparación.
+    5. Descarga y valida con SHA-256 solo los archivos necesarios.
+    6. Si todo salió bien, elimina archivos no autorizados cuando corresponde.
 
     La limpieza nunca se ejecuta si falla una descarga o el hash no coincide.
     """
@@ -230,47 +354,90 @@ def verify_client(status: Callable[[str], None] = print, *, dry_run: bool = Fals
         if not base_url:
             raise VerificationError("server.url no está configurado")
 
-        manifest = parse_manifest(download_json(f"{base_url}/client_manifest.json"))
+        raw_manifest = download_json(f"{base_url}/client_manifest.json")
+        manifest = parse_manifest(raw_manifest)
+        asset_blocks = parse_asset_blocks(raw_manifest)
+
+        repair_blocks = find_blocks_to_repair(game_path, asset_blocks)
         repair_files = find_files_to_repair(game_path, manifest)
 
         # Modo de prueba: comprueba servidor, manifest y estado local sin
         # descargar, reemplazar ni eliminar archivos.
         if dry_run:
-            status(f"Simulación: {len(repair_files)} archivos requieren reparación")
+            status(
+                f"Simulación: {len(repair_blocks)} bloques y "
+                f"{len(repair_files)} archivos requieren reparación"
+            )
             status("verificacion exitosa")
             return 0
 
         with tempfile.TemporaryDirectory(prefix="verify-", dir=game_path) as temp_dir:
             temp_path = Path(temp_dir)
-            total_bytes = sum(file.size for file in repair_files)
-            downloaded_bytes = 0
-            for manifest_file in repair_files:
-                def report_progress(file_downloaded_bytes: int) -> None:
-                    current_bytes = downloaded_bytes + file_downloaded_bytes
-                    status(
-                        "descargando archivos: "
-                        f"{current_bytes / (1024 * 1024):.2f} MB / "
-                        f"{total_bytes / (1024 * 1024):.2f} MB"
+
+            total_download_bytes = sum(block.size for block in repair_blocks) + sum(file.size for file in repair_files)
+            global_downloaded_bytes = 0
+
+            # Fase 1: descargar y extraer bloques de assets
+            if repair_blocks:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    futures = []
+                    for block in repair_blocks:
+                        def report_block_progress(
+                            file_downloaded_bytes: int,
+                        ) -> None:
+                            current = global_downloaded_bytes + file_downloaded_bytes
+                            status(
+                                f"descargando archivos: "
+                                f"{current / (1024 * 1024):.2f} MB / "
+                                f"{total_download_bytes / (1024 * 1024):.2f} MB"
+                            )
+
+                        zip_path = download_block(
+                            base_url, block, temp_path, report_block_progress
+                        )
+                        futures.append(
+                            executor.submit(
+                                extract_block, zip_path, game_path, block, None
+                            )
+                        )
+                        global_downloaded_bytes += block.size
+
+                    # Esperar a que terminen todas las extracciones
+                    for future in concurrent.futures.as_completed(futures):
+                        future.result()
+
+            # Fase 2: descargar archivos individuales (mods, versions, libraries)
+            if repair_files:
+                for manifest_file in repair_files:
+                    def report_progress(file_downloaded_bytes: int) -> None:
+                        current_bytes = global_downloaded_bytes + file_downloaded_bytes
+                        status(
+                            "descargando archivos: "
+                            f"{current_bytes / (1024 * 1024):.2f} MB / "
+                            f"{total_download_bytes / (1024 * 1024):.2f} MB"
+                        )
+
+                    downloaded_path = temp_path / manifest_file.relative_path
+                    downloaded_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_url = f"{base_url}/client/{quote(manifest_file.url_path, safe='/')}"
+                    download_file(
+                        file_url,
+                        downloaded_path,
+                        manifest_file.sha256,
+                        report_progress,
                     )
 
-                downloaded_path = temp_path / manifest_file.relative_path
-                downloaded_path.parent.mkdir(parents=True, exist_ok=True)
-                file_url = f"{base_url}/client/{quote(manifest_file.url_path, safe='/')}"
-                download_file(
-                    file_url,
-                    downloaded_path,
-                    manifest_file.sha256,
-                    report_progress,
-                )
-
-                # os.replace evita dejar un archivo final a medio descargar.
-                destination = local_path(game_path, manifest_file)
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(downloaded_path, destination)
-                downloaded_bytes += manifest_file.size
+                    # os.replace evita dejar un archivo final a medio descargar.
+                    destination = local_path(game_path, manifest_file)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(downloaded_path, destination)
+                    global_downloaded_bytes += manifest_file.size
 
         if parse_bool(properties.get("delete_unauthorized")):
             allowed_paths = {file.relative_path for file in manifest}
+            for block in asset_blocks:
+                for file in block.files:
+                    allowed_paths.add(file.relative_path)
             remove_unauthorized_files(game_path, allowed_paths)
 
         status("verificacion exitosa")

@@ -1,9 +1,9 @@
-﻿import os
+import os
 import sys
 import launcher_core
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QPushButton, QMenu, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QPushButton, QMenu, QWidget, QProgressBar
 
 
 class WorkerSignals(QObject):
@@ -125,10 +125,19 @@ class LauncherUI:
         # self.status_label.hide()
 
         self.action_label = QLabel("", self.central_widget)
-        self.action_label.setGeometry(0, self.WINDOW_HEIGHT - 158, self.WINDOW_WIDTH, 24)
+        self.action_label.setGeometry(0, self.WINDOW_HEIGHT - 170, self.WINDOW_WIDTH, 20)
         self.action_label.setAlignment(Qt.AlignCenter)
-        self.action_label.setFont(QFont(self.font_family, 12))
+        self.action_label.setFont(QFont(self.font_family, 10))
         self.action_label.setStyleSheet("color: #ffffff; background: transparent;")
+
+        self.progress_bar = QProgressBar(self.central_widget)
+        self.progress_bar.setGeometry((self.WINDOW_WIDTH - 400) // 2, self.WINDOW_HEIGHT - 145, 400, 10)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet(
+            "QProgressBar { border: 1px solid rgba(255, 255, 255, 50); border-radius: 4px; background: rgba(0, 0, 0, 100); }"
+            "QProgressBar::chunk { background-color: #4cc06b; border-radius: 3px; }"
+        )
+        self.progress_bar.hide()
 
         selected_version = launcher_core.get_selected_version()
         version_text = f"Versión: {selected_version}" if selected_version else "Versión: no definida"
@@ -250,9 +259,21 @@ class LauncherUI:
     def update_action(self, text):
         normalized = text.strip()
         lower = normalized.lower()
-        if lower.startswith("descargando archivos"):
+        if lower.startswith(("descargando bloque", "descargando archivos", "extrayendo")):
             self.action_label.setText(normalized)
+            self.progress_bar.show()
+            try:
+                parts = lower.split(":")[-1].strip().split("/")
+                if len(parts) == 2:
+                    current = float(parts[0].replace("mb", "").strip())
+                    total = float(parts[1].replace("mb", "").strip())
+                    if total > 0:
+                        self.progress_bar.setValue(int((current / total) * 100))
+            except Exception:
+                pass
             return
+
+        self.progress_bar.hide()
         if lower in [
             "verificando archivos",
             "verificacion exitosa",
