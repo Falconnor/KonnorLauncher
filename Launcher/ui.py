@@ -1,9 +1,12 @@
-import os
+﻿import os
 import sys
 import launcher_core
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QPoint
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QPushButton, QMenu, QWidget, QProgressBar
+from PySide6.QtWidgets import (
+    QApplication, QLabel, QMainWindow, QMessageBox,
+    QPushButton, QMenu, QWidget, QProgressBar
+)
 
 
 class WorkerSignals(QObject):
@@ -24,7 +27,7 @@ class VerifyRunnable(QRunnable):
         try:
             result = launcher_core.verify_client(self.signals.status_updated.emit)
         except Exception as ex:
-            self.signals.status_updated.emit(f"Error de verificación: {ex}")
+            self.signals.status_updated.emit(f"Error de verificacion: {ex}")
             result = -1
         self.signals.finished.emit(result)
 
@@ -44,13 +47,55 @@ class LaunchRunnable(QRunnable):
         self.signals.finished.emit(result)
 
 
+class DraggableWindow(QMainWindow):
+    # Ventana sin marcos del sistema, arrastrable con click-drag
+
+    def __init__(self):
+        super().__init__()
+        self._drag_pos = None
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self._drag_pos is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+
+
+def _make_wc_button(symbol, parent):
+    # Boton de control de ventana minimalista
+    btn = QPushButton(symbol, parent)
+    btn.setFixedSize(32, 32)
+    btn.setCursor(Qt.PointingHandCursor)
+    btn.setFont(QFont("Arial", 10, QFont.Bold))
+    btn.setStyleSheet(
+        f"QPushButton {{"
+        f"  background-color: transparent;"
+        f"  color: #ffffff;"
+        f"  border: 1px solid transparent;"
+        f"  border-radius: 8px;"
+        f"}}"
+        f"QPushButton:hover {{"
+        f"  background-color: rgba(255,255,255,40);"
+        f"  border: 1px solid rgba(255,255,255,80);"
+        f"}}"
+    )
+    return btn
+
+
 class LauncherUI:
-    WINDOW_WIDTH = 760
-    WINDOW_HEIGHT = 520
+    WINDOW_WIDTH = 1275
+    WINDOW_HEIGHT = 700
 
     def __init__(self):
         self.app = QApplication.instance() or QApplication(sys.argv)
-        self.window = QMainWindow()
+        self.window = DraggableWindow()
         self.window.setWindowTitle("Fkonnor Launcher")
         self.window.setFixedSize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
 
@@ -72,8 +117,12 @@ class LauncherUI:
                     self.font_family = families[0]
 
     def _build_ui(self):
+        W = self.WINDOW_WIDTH
+        H = self.WINDOW_HEIGHT
+
+        # FONDO
         self.background_label = QLabel(self.central_widget)
-        self.background_label.setGeometry(0, 0, self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
+        self.background_label.setGeometry(0, 0, W, H)
         self.background_label.setScaledContents(True)
 
         image_path = os.path.join(os.path.dirname(__file__), "background.png")
@@ -81,98 +130,175 @@ class LauncherUI:
             pixmap = QPixmap(image_path)
             if not pixmap.isNull():
                 self.background_label.setPixmap(
-                    pixmap.scaled(
-                        self.WINDOW_WIDTH,
-                        self.WINDOW_HEIGHT,
-                        Qt.KeepAspectRatioByExpanding,
-                        Qt.SmoothTransformation,
-                    )
+                    pixmap.scaled(W, H, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                 )
             else:
                 self.background_label.setStyleSheet(
-                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0d1c2e, stop:1 #192f4a);"
+                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0d1c2e, stop:1 #0a1220);"
                 )
         else:
             self.background_label.setStyleSheet(
-                "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0d1c2e, stop:1 #192f4a);"
-            )
+                "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0d1c2e, stop:1 #0a1220);"
+            )   
 
+        # BOTONES DE CONTROL DE VENTANA (superior derecha)
+        self.btn_close = _make_wc_button("✕", self.central_widget)
+        self.btn_close.setGeometry(W - 40, 10, 32, 32)
+        self.btn_close.clicked.connect(self.window.close)
+        self.btn_close.raise_()
+
+        self.btn_minimize = _make_wc_button("—", self.central_widget)
+        self.btn_minimize.setGeometry(W - 76, 10, 32, 32)
+        self.btn_minimize.clicked.connect(self.window.showMinimized)
+        self.btn_minimize.raise_()
+
+        # BOTON OPCIONES (superior izquierda)
+        self.btn_settings = QPushButton("⚙  Opciones", self.central_widget)
+        self.btn_settings.setGeometry(12, 10, 110, 32)
+        self.btn_settings.setCursor(Qt.PointingHandCursor)
+        self.btn_settings.setFont(QFont(self.font_family, 9, QFont.Bold))
+        self.btn_settings.setStyleSheet(
+            "QPushButton {"
+            "  background-color: rgba(255,255,255,140);"
+            "  color: rgb(35, 35, 35);"
+            "  border: 1px solid rgba(255,255,255,200);"
+            "  border-radius: 10px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: rgba(255,255,255,200);"
+            "}"
+            "QPushButton:pressed {"
+            "  background-color: rgba(255,255,255,120);"
+            "}"
+        )
+        self.btn_settings.clicked.connect(self._open_settings)
+        self.btn_settings.raise_()
+
+        # TITULO
+        self.title_label = QLabel("KONNOR", self.central_widget)
+        self.title_label.setGeometry(0, 28, W, 52)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setFont(QFont(self.font_family, 38, QFont.Bold))
+        self.title_label.setStyleSheet("color: #ffffff; background: transparent;")
+        self.title_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        self.subtitle_label = QLabel("LAUNCHER", self.central_widget)
+        self.subtitle_label.setGeometry(0, 78, W, 24)
+        self.subtitle_label.setAlignment(Qt.AlignCenter)
+        self.subtitle_label.setFont(QFont(self.font_family, 13))
+        self.subtitle_label.setStyleSheet("color: rgba(255,255,255,150); background: transparent;")
+        self.subtitle_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        # INFO jugador, RAM, version (inferior izquierda)
         config = launcher_core.load_config()
         username = config["player"]["username"]
         memory = config["java"]["memory"]
 
-        self.title_label = QLabel("FKONNOR LAUNCHER", self.central_widget)
-        self.title_label.setGeometry(0, 30, self.WINDOW_WIDTH, 40)
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setFont(QFont(self.font_family, 24, QFont.Bold))
-        self.title_label.setStyleSheet("color: #f2f7ff; background: transparent;")
+        self.user_label = QLabel(f"Jugador  {username}", self.central_widget)
+        self.user_label.setGeometry(36, H - 82, 320, 22)
+        self.user_label.setFont(QFont(self.font_family, 11, QFont.Bold))
+        self.user_label.setStyleSheet("color: #ffffff; background: transparent;")
 
-        self.user_label = QLabel(f"Jugador: {username}", self.central_widget)
-        self.user_label.setGeometry(36, 120, 300, 22)
-        self.user_label.setFont(QFont(self.font_family, 11))
-        self.user_label.setStyleSheet("color: #d7e8ff; background: transparent;")
+        self.ram_label = QLabel(f"RAM  {memory}", self.central_widget)
+        self.ram_label.setGeometry(36, H - 56, 320, 20)
+        self.ram_label.setFont(QFont(self.font_family, 10))
+        self.ram_label.setStyleSheet("color: rgba(255,255,255,160); background: transparent;")
 
-        self.ram_label = QLabel(f"RAM: {memory}", self.central_widget)
-        self.ram_label.setGeometry(36, 145, 300, 22)
-        self.ram_label.setFont(QFont(self.font_family, 11))
-        self.ram_label.setStyleSheet("color: #d7e8ff; background: transparent;")
-
-        # QLabel de estado aislado para uso futuro
-        # self.status_label = QLabel("Estado: listo", self.central_widget)
-        # self.status_label.setGeometry(36, 180, 320, 24)
-        # self.status_label.setFont(QFont(self.font_family, 13, QFont.Bold))
-        # self.status_label.setStyleSheet("color: #b8f6b2; background: transparent;")
-        # self.status_label.hide()
-
-        self.action_label = QLabel("", self.central_widget)
-        self.action_label.setGeometry(0, self.WINDOW_HEIGHT - 170, self.WINDOW_WIDTH, 20)
-        self.action_label.setAlignment(Qt.AlignCenter)
-        self.action_label.setFont(QFont(self.font_family, 10))
-        self.action_label.setStyleSheet("color: #ffffff; background: transparent;")
-
-        self.progress_bar = QProgressBar(self.central_widget)
-        self.progress_bar.setGeometry((self.WINDOW_WIDTH - 400) // 2, self.WINDOW_HEIGHT - 145, 400, 10)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet(
-            "QProgressBar { border: 1px solid rgba(255, 255, 255, 50); border-radius: 4px; background: rgba(0, 0, 0, 100); }"
-            "QProgressBar::chunk { background-color: #4cc06b; border-radius: 3px; }"
-        )
-        self.progress_bar.hide()
-
-        selected_version = launcher_core.get_selected_version()
-        version_text = f"Versión: {selected_version}" if selected_version else "Versión: no definida"
+        client_version = launcher_core.get_client_version()
+        version_text = f"v{client_version}" if client_version else "v-"
         self.version_label = QLabel(version_text, self.central_widget)
-        self.version_label.setGeometry(36, self.WINDOW_HEIGHT - 42, 220, 18)
-        self.version_label.setFont(QFont(self.font_family, 10))
-        self.version_label.setStyleSheet("color: #a9b6be; background: transparent;")
+        self.version_label.setGeometry(36, H - 30, 180, 18)
+        self.version_label.setFont(QFont(self.font_family, 9))
+        self.version_label.setStyleSheet("color: rgba(255,255,255,70); background: transparent;")
 
+        # BOTON VERSION (inferior derecha, menu abre hacia arriba)
         self.version_button = QPushButton("VERSION", self.central_widget)
-        self.version_button.setGeometry(self.WINDOW_WIDTH - 156, self.WINDOW_HEIGHT - 52, 120, 38)
-        self.version_button.setFont(QFont(self.font_family, 10, QFont.Bold))
+        self.version_button.setGeometry(W - 152, H - 56, 128, 34)
+        self.version_button.setFont(QFont(self.font_family, 9, QFont.Bold))
         self.version_button.setCursor(Qt.PointingHandCursor)
         self.version_button.setStyleSheet(
             "QPushButton {"
-            "background-color: rgba(255, 255, 255, 40);"
-            "color: #f8fbff;"
-            "border: 1px solid rgba(255, 255, 255, 80);"
-            "border-radius: 19px;"
-            "text-transform: uppercase;"
+            "  background-color: rgba(255,255,255,140);"
+            "  color: rgb(35, 35, 35);"
+            "  border: 1px solid rgba(255,255,255,200);"
+            "  border-radius: 17px;"
             "}"
-            "QPushButton:hover { background-color: rgba(255, 255, 255, 55); }"
+            "QPushButton:hover {"
+            "  background-color: rgba(255,255,255,190);"
+            "}"
+            "QPushButton:disabled { background-color: rgba(255,255,255,60); color: rgba(35,35,35,100); border: none; }"
         )
 
         self.version_menu = QMenu(self.window)
+        self.version_menu.setWindowFlags(self.version_menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        self.version_menu.setAttribute(Qt.WA_TranslucentBackground)
         self.version_menu.setStyleSheet(
-            "QMenu { background-color: rgba(18, 26, 38, 230); color: #f2f7ff; border: 1px solid rgba(255,255,255,18); }"
-            "QMenu::item:selected { background-color: rgba(76,192,107,180); }"
+            "QMenu {"
+            "  background-color: rgba(255, 255, 255, 150);"
+            "  color: rgb(35, 35, 35);"
+            "  font-weight: bold;"
+            "  border: 1px solid rgba(255,255,255,200);"
+            "  border-radius: 12px;"
+            "  padding: 4px;"
+            "}"
+            "QMenu::item { background-color: transparent; padding: 8px 16px; font-size: 11px; margin: 2px; border-radius: 6px; }"
+            "QMenu::item:selected { background-color: rgba(0, 0, 0, 25); }"
         )
-        self.version_button.setMenu(self.version_menu)
-        self.version_menu.aboutToShow.connect(self._refresh_version_menu)
+        self.version_button.clicked.connect(self._show_version_menu_above)
 
+        # ESTADO Y PROGRESO (arriba del boton jugar)
+        bar_w = 420
+        bar_x = (W - bar_w) // 2
+
+        self.action_label = QLabel("", self.central_widget)
+        self.action_label.setGeometry(bar_x, H - 130, bar_w, 18)
+        self.action_label.setAlignment(Qt.AlignCenter)
+        self.action_label.setFont(QFont(self.font_family, 10, QFont.Bold))
+        self.action_label.setStyleSheet("color: #ffffff; background: transparent;")
+
+        self.progress_bar = QProgressBar(self.central_widget)
+        self.progress_bar.setGeometry(bar_x, H - 106, bar_w, 6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet(
+            "QProgressBar {"
+            "  border: none;"
+            "  border-radius: 3px;"
+            "  background: rgba(255,255,255,18);"
+            "}"
+            "QProgressBar::chunk {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3ab55e, stop:1 #72e89a);"
+            "  border-radius: 3px;"
+            "}"
+        )
+        self.progress_bar.hide()
+
+        # BOTON JUGAR
+        btn_w = 260
+        btn_h = 52
         self.play_button = QPushButton("JUGAR", self.central_widget)
-        self.play_button.setGeometry((self.WINDOW_WIDTH - 280) // 2, self.WINDOW_HEIGHT - 110, 280, 70)
+        self.play_button.setGeometry((W - btn_w) // 2, H - 92, btn_w, btn_h)
         self.play_button.setFont(QFont(self.font_family, 16, QFont.Bold))
+        self.play_button.setCursor(Qt.PointingHandCursor)
         self.play_button.clicked.connect(self.start_verify)
+
+
+
+    def _show_version_menu_above(self):
+        self._refresh_version_menu()
+        btn = self.version_button
+        self.version_menu.setMinimumWidth(btn.width())
+        global_pos = btn.mapToGlobal(QPoint(0, 0))
+        menu_size = self.version_menu.sizeHint()
+        
+        # Alinear el borde derecho del menú con el borde derecho del botón
+        popup_x = global_pos.x() + btn.width() - max(btn.width(), menu_size.width())
+        # Colocarlo exactamente arriba con 4px de separación
+        popup_y = global_pos.y() - menu_size.height() - 4
+        self.version_menu.exec(QPoint(popup_x, popup_y))
+
+    def _open_settings(self):
+        # Placeholder: por ahora muestra un mensaje. Aqui irá el panel de configuracion.
+        QMessageBox.information(self.window, "Opciones", "Panel de opciones — próximamente.")
 
     def _refresh_version_menu(self):
         self.version_menu.clear()
@@ -187,31 +313,35 @@ class LauncherUI:
         self.version_button.setEnabled(True)
         for version in versions:
             action = self.version_menu.addAction(version)
-            action.triggered.connect(lambda checked, version=version: self.select_version(version))
+            action.triggered.connect(lambda checked, v=version: self.select_version(v))
 
     def select_version(self, version):
         try:
             launcher_core.set_selected_version(version)
             self.update_version_label(version)
-            self.update_status(f"Versión seleccionada: {version}")
         except Exception as ex:
-            QMessageBox.warning(self.window, "Error", f"No se pudo guardar la versión:\n{ex}")
+            QMessageBox.warning(self.window, "Error", f"No se pudo guardar la version:\n{ex}")
 
     def update_version_label(self, version):
-        self.version_label.setText(f"Versión: {version}")
+        pass  # El label muestra la version del launcher, no la del juego
 
     def _apply_styles(self):
         self.central_widget.setStyleSheet("background: transparent;")
         self.window.setStyleSheet("QMainWindow { background: transparent; }")
         self.play_button.setStyleSheet(
             "QPushButton {"
-            "background-color: #4cc06b;"
-            "color: white;"
-            "border-radius: 34px;"
-            "border: none;"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #3ab55e, stop:1 #2a9448);"
+            "  color: #ffffff;"
+            "  border-radius: 26px;"
+            "  border: none;"
             "}"
-            "QPushButton:hover { background-color: #61d67f; }"
-            "QPushButton:disabled { background-color: #2f7a48; color: #d4e9ce; }"
+            "QPushButton:hover {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4ecf72, stop:1 #38b55e);"
+            "}"
+            "QPushButton:pressed {"
+            "  background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #2a9448, stop:1 #1e7038);"
+            "}"
+            "QPushButton:disabled { background: rgba(30,40,50,180); color: rgba(255,255,255,60); }"
         )
 
     def _run_verification(self):
@@ -221,24 +351,24 @@ class LauncherUI:
         QThreadPool.globalInstance().start(self.verify_runnable)
 
     def start_verify(self):
-        self.play_button.setText("EN EJECUCIÓN")
+        self.play_button.setText("VERIFICANDO")
         self.play_button.setEnabled(False)
-        self.update_action("verificando archivos")
+        self.update_action("")
         self._run_verification()
 
     def _verification_finished(self, result):
         if result == 0:
-            if self.action_label.text().lower() not in ("verificacion exitosa", "verificador desactivado"):
-                self.update_action("verificacion exitosa")
+            self.update_action("")
             self._run_launch()
         else:
-            if self.action_label.text().lower() not in ("servidor no responde", "verificacion fallida"):
-                self.update_action("verificacion fallida")
+            if not self.action_label.text().lower().startswith("error"):
+                self.update_action("Error de conexión / Verificación fallida")
             self.play_button.setEnabled(True)
             self.play_button.setText("JUGAR")
 
     def _run_launch(self):
-        self.update_action("iniciando juego")
+        self.update_action("")
+        self.play_button.setText("INICIANDO JUEGO")
         self.launch_runnable = LaunchRunnable()
         self.launch_runnable.signals.finished.connect(self._launch_finished)
         self.launch_runnable.signals.status_updated.connect(self.update_action)
@@ -246,19 +376,20 @@ class LauncherUI:
 
     def _launch_finished(self, result):
         if result == 0:
-            self.update_action("Juego cerrado")
+            self.update_action("")
         else:
-            self.update_action("Error iniciando el juego")
+            if not self.action_label.text().lower().startswith("error"):
+                self.update_action("Error iniciando el juego")
         self.play_button.setEnabled(True)
         self.play_button.setText("JUGAR")
 
     def update_status(self, text):
-        # status_label desactivado para uso futuro
         pass
 
     def update_action(self, text):
         normalized = text.strip()
         lower = normalized.lower()
+
         if lower.startswith(("descargando bloque", "descargando archivos", "extrayendo")):
             self.action_label.setText(normalized)
             self.progress_bar.show()
@@ -274,21 +405,7 @@ class LauncherUI:
             return
 
         self.progress_bar.hide()
-        if lower in [
-            "verificando archivos",
-            "verificacion exitosa",
-            "verificacion fallida",
-            "servidor no responde",
-            "verificador desactivado",
-            "iniciando juego",
-            "juego cerrado",
-            "error verificando",
-            "error al iniciar el juego",
-            "error iniciando el juego"
-        ]:
-            self.action_label.setText(normalized)
-            return
-        # Ignorar otros mensajes y conservar el estado actual.
+        self.action_label.setText(normalized)
 
     def run(self):
         self.window.show()

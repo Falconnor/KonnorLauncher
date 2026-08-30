@@ -346,7 +346,7 @@ def verify_client(status: Callable[[str], None] = print, *, dry_run: bool = Fals
             status("verificacion exitosa")
             return 0
 
-        status("verificando archivos")
+        status(" ")
         game_path = get_game_path(properties)
         game_path.mkdir(parents=True, exist_ok=True)
 

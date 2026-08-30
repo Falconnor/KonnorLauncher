@@ -1,4 +1,5 @@
 {
+    "client_version": "1.0.0",
     "files": {
         "mods/architectury-13.0.8-fabric.jar": {
             "sha256": "10cbbb6f5f96a2f1853b0cc68428424cec8903409517b299ff02350756b6399d",

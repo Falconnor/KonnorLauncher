@@ -20,6 +20,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CLIENT_DIR = BASE_DIR / "Client"
 MANIFEST_FILE = BASE_DIR / "client_manifest.json"
 
+# La versión del cliente se lee desde client_version.txt, que está junto
+# a este script. Para actualizar la versión, editar ese archivo y
+# regenerar el manifest.
+VERSION_FILE = Path(__file__).resolve().parent / "client_version.txt"
+
 # Carpetas cuyos archivos se excluyen del listado individual porque se
 # gestionan como bloques o no son archivos del juego.
 EXCLUDED_PREFIXES = ("assets/", "packages/")
@@ -39,6 +44,11 @@ def generate_manifest():
     if not CLIENT_DIR.exists():
         print(f"No existe el directorio Client: {CLIENT_DIR}")
         return
+
+    # Leer la versión del cliente desde el archivo de control.
+    client_version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    print(f"=== Versión del cliente: {client_version} ===")
+    print()
 
     # Fase 1: generar bloques de assets
     print("=== Generando bloques de assets ===")
@@ -71,6 +81,7 @@ def generate_manifest():
         }
 
     manifest = {
+        "client_version": client_version,
         "files": files,
         "asset_blocks": asset_blocks,
     }
