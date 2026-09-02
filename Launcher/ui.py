@@ -1,11 +1,14 @@
 ﻿import os
 import sys
+import json
 import launcher_core
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QPoint
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QMenu, QWidget, QProgressBar
+    QPushButton, QMenu, QWidget, QProgressBar,
+    QDialog, QLineEdit, QComboBox, QFileDialog,
+    QHBoxLayout, QVBoxLayout, QCheckBox, QSlider
 )
 
 
@@ -87,6 +90,263 @@ def _make_wc_button(symbol, parent):
         f"}}"
     )
     return btn
+
+
+
+class SettingsDialog(QDialog):
+    """Panel de opciones del launcher — ocupa el 40% de la ventana principal."""
+
+    # 40% de 1275x700
+    W = int(1275 * 0.40)   # 510
+    H = int(700  * 0.40)   # 280
+
+    # Estilo compartido con el launcher (glass blanco)
+    GLASS_STYLE = (
+        "background-color: rgba(255,255,255,140);"
+        "color: rgb(35,35,35);"
+        "border: 0px solid rgba(255,255,255,200);"
+        "border-radius: 8px;"
+        "padding: 3px 8px;"
+    )
+    LABEL_STYLE = "color: #ffffff; font-weight: bold; background: transparent;"
+    SUBLABEL_STYLE = "color: rgba(255,255,255,160); background: transparent; font-size: 9px;"
+
+    def __init__(self, parent=None, font_family="Arial"):
+        super().__init__(parent)
+        self.font_family = font_family
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedSize(self.W, self.H)
+
+        # Centrar sobre la ventana padre
+        if parent:
+            pg = parent.geometry()
+            self.move(
+                pg.x() + (pg.width()  - self.W) // 2,
+                pg.y() + (pg.height() - self.H) // 2,
+            )
+
+        self._build()
+
+    # ------------------------------------------------------------------
+    def _lbl(self, text, style=None):
+        lbl = QLabel(text)
+        lbl.setFont(QFont(self.font_family, 9, QFont.Bold))
+        lbl.setStyleSheet(style or self.LABEL_STYLE)
+        return lbl
+
+    def _sublbl(self, text):
+        lbl = QLabel(text)
+        lbl.setFont(QFont(self.font_family, 8))
+        lbl.setStyleSheet(self.SUBLABEL_STYLE)
+        return lbl
+
+    def _field_style(self):
+        return (
+            "QLineEdit, QComboBox {"
+            "  " + self.GLASS_STYLE +
+            "}"
+            "QComboBox::drop-down { border: none; }"
+            "QComboBox QAbstractItemView {"
+            "  background: rgba(255,255,255,220);"
+            "  color: rgb(35,35,35);"
+            "  border-radius: 6px;"
+            "  selection-background-color: rgba(0,0,0,20);"
+            "}"
+        )
+
+    def _build(self):
+        props = launcher_core.load_properties()
+        cfg_path = props.get("config.path", "config.json")
+        game_path = launcher_core.get_game_path()
+        full_cfg = os.path.join(game_path, cfg_path)
+
+        try:
+            with open(full_cfg, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+
+        # ── Fondo del panel ──────────────────────────────────────────────
+        bg = QWidget(self)
+        bg.setGeometry(0, 0, self.W, self.H)
+        bg.setStyleSheet(
+            "QWidget {"
+            "  background-color: rgba(10,18,28,210);"
+            "  border: 0px solid rgba(255,255,255,60);"
+            "  border-radius: 14px;"
+            "}"
+        )
+
+        # ── Cabecera ──────────────────────────────────────────────────────
+        header = QLabel("OPCIONES", bg)
+        header.setGeometry(18, 12, self.W - 36, 24)
+        header.setFont(QFont(self.font_family, 13, QFont.Bold))
+        header.setStyleSheet("color: #ffffff; background: transparent;")
+
+        close_btn = QPushButton("✕", bg)
+        close_btn.setGeometry(self.W - 38, 10, 26, 26)
+        close_btn.setFont(QFont("Arial", 9, QFont.Bold))
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #ffffff; border: none; border-radius: 4px; }"
+            "QPushButton:hover { background: rgba(255,255,255,30); border: 0px solid rgba(255,255,255,80); }"
+        )
+        close_btn.clicked.connect(self.reject)
+
+        sep = QLabel(bg)
+        sep.setGeometry(18, 40, self.W - 36, 1)
+        sep.setStyleSheet("background: rgba(255,255,255,40);")
+
+        # ── Layout de opciones ───────────────────────────────────────────
+        row_y = 52
+        row_h = 46
+        col1_x, col2_x = 18, self.W // 2 + 6
+        col_w = self.W // 2 - 24
+
+        # — RAM ——
+        self._lbl("", self.LABEL_STYLE).setParent(bg)
+        ram_lbl = self._lbl("Memoria RAM")
+        ram_lbl.setParent(bg)
+        ram_lbl.setGeometry(col1_x, row_y, col_w, 16)
+
+        self.ram_combo = QComboBox(bg)
+        self.ram_combo.setGeometry(col1_x, row_y + 18, col_w, 22)
+        self.ram_combo.setFont(QFont(self.font_family, 9))
+        self.ram_combo.setStyleSheet(self._field_style())
+        for opt in ["1G","2G","3G","4G","6G","8G","10G","12G","16G"]:
+            self.ram_combo.addItem(opt)
+        current_ram = cfg.get("java", {}).get("memory", "4G")
+        idx = self.ram_combo.findText(current_ram)
+        if idx >= 0:
+            self.ram_combo.setCurrentIndex(idx)
+
+        # — Usuario ——
+        user_lbl = self._lbl("Nombre de jugador")
+        user_lbl.setParent(bg)
+        user_lbl.setGeometry(col2_x, row_y, col_w, 16)
+
+        self.user_edit = QLineEdit(bg)
+        self.user_edit.setGeometry(col2_x, row_y + 18, col_w, 22)
+        self.user_edit.setFont(QFont(self.font_family, 9))
+        self.user_edit.setStyleSheet(self._field_style())
+        self.user_edit.setText(cfg.get("player", {}).get("username", ""))
+
+        row_y += row_h
+
+        # — Java ——
+        java_lbl = self._lbl("Ruta de Java")
+        java_lbl.setParent(bg)
+        java_lbl.setGeometry(col1_x, row_y, col_w + 10, 16)
+
+        java_row = QWidget(bg)
+        java_row.setGeometry(col1_x, row_y + 18, self.W - 36, 22)
+        java_row.setStyleSheet("background: transparent;")
+        java_layout = QHBoxLayout(java_row)
+        java_layout.setContentsMargins(0, 0, 0, 0)
+        java_layout.setSpacing(4)
+
+        self.java_edit = QLineEdit()
+        self.java_edit.setFont(QFont(self.font_family, 8))
+        self.java_edit.setStyleSheet(self._field_style())
+        self.java_edit.setText(props.get("java.path", ""))
+        java_layout.addWidget(self.java_edit)
+
+        browse_btn = QPushButton("...")
+        browse_btn.setFixedWidth(30)
+        browse_btn.setFont(QFont(self.font_family, 9, QFont.Bold))
+        browse_btn.setCursor(Qt.PointingHandCursor)
+        browse_btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,140); color: rgb(35,35,35);"
+            "  border: 0px solid rgba(255,255,255,200); border-radius: 6px; }"
+            "QPushButton:hover { background: rgba(255,255,255,200); }"
+        )
+        browse_btn.clicked.connect(self._browse_java)
+        java_layout.addWidget(browse_btn)
+
+        row_y += row_h
+
+        # — URL del servidor ——
+        srv_lbl = self._lbl("URL del servidor de actualización")
+        srv_lbl.setParent(bg)
+        srv_lbl.setGeometry(col1_x, row_y, col_w + 80, 16)
+
+        self.srv_edit = QLineEdit(bg)
+        self.srv_edit.setGeometry(col1_x, row_y + 18, col_w, 22)
+        self.srv_edit.setFont(QFont(self.font_family, 9))
+        self.srv_edit.setStyleSheet(self._field_style())
+        self.srv_edit.setText(props.get("server.url", ""))
+
+        # — Verificación automática ——
+        self.verify_check = QCheckBox("Verificar archivos al iniciar", bg)
+        self.verify_check.setGeometry(col2_x, row_y, col_w, 16)
+        self.verify_check.setFont(QFont(self.font_family, 9))
+        self.verify_check.setStyleSheet(
+            "QCheckBox { color: #ffffff; background: transparent; }"
+            "QCheckBox::indicator { width: 14px; height: 14px; border: 0px solid rgba(255,255,255,160); border-radius: 0px; background: rgba(255,255,255,30); }"
+            "QCheckBox::indicator:checked { background: #4fbf60; border-color: #2d7a3c; }"
+        )
+        self.verify_check.setChecked(props.get("enable.verify", "true").lower() == "true")
+
+        row_y += row_h
+
+        # ── Botones Guardar / Cancelar ────────────────────────────────────
+        btn_y = self.H - 42
+        save_btn = QPushButton("GUARDAR", bg)
+        save_btn.setGeometry(self.W - 200, btn_y, 86, 28)
+        save_btn.setFont(QFont(self.font_family, 9, QFont.Bold))
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            "    stop:0 #7ae08a, stop:0.05 #7ae08a,"
+            "    stop:0.06 #4fbf60, stop:0.94 #4fbf60,"
+            "    stop:0.95 #2d7a3c, stop:1 #2d7a3c);"
+            "  color: #fff; border-radius: 7px; border: 2px solid rgba(0,0,0,110);"
+            "}"
+            "QPushButton:hover { background: #62d478; }"
+        )
+        save_btn.clicked.connect(self._save)
+
+        cancel_btn = QPushButton("Cancelar", bg)
+        cancel_btn.setGeometry(self.W - 108, btn_y, 86, 28)
+        cancel_btn.setFont(QFont(self.font_family, 9))
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet(
+            "QPushButton { background: rgba(255,255,255,50); color: #fff;"
+            "  border: 1px solid rgba(255,255,255,100); border-radius: 7px; }"
+            "QPushButton:hover { background: rgba(255,255,255,100); }"
+        )
+        cancel_btn.clicked.connect(self.reject)
+
+        # Guardamos referencias para save
+        self._cfg_path = full_cfg
+        self._cfg = cfg
+
+    def _browse_java(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar Java", "", "Ejecutables (*.exe);;Todos (*)"
+        )
+        if path:
+            self.java_edit.setText(path)
+
+    def _save(self):
+        # --- config.json ---
+        self._cfg.setdefault("player", {})["username"] = self.user_edit.text().strip()
+        self._cfg.setdefault("java",   {})["memory"]   = self.ram_combo.currentText()
+        try:
+            with open(self._cfg_path, "w", encoding="utf-8") as f:
+                json.dump(self._cfg, f, indent=4)
+        except Exception as ex:
+            QMessageBox.warning(self, "Error", f"No se pudo guardar config.json:\n{ex}")
+            return
+
+        # --- launcher.properties ---
+        launcher_core.save_property("java.path",     self.java_edit.text().strip())
+        launcher_core.save_property("server.url",    self.srv_edit.text().strip())
+        launcher_core.save_property("enable.verify", "true" if self.verify_check.isChecked() else "false")
+
+        self.accept()
 
 
 class LauncherUI:
@@ -297,8 +557,15 @@ class LauncherUI:
         self.version_menu.exec(QPoint(popup_x, popup_y))
 
     def _open_settings(self):
-        # Placeholder: por ahora muestra un mensaje. Aqui irá el panel de configuracion.
-        QMessageBox.information(self.window, "Opciones", "Panel de opciones — próximamente.")
+        dlg = SettingsDialog(parent=self.window, font_family=self.font_family)
+        if dlg.exec() == QDialog.Accepted:
+            # Recargar etiquetas con los nuevos valores
+            try:
+                config = launcher_core.load_config()
+                self.user_label.setText(f"Jugador  {config['player']['username']}")
+                self.ram_label.setText(f"RAM  {config['java']['memory']}")
+            except Exception:
+                pass
 
     def _refresh_version_menu(self):
         self.version_menu.clear()
