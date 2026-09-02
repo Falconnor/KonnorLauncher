@@ -184,8 +184,8 @@ def load_config():
 def get_client_version() -> str:
     """Obtiene la versión del cliente desde el manifest del servidor.
 
-    Devuelve el valor de ``client_version`` si el servidor responde
-    correctamente, o la cadena vacía si no se puede conectar.
+    Si el servidor responde, actualiza la caché local en launcher.properties.
+    Si el servidor no responde, devuelve la última versión conocida (caché).
     """
     try:
         from urllib.request import urlopen
@@ -194,14 +194,19 @@ def get_client_version() -> str:
         properties = load_properties()
         base_url = properties.get("server.url", "").rstrip("/")
         if not base_url:
-            return ""
+            return load_properties().get("cached.client.version", "")
 
         with urlopen(f"{base_url}/client_manifest.json", timeout=5) as response:
             manifest = _json.loads(response.read().decode("utf-8"))
 
-        return manifest.get("client_version", "")
+        version = manifest.get("client_version", "")
+        if version:
+            # Guardar en caché local para cuando el servidor no esté disponible
+            save_property("cached.client.version", version)
+        return version
     except Exception:
-        return ""
+        # Servidor no disponible → devolver última versión conocida
+        return load_properties().get("cached.client.version", "")
 
 
 def verify_client(callback):

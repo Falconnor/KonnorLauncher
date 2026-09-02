@@ -5,7 +5,7 @@
         "accessToken": "0"
     },
     "java": {
-        "memory": "4G"
+        "memory": "6G"
     },
     "server": {
         "address": "play.fkonnor.com",

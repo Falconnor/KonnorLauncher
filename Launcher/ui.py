@@ -50,6 +50,22 @@ class LaunchRunnable(QRunnable):
         self.signals.finished.emit(result)
 
 
+class VersionFetchSignals(QObject):
+    version_ready = Signal(str)
+
+class VersionFetchRunnable(QRunnable):
+    """Obtiene la version del cliente desde el servidor en segundo plano."""
+    def __init__(self):
+        super().__init__()
+        self.signals = VersionFetchSignals()
+        self.setAutoDelete(True)
+
+    def run(self):
+        version = launcher_core.get_client_version()
+        if version:
+            self.signals.version_ready.emit(version)
+
+
 class DraggableWindow(QMainWindow):
     # Ventana sin marcos del sistema, arrastrable con click-drag
 
@@ -76,7 +92,7 @@ def _make_wc_button(symbol, parent):
     btn = QPushButton(symbol, parent)
     btn.setFixedSize(32, 32)
     btn.setCursor(Qt.PointingHandCursor)
-    btn.setFont(QFont("Arial", 10, QFont.Bold))
+    btn.setFont(QFont("Boring Time", 10, QFont.Bold))
     btn.setStyleSheet(
         f"QPushButton {{"
         f"  background-color: transparent;"
@@ -111,7 +127,7 @@ class SettingsDialog(QDialog):
     LABEL_STYLE = "color: #ffffff; font-weight: bold; background: transparent;"
     SUBLABEL_STYLE = "color: rgba(255,255,255,160); background: transparent; font-size: 9px;"
 
-    def __init__(self, parent=None, font_family="Arial"):
+    def __init__(self, parent=None, font_family="Boring Time"):
         super().__init__(parent)
         self.font_family = font_family
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
@@ -173,7 +189,7 @@ class SettingsDialog(QDialog):
         bg.setStyleSheet(
             "QWidget {"
             "  background-color: rgba(10,18,28,210);"
-            "  border: 0px solid rgba(255,255,255,60);"
+            "  border: 0px solid rgba(255,255,255,80);"
             "  border-radius: 14px;"
             "}"
         )
@@ -186,7 +202,7 @@ class SettingsDialog(QDialog):
 
         close_btn = QPushButton("✕", bg)
         close_btn.setGeometry(self.W - 38, 10, 26, 26)
-        close_btn.setFont(QFont("Arial", 9, QFont.Bold))
+        close_btn.setFont(QFont(self.font_family, 9, QFont.Bold))
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet(
             "QPushButton { background: transparent; color: #ffffff; border: none; border-radius: 4px; }"
@@ -419,13 +435,13 @@ class LauncherUI:
         self.btn_settings.setFont(QFont(self.font_family, 9, QFont.Bold))
         self.btn_settings.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(255,255,255,140);"
+            "  background-color: rgba(255,255,255,0);"
             "  color: rgb(35, 35, 35);"
-            "  border: 1px solid rgba(255,255,255,200);"
+            "  border: 0px solid rgba(255,255,255,70);"
             "  border-radius: 10px;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(255,255,255,200);"
+            "  background-color: rgba(255,255,255,140);"
             "}"
             "QPushButton:pressed {"
             "  background-color: rgba(255,255,255,120);"
@@ -454,22 +470,13 @@ class LauncherUI:
         username = config["player"]["username"]
         memory = config["java"]["memory"]
 
-        self.user_label = QLabel(f"Jugador  {username}", self.central_widget)
-        self.user_label.setGeometry(36, H - 82, 320, 22)
-        self.user_label.setFont(QFont(self.font_family, 11, QFont.Bold))
-        self.user_label.setStyleSheet("color: #ffffff; background: transparent;")
-
-        self.ram_label = QLabel(f"RAM  {memory}", self.central_widget)
-        self.ram_label.setGeometry(36, H - 56, 320, 20)
-        self.ram_label.setFont(QFont(self.font_family, 10))
-        self.ram_label.setStyleSheet("color: rgba(255,255,255,160); background: transparent;")
-
-        client_version = launcher_core.get_client_version()
-        version_text = f"v{client_version}" if client_version else "v-"
+        # Mostrar versión cacheada al instante (sin bloquear)
+        cached = launcher_core.load_properties().get("cached.client.version", "")
+        version_text = f"v{cached}" if cached else "v-"
         self.version_label = QLabel(version_text, self.central_widget)
         self.version_label.setGeometry(36, H - 30, 180, 18)
         self.version_label.setFont(QFont(self.font_family, 9))
-        self.version_label.setStyleSheet("color: rgba(255,255,255,70); background: transparent;")
+        self.version_label.setStyleSheet("color: rgba(255,255,255,220); background: transparent;")
 
         # BOTON VERSION (inferior derecha, menu abre hacia arriba)
         self.version_button = QPushButton("VERSION", self.central_widget)
@@ -714,4 +721,14 @@ class LauncherUI:
 
     def run(self):
         self.window.show()
+        # Consultar versión del servidor en segundo plano (no bloquea la UI)
+        self._fetch_version_async()
         return self.app.exec()
+
+    def _fetch_version_async(self):
+        runnable = VersionFetchRunnable()
+        runnable.signals.version_ready.connect(self._on_version_fetched)
+        QThreadPool.globalInstance().start(runnable)
+
+    def _on_version_fetched(self, version):
+        self.version_label.setText(f"v{version}")
