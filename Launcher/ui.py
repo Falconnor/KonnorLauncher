@@ -123,17 +123,32 @@ class SettingsDialog(QDialog):
         self.font_family = font_family
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(self.W, self.H)
-
-        # Centrar sobre la ventana padre
+        
         if parent:
             pg = parent.geometry()
-            self.move(
-                pg.x() + (pg.width()  - self.W) // 2,
-                pg.y() + (pg.height() - self.H) // 2,
-            )
+            self.setFixedSize(pg.width(), pg.height())
+            self.move(pg.x(), pg.y())
+        else:
+            self.setFixedSize(1275, 700)
 
         self._build()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint()
+            if self.parent():
+                self._parent_pos = self.parent().frameGeometry().topLeft()
+            self._dialog_pos = self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and getattr(self, "_drag_pos", None) is not None:
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            if self.parent() and getattr(self, "_parent_pos", None) is not None:
+                self.parent().move(self._parent_pos + delta)
+            self.move(self._dialog_pos + delta)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
 
     # ── Helpers de estilo ─────────────────────────────────────────────
     def _make_label(self, text):
@@ -193,9 +208,16 @@ class SettingsDialog(QDialog):
     def _build(self):
         props = launcher_core.load_properties()
 
+        # Fondo casi transparente para capturar eventos de mouse en Windows
+        backdrop = QFrame(self)
+        backdrop.setGeometry(0, 0, self.width(), self.height())
+        backdrop.setStyleSheet("background-color: rgba(0, 0, 0, 0.01);")
+
         # ── Panel contenedor (glassmorphism oscuro) ──────────────────
         panel = QFrame(self)
-        panel.setGeometry(0, 0, self.W, self.H)
+        px = (self.width() - self.W) // 2
+        py = (self.height() - self.H) // 2
+        panel.setGeometry(px, py, self.W, self.H)
         panel.setStyleSheet(
             "QFrame {"
             "  background-color: rgba(35, 40, 48, 230);"
