@@ -83,6 +83,10 @@ def save_property(key: str, value: str):
     with open(PROPERTIES_PATH, "w", encoding="utf-8") as file:
         file.writelines(lines)
 
+    global PROPERTIES, GAME_PATH
+    PROPERTIES = load_properties()
+    GAME_PATH = get_game_path()
+
 
 def get_selected_version():
     return load_properties().get("minecraft.version", "").strip()
@@ -157,30 +161,6 @@ GAME_PATH = get_game_path()
 
 
 
-def load_config():
-
-    properties = load_properties()
-
-    config_file = properties.get(
-        "config.path",
-        "config.json"
-    )
-
-    path = os.path.join(
-        GAME_PATH,
-        config_file
-    )
-
-    with open(
-        path,
-        "r",
-        encoding="utf-8"
-    ) as file:
-
-        return json.load(file)
-
-
-
 def get_client_version() -> str:
     """Obtiene la versión del cliente desde el manifest del servidor.
 
@@ -234,7 +214,7 @@ def launch_game():
     properties = load_properties()
 
     # Ruta al directorio del juego (Minecraft/).
-    game = GAME_PATH
+    game = get_game_path()
 
     # Ruta al ejecutable de Java: puede ser absoluta o relativa al juego.
     java_path = properties.get("java.path", "java")
@@ -242,9 +222,6 @@ def launch_game():
         java = java_path
     else:
         java = os.path.join(game, java_path)
-
-    # Cargar config.json del juego (usuario, memoria, UUID, accessToken).
-    config = load_config()
 
     # ------------------------------------------------------------------ #
     # 2. CARGAR JSON DE LA VERSIÓN SELECCIONADA                          #
@@ -437,8 +414,10 @@ def launch_game():
     # 7. EJECUTAR MINECRAFT                                               #
     # ------------------------------------------------------------------ #
 
-    memory = config.get("java", {}).get("memory", "2G")
-    player = config.get("player", {})
+    memory = properties.get("java.memory", "2G")
+    username = properties.get("player.username", "Player")
+    uuid = properties.get("player.uuid", "00000000-0000-0000-0000-000000000000")
+    access_token = properties.get("player.accessToken", "0")
     main_class = version_json.get("mainClass", "")
 
     cmd = [
@@ -447,15 +426,14 @@ def launch_game():
         f"-Djava.library.path={natives}",
         "-cp", classpath,
         main_class,
-        "--username", player.get("username", "Player"),
+        "--username", username,
         "--version", version,
         "--gameDir", game,
         "--assetsDir", os.path.join(game, "assets"),
         "--assetIndex", asset_index,
-        "--uuid", player.get("uuid", "0"),
-        "--accessToken", player.get("accessToken", "0"),
+        "--uuid", uuid,
+        "--accessToken", access_token,
     ]
 
     process = subprocess.Popen(cmd, cwd=game)
     return process.wait()
-
