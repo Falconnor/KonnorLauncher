@@ -705,6 +705,20 @@ class LauncherUI:
         self.subtitle_label.setStyleSheet("color: rgba(255,255,255,150); background: transparent;")
         self.subtitle_label.setAttribute(Qt.WA_TransparentForMouseEvents)
 
+        # MENSAJE DE BIENVENIDA
+        props = launcher_core.load_properties()
+        username = props.get("player.username", "")
+        self.welcome_label = QLabel(f"¡Bienvenido {username}!" if username else "", self.central_widget)
+        self.welcome_label.setGeometry(0, H - 128, W, 22)
+        self.welcome_label.setAlignment(Qt.AlignCenter)
+        welcome_font = QFont(self.font_family, 12)
+        welcome_font.setItalic(True)
+        self.welcome_label.setFont(welcome_font)
+        self.welcome_label.setStyleSheet("color: rgba(255, 255, 255, 190); background: transparent;")
+        self.welcome_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        if not username:
+            self.welcome_label.hide()
+
         # INFO jugador, RAM, version (inferior izquierda)
         props = launcher_core.load_properties()
         
@@ -901,6 +915,8 @@ class LauncherUI:
         QThreadPool.globalInstance().start(self.verify_runnable)
 
     def start_verify(self):
+        if hasattr(self, 'welcome_label'):
+            self.welcome_label.hide()
         self.play_button.setText("VERIFICANDO")
         self.play_button.setEnabled(False)
         self.update_action("")
