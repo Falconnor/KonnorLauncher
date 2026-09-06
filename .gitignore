@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 
+/Launcher/tests/
+
 # Minecraft logs
 **/logs/
 

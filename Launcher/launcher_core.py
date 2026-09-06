@@ -123,6 +123,27 @@ def get_installed_versions():
 
     return version_names
 
+_mojang_versions_cache = None
+
+def fetch_mojang_versions_sync():
+    global _mojang_versions_cache
+    try:
+        import minecraft_launcher_lib
+        raw = minecraft_launcher_lib.utils.get_version_list()
+        _mojang_versions_cache = [v['id'] for v in raw if v.get('type') == 'release']
+    except Exception:
+        _mojang_versions_cache = []
+
+def get_all_versions():
+    installed = get_installed_versions()
+    global _mojang_versions_cache
+            
+    all_v = list(installed)
+    if _mojang_versions_cache:
+        for v in _mojang_versions_cache:
+            if v not in all_v:
+                all_v.append(v)
+    return all_v
 
 def set_selected_version(version: str):
     if not version:
@@ -189,251 +210,95 @@ def get_client_version() -> str:
         return load_properties().get("cached.client.version", "")
 
 
+def install_vanilla_version(version: str, callback=None):
+    import minecraft_launcher_lib
+    game_path = get_game_path()
+    
+    # Variables de estado para el callback global
+    state = {
+        "max": 1, 
+        "status": "Preparando descarga",
+        "phase": "init", # init, libs, assets
+    }
+    
+    def get_global_percentage(val, max_val):
+        if max_val == 0:
+            max_val = 1
+        local_pct = val / max_val
+        
+        # Pesos arbitrarios de las fases para simular un progreso global
+        if state["phase"] == "init":
+            # 0% a 5%
+            return int(0 + (local_pct * 5))
+        elif state["phase"] == "libs":
+            # 5% a 30%
+            return int(5 + (local_pct * 25))
+        elif state["phase"] == "assets":
+            # 30% a 100%
+            return int(30 + (local_pct * 70))
+        return int(local_pct * 100)
+
+    def set_max(max_val):
+        state["max"] = max_val or 1
+        
+    def set_status(text):
+        lower_text = text.lower()
+        if "librar" in lower_text or "librer" in lower_text or "library" in lower_text:
+            state["phase"] = "libs"
+        elif "asset" in lower_text or "recurso" in lower_text:
+            state["phase"] = "assets"
+            
+        state["status"] = text
+        if callback: 
+            global_pct = get_global_percentage(0, state['max'])
+            # Mostramos el contador de la fase actual, ej: "Descargando... (0/150)"
+            callback(f"MC_PROGRESS|{text} (0/{state['max']})|{global_pct}|100")
+        
+    def set_progress(val):
+        if callback: 
+            global_pct = get_global_percentage(val, state['max'])
+            callback(f"MC_PROGRESS|{state['status']} ({val}/{state['max']})|{global_pct}|100")
+    
+    callbacks = {
+        "setStatus": set_status,
+        "setProgress": set_progress,
+        "setMax": set_max
+    }
+    minecraft_launcher_lib.install.install_minecraft_version(version, game_path, callback=callbacks)
+
 def verify_client(callback):
     return client_verifier.verify_client(callback)
 
 
 def launch_game():
-    """Lanza Minecraft construyendo el comando de Java en Python puro.
-
-    Reemplaza launcher.ps1. Sigue el mismo orden de pasos:
-    1. Rutas y configuración
-    2. Cargar JSON de versión e inheritsFrom
-    3. Detectar tipo de cliente (fabric / forge / vanilla)
-    4. Obtener assetIndex
-    5. Resolver directorios de natives
-    6. Construir classpath
-    7. Ejecutar Java
-    """
-
-    # ------------------------------------------------------------------ #
-    # 1. CONFIGURACIÓN DE RUTAS Y CLIENTE                                 #
-    # ------------------------------------------------------------------ #
-
-    # Leer todas las propiedades del launcher.
+    import minecraft_launcher_lib
+    
     properties = load_properties()
-
-    # Ruta al directorio del juego (Minecraft/).
-    game = get_game_path()
-
-    # Ruta al ejecutable de Java: puede ser absoluta o relativa al juego.
-    java_path = properties.get("java.path", "java")
-    if os.path.isabs(java_path):
-        java = java_path
-    else:
-        java = os.path.join(game, java_path)
-
-    # ------------------------------------------------------------------ #
-    # 2. CARGAR JSON DE LA VERSIÓN SELECCIONADA                          #
-    # ------------------------------------------------------------------ #
-
-    # Leer la versión seleccionada en launcher.properties.
     version = properties.get("minecraft.version", "").strip()
     if not version:
         raise RuntimeError("No hay ninguna versión seleccionada en launcher.properties")
-
-    version_json_path = os.path.join(game, "versions", version, f"{version}.json")
-    with open(version_json_path, "r", encoding="utf-8") as f:
-        version_json = json.load(f)
-
-    # Si la versión hereda de otra (Fabric/Forge), cargar también el JSON padre.
-    parent_json = None
-    if version_json.get("inheritsFrom"):
-        parent_id = version_json["inheritsFrom"]
-        parent_json_path = os.path.join(game, "versions", parent_id, f"{parent_id}.json")
-        with open(parent_json_path, "r", encoding="utf-8") as f:
-            parent_json = json.load(f)
-
-    # ------------------------------------------------------------------ #
-    # 3. DETECTAR TIPO DE CLIENTE                                         #
-    # ------------------------------------------------------------------ #
-
-    # Fabric: la versión empieza con "fabric-loader-".
-    # Forge: la versión empieza con "forge-".
-    # Vanilla: cualquier otro caso.
-    if version.startswith("fabric-loader-"):
-        client_type = "fabric"
-        # Extrae la versión de Minecraft del nombre: fabric-loader-X.Y.Z-1.21.1 → 1.21.1
-        minecraft_version = "-".join(version.split("-")[3:])
-    elif version.startswith("forge-"):
-        client_type = "forge"
-        minecraft_version = version_json.get("inheritsFrom", version)
-    else:
-        client_type = "vanilla"
-        minecraft_version = version
-
-    # ------------------------------------------------------------------ #
-    # 4. OBTENER ASSET INDEX                                              #
-    # ------------------------------------------------------------------ #
-
-    # El assetIndex puede estar en el JSON de la versión o en su padre.
-    asset_index_data = version_json.get("assetIndex") or (
-        parent_json.get("assetIndex") if parent_json else None
-    )
-    if not asset_index_data:
-        raise RuntimeError("No se encontró assetIndex en ningún JSON de versión")
-    asset_index = asset_index_data["id"]
-
-    # ------------------------------------------------------------------ #
-    # 5. RESOLVER DIRECTORIOS DE NATIVES                                  #
-    # ------------------------------------------------------------------ #
-
-    # Los natives son DLLs que Java necesita en su java.library.path.
-    # Pueden estar directamente en natives/ o en subdirectorios dentro de él.
-    natives_root = os.path.join(game, "versions", version, "natives")
-    if not os.path.isdir(natives_root):
-        raise RuntimeError(f"No se encontró el directorio de natives: {natives_root}")
-
-    native_directories = set()
-
-    # Buscar DLLs directamente dentro de natives/.
-    for entry in os.listdir(natives_root):
-        if entry.lower().endswith(".dll"):
-            native_directories.add(natives_root)
-            break
-
-    # Buscar DLLs dentro de subdirectorios de natives/.
-    for subdir in os.listdir(natives_root):
-        subdir_path = os.path.join(natives_root, subdir)
-        if not os.path.isdir(subdir_path):
-            continue
-        for entry in os.listdir(subdir_path):
-            if entry.lower().endswith(".dll"):
-                native_directories.add(subdir_path)
-                break
-
-    if not native_directories:
-        raise RuntimeError(f"No se encontraron DLLs nativas en: {natives_root}")
-
-    # Unir todas las rutas de natives con ";" como separador (java.library.path).
-    natives = ";".join(sorted(native_directories))
-
-    # ------------------------------------------------------------------ #
-    # 6. CONSTRUIR CLASSPATH                                              #
-    # ------------------------------------------------------------------ #
-
-    # Combinar librerías del JSON de la versión y del JSON padre.
-    all_libraries = list(version_json.get("libraries", []))
-    if parent_json:
-        all_libraries += parent_json.get("libraries", [])
-
-    classpath_entries = []
-
-    for lib in all_libraries:
-
-        # Filtrar librerías con reglas de OS que excluyan Windows.
-        rules = lib.get("rules", [])
-        if rules:
-            allowed = True
-            for rule in rules:
-                os_rule = rule.get("os", {})
-                if os_rule and os_rule.get("name") != "windows":
-                    allowed = False
-            if not allowed:
-                continue
-
-        lib_name = lib.get("name", "")
-
-        # Excluir entradas de natives (no van en classpath).
-        if ":natives-" in lib_name:
-            continue
-
-        # Método principal: usar la ruta indicada por downloads.artifact.path.
-        downloads = lib.get("downloads", {})
-        artifact = downloads.get("artifact", {})
-        artifact_path = artifact.get("path", "")
-        if artifact_path:
-            full_path = os.path.join(game, "libraries", artifact_path.replace("/", os.sep))
-            if os.path.isfile(full_path):
-                classpath_entries.append(full_path)
-            continue
-
-        # Fallback: construir la ruta a partir del nombre "grupo:artefacto:version".
-        parts = lib_name.split(":")
-        if len(parts) >= 3:
-            group_path = parts[0].replace(".", os.sep)
-            artifact_id = parts[1]
-            version_lib = parts[2]
-            jar_name = f"{artifact_id}-{version_lib}.jar"
-            full_path = os.path.join(
-                game, "libraries", group_path, artifact_id, version_lib, jar_name
-            )
-            if os.path.isfile(full_path):
-                classpath_entries.append(full_path)
-
-    # ================================================================== #
-    # DEBUG: LIBRERIAS LWJGL INCLUIDAS EN EL CLASSPATH                   #
-    # Este bloque puede eliminarse cuando ya no sea necesario depurar     #
-    # la resolución de dependencias gráficas de LWJGL.                   #
-    # ================================================================== #
-    print()
-    print("===== LWJGL =====")
-    for entry in classpath_entries:
-        if os.sep + "org" + os.sep + "lwjgl" + os.sep in entry:
-            print(entry)
-    print("=================")
-    print()
-
-    # Agregar el JAR principal de la versión (ej: fabric-loader-0.19.3-1.21.1.jar).
-    main_jar = os.path.join(game, "versions", version, f"{version}.jar")
-    if os.path.isfile(main_jar):
-        classpath_entries.append(main_jar)
-
-    # Agregar el JAR vanilla base si la versión es un mod-loader sobre vanilla.
-    base_jar = os.path.join(game, "versions", minecraft_version, f"{minecraft_version}.jar")
-    if minecraft_version != version and os.path.isfile(base_jar):
-        classpath_entries.append(base_jar)
-
-    classpath = ";".join(classpath_entries)
-
-    # ================================================================== #
-    # DEBUG: INFORMACIÓN GENERAL DEL LANZAMIENTO                         #
-    # Muestra en consola los parámetros clave antes de llamar a Java.    #
-    # Este bloque puede eliminarse cuando el launcher esté estable.      #
-    # ================================================================== #
-    print()
-    print("===== DEBUG =====")
-    print("VERSION:", version)
-    print("TYPE:", client_type)
-    print("MINECRAFT VERSION:", minecraft_version)
-    print("MAIN CLASS:", version_json.get("mainClass"))
-    print("ASSET INDEX:", asset_index)
-    print()
-    print("JAVA:")
-    print(java)
-    print()
-    print("CLASSPATH LENGTH:", len(classpath))
-    print("GAME PATH:", game)
-    print("EXISTE MODS:", os.path.isdir(os.path.join(game, "mods")))
-    print("EXISTE LIBRARIES:", os.path.isdir(os.path.join(game, "libraries")))
-    print("EXISTE VERSIONS:", os.path.isdir(os.path.join(game, "versions")))
-    print("=================")
-    print()
-
-    # ------------------------------------------------------------------ #
-    # 7. EJECUTAR MINECRAFT                                               #
-    # ------------------------------------------------------------------ #
+        
+    game_path = get_game_path()
+    
+    java_path = properties.get("java.path", "java")
+    if not os.path.isabs(java_path):
+        java_path = os.path.join(game_path, java_path)
 
     memory = properties.get("java.memory", "2G")
-    username = properties.get("player.username", "Player")
-    uuid = properties.get("player.uuid", "00000000-0000-0000-0000-000000000000")
-    access_token = properties.get("player.accessToken", "0")
-    main_class = version_json.get("mainClass", "")
-
-    cmd = [
-        java,
-        f"-Xmx{memory}",
-        f"-Djava.library.path={natives}",
-        "-cp", classpath,
-        main_class,
-        "--username", username,
-        "--version", version,
-        "--gameDir", game,
-        "--assetsDir", os.path.join(game, "assets"),
-        "--assetIndex", asset_index,
-        "--uuid", uuid,
-        "--accessToken", access_token,
-    ]
-
-    process = subprocess.Popen(cmd, cwd=game)
+    # Convert '2G' to '2048' roughly, or just pass it to JVM args directly.
+    # minecraft_launcher_lib maneja 'jvmArguments'.
+    
+    options = {
+        "username": properties.get("player.username", "Player"),
+        "uuid": properties.get("player.uuid", "00000000-0000-0000-0000-000000000000"),
+        "token": properties.get("player.accessToken", "0"),
+        "executablePath": java_path,
+        "jvmArguments": [f"-Xmx{memory}"]
+    }
+    
+    cmd = minecraft_launcher_lib.command.get_minecraft_command(version, game_path, options)
+    print("EJECUTANDO MINECRAFT CON minecraft-launcher-lib...")
+    print("Comando:", " ".join(cmd))
+    
+    process = subprocess.Popen(cmd, cwd=game_path)
     return process.wait()

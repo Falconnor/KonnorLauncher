@@ -30,7 +30,18 @@ class VerifyRunnable(QRunnable):
 
     def run(self):
         try:
-            result = launcher_core.verify_client(self.signals.status_updated.emit)
+            props = launcher_core.load_properties()
+            version = props.get("minecraft.version", "")
+            installed = launcher_core.get_installed_versions()
+            
+            if version and version not in installed:
+                # Si no esta instalada, la descargamos de Mojang
+                self.signals.status_updated.emit("Iniciando descarga oficial...")
+                launcher_core.install_vanilla_version(version, self.signals.status_updated.emit)
+                result = 0
+            else:
+                # Verificación normal del modpack / launcher original
+                result = launcher_core.verify_client(self.signals.status_updated.emit)
         except Exception as ex:
             self.signals.status_updated.emit(f"Error de verificacion: {ex}")
             result = -1
@@ -621,6 +632,28 @@ class LauncherUI:
         self._load_fonts()
         self._build_ui()
         self._apply_styles()
+        self._start_version_fetch()
+
+    def _start_version_fetch(self):
+        class FetchSignals(QObject):
+            done = Signal()
+        self.fetch_signals = FetchSignals()
+        self.fetch_signals.done.connect(self._on_fetch_done)
+        
+        class Fetch(QRunnable):
+            def __init__(self, signals):
+                super().__init__()
+                self.signals = signals
+            def run(self_run):
+                launcher_core.fetch_mojang_versions_sync()
+                self_run.signals.done.emit()
+                
+        QThreadPool.globalInstance().start(Fetch(self.fetch_signals))
+
+    def _on_fetch_done(self):
+        if hasattr(self, 'version_popup') and self.version_popup.isVisible():
+            self.version_popup.hide()
+            self._show_version_menu_above()
 
     def _load_fonts(self):
         self.font_family = "Arial"
@@ -737,32 +770,72 @@ class LauncherUI:
         self.version_button.setCursor(Qt.PointingHandCursor)
         self.version_button.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(255,255,255,140);"
-            "  color: rgb(35, 35, 35);"
-            "  border: 1px solid rgba(255,255,255,200);"
+            "  background-color: rgba(30, 35, 42, 230);"
+            "  color: rgba(255, 255, 255, 210);"
+            "  border: 1px solid rgba(255, 255, 255, 40);"
             "  border-radius: 17px;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(255,255,255,190);"
+            "  background-color: rgba(40, 45, 55, 240);"
+            "  border-color: rgba(255, 255, 255, 80);"
             "}"
-            "QPushButton:disabled { background-color: rgba(255,255,255,60); color: rgba(35,35,35,100); border: none; }"
+            "QPushButton:disabled { background-color: rgba(30, 35, 42, 100); color: rgba(255, 255, 255, 60); border: none; }"
         )
 
-        self.version_menu = QMenu(self.window)
-        self.version_menu.setWindowFlags(self.version_menu.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-        self.version_menu.setAttribute(Qt.WA_TranslucentBackground)
-        self.version_menu.setStyleSheet(
-            "QMenu {"
-            "  background-color: rgba(255, 255, 255, 150);"
-            "  color: rgb(35, 35, 35);"
+        # VENTANA POPUP DE VERSIONES (Scrollable)
+        from PySide6.QtWidgets import QListWidget, QVBoxLayout
+        self.version_popup = QWidget(self.window)
+        self.version_popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        self.version_popup.setAttribute(Qt.WA_TranslucentBackground)
+        
+        self.version_list = QListWidget(self.version_popup)
+        self.version_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.version_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.version_list.setStyleSheet(
+            "QListWidget {"
+            "  background-color: rgba(25, 30, 38, 245);"
+            "  color: rgba(255, 255, 255, 200);"
             "  font-weight: bold;"
-            "  border: 1px solid rgba(255,255,255,200);"
-            "  border-radius: 12px;"
+            "  border: 1px solid rgba(255, 255, 255, 40);"
+            "  border-radius: 8px;"
             "  padding: 4px;"
+            "  outline: none;"
             "}"
-            "QMenu::item { background-color: transparent; padding: 8px 16px; font-size: 11px; margin: 2px; border-radius: 6px; }"
-            "QMenu::item:selected { background-color: rgba(0, 0, 0, 25); }"
+            "QListWidget::item {"
+            "  padding: 8px 12px;"
+            "  margin: 2px;"
+            "  border-radius: 4px;"
+            "}"
+            "QListWidget::item:hover {"
+            "  background-color: rgba(255, 255, 255, 15);"
+            "}"
+            "QListWidget::item:selected {"
+            "  background-color: rgba(255, 255, 255, 30);"
+            "  color: #ffffff;"
+            "}"
+            "QScrollBar:vertical {"
+            "  border: none;"
+            "  background: transparent;"
+            "  width: 6px;"
+            "  margin: 4px 0px 4px 0px;"
+            "}"
+            "QScrollBar::handle:vertical {"
+            "  background: rgba(255, 255, 255, 60);"
+            "  border-radius: 3px;"
+            "}"
+            "QScrollBar::handle:vertical:hover {"
+            "  background: rgba(255, 255, 255, 100);"
+            "}"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+            "  border: none; background: none;"
+            "}"
         )
+        self.version_list.itemClicked.connect(self._on_version_item_clicked)
+        
+        popup_layout = QVBoxLayout(self.version_popup)
+        popup_layout.setContentsMargins(0, 0, 0, 0)
+        popup_layout.addWidget(self.version_list)
+        
         self.version_button.clicked.connect(self._show_version_menu_above)
 
         # ESTADO Y PROGRESO (arriba del boton jugar)
@@ -803,17 +876,42 @@ class LauncherUI:
 
 
     def _show_version_menu_above(self):
+        if self.version_popup.isVisible():
+            self.version_popup.hide()
+            return
+            
         self._refresh_version_menu()
         btn = self.version_button
-        self.version_menu.setMinimumWidth(btn.width())
+        
+        # Calcular altura para ~6 items
+        item_height = 32  # aproximado basado en el padding
+        max_items = 6
+        count = self.version_list.count()
+        visible_items = min(count, max_items)
+        # 8px de padding vertical del popup + altura de los items
+        popup_height = (visible_items * item_height) + 12
+        if count == 0:
+            popup_height = 40
+            
+        popup_width = max(btn.width() + 40, 180)
+        self.version_popup.setFixedSize(popup_width, popup_height)
+        
         global_pos = btn.mapToGlobal(QPoint(0, 0))
-        menu_size = self.version_menu.sizeHint()
         
         # Alinear el borde derecho del menú con el borde derecho del botón
-        popup_x = global_pos.x() + btn.width() - max(btn.width(), menu_size.width())
+        popup_x = global_pos.x() + btn.width() - popup_width
         # Colocarlo exactamente arriba con 4px de separación
-        popup_y = global_pos.y() - menu_size.height() - 4
-        self.version_menu.exec(QPoint(popup_x, popup_y))
+        popup_y = global_pos.y() - popup_height - 4
+        
+        self.version_popup.move(popup_x, popup_y)
+        self.version_popup.show()
+        self.version_list.setFocus()
+
+    def _on_version_item_clicked(self, item):
+        version = item.data(Qt.UserRole)
+        if version:
+            self.select_version(version)
+        self.version_popup.hide()
 
     def _open_settings(self):
         dlg = SettingsDialog(parent=self.window, font_family=self.font_family)
@@ -821,25 +919,34 @@ class LauncherUI:
             # Recargar etiquetas con los nuevos valores
             try:
                 props = launcher_core.load_properties()
-                # En la UI principal ya eliminamos las etiquetas user_label y ram_label
-                # (Se removieron en un paso anterior)
             except Exception:
                 pass
 
     def _refresh_version_menu(self):
-        self.version_menu.clear()
-        versions = launcher_core.get_installed_versions()
+        self.version_list.clear()
+        versions = launcher_core.get_all_versions()
+        installed = launcher_core.get_installed_versions()
+        
+        self.version_button.setEnabled(True)
+        from PySide6.QtWidgets import QListWidgetItem
+        
+        # Si aún no carga el caché, avisar al usuario
+        if launcher_core._mojang_versions_cache is None:
+            loading_item = QListWidgetItem("Cargando versiones oficiales...")
+            loading_item.setFlags(Qt.NoItemFlags)
+            self.version_list.addItem(loading_item)
 
-        if not versions:
-            self.version_button.setEnabled(False)
-            action = self.version_menu.addAction("No hay versiones instaladas")
-            action.setEnabled(False)
+        if not versions and launcher_core._mojang_versions_cache is not None:
+            item = QListWidgetItem("No hay versiones disponibles")
+            item.setFlags(Qt.NoItemFlags)
+            self.version_list.addItem(item)
             return
 
-        self.version_button.setEnabled(True)
         for version in versions:
-            action = self.version_menu.addAction(version)
-            action.triggered.connect(lambda checked, v=version: self.select_version(v))
+            display_text = version if version in installed else f"{version}  (Descargar ↓)"
+            item = QListWidgetItem(display_text)
+            item.setData(Qt.UserRole, version)
+            self.version_list.addItem(item)
 
     def select_version(self, version):
         try:
@@ -955,6 +1062,21 @@ class LauncherUI:
     def update_action(self, text):
         normalized = text.strip()
         lower = normalized.lower()
+
+        if lower.startswith("mc_progress|"):
+            try:
+                # Formato: MC_PROGRESS|texto|current|total
+                parts = text.split("|")
+                if len(parts) >= 4:
+                    self.action_label.setText(parts[1])
+                    self.progress_bar.show()
+                    current = int(parts[2])
+                    total = int(parts[3])
+                    if total > 0:
+                        self.progress_bar.setValue(int((current / total) * 100))
+            except Exception:
+                pass
+            return
 
         if lower.startswith(("descargando bloque", "descargando archivos", "extrayendo")):
             self.action_label.setText(normalized)
