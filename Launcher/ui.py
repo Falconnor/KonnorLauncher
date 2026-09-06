@@ -2,7 +2,7 @@
 import sys
 import json
 import launcher_core
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QPoint
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Qt, QPoint, QTimer, QEvent
 from PySide6.QtGui import QFontDatabase, QFont, QPixmap, QColor
 from PySide6.QtWidgets import (
     QApplication, QLabel, QMainWindow, QMessageBox,
@@ -277,9 +277,85 @@ class SettingsDialog(QDialog):
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(6)
 
-        # Fila 0: Labels RAM y Nombre de Jugador
+        # Fila 0: Labels RAM y Nombre de Jugador (con icono info)
         grid.addWidget(self._make_label("MEMORIA RAM"), 0, 0)
-        grid.addWidget(self._make_label("NOMBRE DE JUGADOR"), 0, 1)
+        name_label = self._make_label("NOMBRE DE JUGADOR")
+        info_btn = QPushButton("i")
+        info_btn.setFixedSize(14, 14)
+        info_btn.setFont(QFont("Arial", 7, QFont.Bold))
+        info_btn.setCursor(Qt.PointingHandCursor)
+        info_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent;"
+            "  color: rgba(255,255,255,140);"
+            "  border: 1px solid rgba(255,255,255,100);"
+            "  border-radius: 7px;"
+            "  padding: 0px;"
+            "}"
+            "QPushButton:hover {"
+            "  color: rgba(255,255,255,220);"
+            "  border-color: rgba(255,255,255,180);"
+            "}"
+        )
+
+        # Tooltip personalizado como QLabel flotante (los OS tooltips no funcionan con WA_TranslucentBackground)
+        self._info_popup = QLabel(
+            "• De 4 a 16 caracteres\n"
+            "• Solo letras, números y guion bajo ( _ )\n"
+            "• Sin espacios ni símbolos especiales",
+            panel
+        )
+        self._info_popup.setFont(QFont("Arial", 8))
+        self._info_popup.setStyleSheet(
+            "QLabel {"
+            "  background: rgba(30, 35, 42, 240);"
+            "  color: rgba(255,255,255,200);"
+            "  border: 1px solid rgba(255,255,255,30);"
+            "  border-radius: 6px;"
+            "  padding: 8px 10px;"
+            "}"
+        )
+        self._info_popup.setWordWrap(True)
+        self._info_popup.adjustSize()
+        self._info_popup.hide()
+        self._info_popup.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        # Hover con retardo de 100ms usando event filter
+        _show_timer = QTimer()
+        _show_timer.setSingleShot(True)
+        _show_timer.setInterval(150)
+
+        def _show_popup():
+            btn_pos = info_btn.mapTo(panel, info_btn.rect().bottomLeft())
+            popup_x = min(btn_pos.x(), panel.width() - self._info_popup.width() - 8)
+            self._info_popup.move(popup_x, btn_pos.y() + 4)
+            self._info_popup.raise_()
+            self._info_popup.show()
+
+        _show_timer.timeout.connect(_show_popup)
+
+        class _InfoHover(QObject):
+            def eventFilter(self_, obj, event):
+                if event.type() == QEvent.Enter:
+                    _show_timer.start()
+                elif event.type() == QEvent.Leave:
+                    _show_timer.stop()
+                    self._info_popup.hide()
+                return False
+
+        _hover_filter = _InfoHover(info_btn)
+        info_btn.installEventFilter(_hover_filter)
+        # Guardar referencia para que no sea recolectado por el GC
+        info_btn._hover_filter = _hover_filter
+        info_btn._show_timer = _show_timer
+
+        name_header = QHBoxLayout()
+        name_header.setContentsMargins(0, 0, 0, 0)
+        name_header.setSpacing(6)
+        name_header.addWidget(name_label)
+        name_header.addWidget(info_btn)
+        name_header.addStretch()
+        grid.addLayout(name_header, 0, 1)
 
         # Fila 1: Inputs RAM y Nombre
         self.ram_combo = self._make_combo()
@@ -296,12 +372,24 @@ class SettingsDialog(QDialog):
         self.user_edit = self._make_input()
         self.user_edit.setText(props.get("player.username", ""))
         self.user_edit.setPlaceholderText("Nombre de jugador...")
+        self.user_edit.setMaxLength(16)
         grid.addWidget(self.user_edit, 1, 1)
 
-        # Fila 2: Label Ruta de Java
-        grid.addWidget(self._make_label("RUTA DE JAVA"), 2, 0, 1, 2)
+        # Error label debajo del nombre (fila 2 col 1)
+        self.user_error = QLabel("")
+        self.user_error.setFont(QFont("Arial", 8))
+        self.user_error.setStyleSheet("color: #ff4444; background: transparent;")
+        self.user_error.setWordWrap(True)
+        self.user_error.hide()
+        grid.addWidget(self.user_error, 2, 1)
 
-        # Fila 3: Input Java + botón "..."
+        # Validación en tiempo real
+        self.user_edit.textChanged.connect(self._validate_username)
+
+        # Fila 3: Label Ruta de Java
+        grid.addWidget(self._make_label("RUTA DE JAVA"), 3, 0, 1, 2)
+
+        # Fila 4: Input Java + botón "..."
         java_row = QHBoxLayout()
         java_row.setSpacing(6)
         self.java_edit = self._make_input()
@@ -326,16 +414,16 @@ class SettingsDialog(QDialog):
         )
         browse_btn.clicked.connect(self._browse_java)
         java_row.addWidget(browse_btn)
-        grid.addLayout(java_row, 3, 0, 1, 2)
+        grid.addLayout(java_row, 4, 0, 1, 2)
 
-        # Fila 4: Label URL
-        grid.addWidget(self._make_label("URL DEL SERVIDOR"), 4, 0)
+        # Fila 5: Label URL
+        grid.addWidget(self._make_label("URL DEL SERVIDOR"), 5, 0)
 
-        # Fila 5: Input URL (izquierda) + Checkbox (derecha)
+        # Fila 6: Input URL (izquierda) + Checkbox (derecha)
         self.srv_edit = self._make_input()
         self.srv_edit.setText(props.get("server.url", ""))
         self.srv_edit.setPlaceholderText("http://servidor:puerto")
-        grid.addWidget(self.srv_edit, 5, 0)
+        grid.addWidget(self.srv_edit, 6, 0)
 
         self.verify_check = QCheckBox("VERIFICAR ARCHIVOS AL INICIAR")
         self.verify_check.setFont(QFont(self.font_family, 9, QFont.Bold))
@@ -356,12 +444,12 @@ class SettingsDialog(QDialog):
             "}"
         )
         self.verify_check.setChecked(props.get("enable.verify", "true").lower() == "true")
-        grid.addWidget(self.verify_check, 5, 1)
+        grid.addWidget(self.verify_check, 6, 1)
 
-        # Fila 6: Label Carpeta de Minecraft
-        grid.addWidget(self._make_label("CARPETA DE MINECRAFT"), 6, 0, 1, 2)
+        # Fila 7: Label Carpeta de Minecraft
+        grid.addWidget(self._make_label("CARPETA DE MINECRAFT"), 7, 0, 1, 2)
 
-        # Fila 7: Input ruta + botón "..."
+        # Fila 8: Input ruta + botón "..."
         game_row = QHBoxLayout()
         game_row.setSpacing(6)
         self.game_path_edit = self._make_input()
@@ -386,7 +474,7 @@ class SettingsDialog(QDialog):
         )
         browse_game_btn.clicked.connect(self._browse_game_path)
         game_row.addWidget(browse_game_btn)
-        grid.addLayout(game_row, 7, 0, 1, 2)
+        grid.addLayout(game_row, 8, 0, 1, 2)
 
         content_layout.addLayout(grid)
         content_layout.addStretch()
@@ -466,6 +554,24 @@ class SettingsDialog(QDialog):
 
         main_layout.addLayout(btn_layout)
 
+    def _validate_username(self, text):
+        import re
+        text = text.strip()
+        if not text:
+            self.user_error.setText("el nombre no puede estar vacío")
+            self.user_error.show()
+        elif len(text) < 4:
+            self.user_error.setText("el nombre debe contener mínimo 4 caracteres")
+            self.user_error.show()
+        elif len(text) > 16:
+            self.user_error.setText("el nombre no puede superar 16 caracteres")
+            self.user_error.show()
+        elif not re.match(r'^[A-Za-z0-9_]+$', text):
+            self.user_error.setText("solo letras, números y guion bajo ( _ )")
+            self.user_error.show()
+        else:
+            self.user_error.hide()
+
     def _browse_java(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Seleccionar Java", "", "Ejecutables (*.exe);;Todos (*)"
@@ -481,8 +587,15 @@ class SettingsDialog(QDialog):
             self.game_path_edit.setText(folder)
 
     def _save(self):
+        import re
+        username = self.user_edit.text().strip()
+        if not re.match(r'^[A-Za-z0-9_]{4,16}$', username):
+            self.user_error.show()
+            self.user_edit.setFocus()
+            return
+
         # --- launcher.properties ---
-        launcher_core.save_property("player.username", self.user_edit.text().strip())
+        launcher_core.save_property("player.username", username)
         launcher_core.save_property("java.memory",     self.ram_combo.currentData())
         launcher_core.save_property("java.path",       self.java_edit.text().strip())
         launcher_core.save_property("server.url",      self.srv_edit.text().strip())
