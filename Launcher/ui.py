@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import json
 import launcher_core
@@ -656,8 +656,11 @@ class SettingsDialog(QDialog):
     def _preview_skin(self):
         skin_path = self.skin_edit.text().strip()
         if not skin_path or not os.path.isfile(skin_path):
-            QMessageBox.warning(self, "Sin skin", "Selecciona un archivo de skin primero.")
-            return
+            # Fallback: usar Steve como skin por defecto
+            skin_path = os.path.join(os.path.dirname(__file__), "steve.png")
+            if not os.path.isfile(skin_path):
+                QMessageBox.warning(self, "Sin skin", "No se encontró ningún archivo de skin.")
+                return
         dlg = SkinPreviewDialog(skin_path, parent=self, font_family=self.font_family)
         dlg.exec()
 
@@ -678,6 +681,158 @@ class SettingsDialog(QDialog):
         launcher_core.save_property("enable.verify",   "true" if self.verify_check.isChecked() else "false")
         launcher_core.save_property("player.skin",     self.skin_edit.text().strip())
 
+        self.accept()
+
+
+class UsernamePromptDialog(QDialog):
+    """Diálogo emergente para obligar al usuario a ingresar su nombre si está vacío."""
+
+    def __init__(self, parent=None, font_family="Arial"):
+        super().__init__(parent)
+        self.font_family = font_family
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # Tamaño de la ventana principal para centrar
+        if parent:
+            pg = parent.geometry()
+            self.setFixedSize(pg.width(), pg.height())
+            self.move(pg.x(), pg.y())
+        else:
+            self.setFixedSize(1275, 700)
+            
+        self.W = 380
+        self.H = 220
+        self._drag_pos = None
+        self._build()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint()
+            if self.parent():
+                self._parent_pos = self.parent().frameGeometry().topLeft()
+            self._dialog_pos = self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and getattr(self, "_drag_pos", None) is not None:
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            if self.parent() and getattr(self, "_parent_pos", None) is not None:
+                self.parent().move(self._parent_pos + delta)
+            self.move(self._dialog_pos + delta)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+
+    def _build(self):
+        backdrop = QFrame(self)
+        backdrop.setGeometry(0, 0, self.width(), self.height())
+        backdrop.setStyleSheet("background-color: rgba(0, 0, 0, 0.4);")
+
+        panel = QFrame(self)
+        px = (self.width() - self.W) // 2
+        py = (self.height() - self.H) // 2
+        panel.setGeometry(px, py, self.W, self.H)
+        panel.setStyleSheet(
+            "QFrame {"
+            "  background-color: rgba(35, 40, 48, 240);"
+            "  border-radius: 12px;"
+            "}"
+        )
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(30)
+        shadow.setColor(QColor(0, 0, 0, 150))
+        panel.setGraphicsEffect(shadow)
+
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(10)
+
+        title = QLabel("ESCRIBE TU NOMBRE")
+        title.setFont(QFont(self.font_family, 14, QFont.Bold))
+        title.setStyleSheet("color: #ffffff; background: transparent;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+
+        desc = QLabel("Necesitas un nombre de jugador para entrar al mundo.")
+        desc.setFont(QFont(self.font_family, 10))
+        desc.setStyleSheet("color: rgba(255,255,255,160); background: transparent;")
+        desc.setAlignment(Qt.AlignCenter)
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        layout.addSpacing(10)
+
+        self.user_edit = QLineEdit()
+        self.user_edit.setPlaceholderText("Nombre de jugador...")
+        self.user_edit.setMaxLength(16)
+        self.user_edit.setFont(QFont(self.font_family, 11))
+        self.user_edit.setStyleSheet(
+            "QLineEdit {"
+            "  background: rgba(15, 18, 22, 180);"
+            "  color: #ffffff;"
+            "  border: 1px solid rgba(255, 255, 255, 20);"
+            "  border-radius: 6px;"
+            "  padding: 8px 12px;"
+            "}"
+            "QLineEdit:focus {"
+            "  border: 1px solid rgba(255, 255, 255, 60);"
+            "}"
+        )
+        layout.addWidget(self.user_edit)
+
+        self.error_label = QLabel("")
+        self.error_label.setFont(QFont("Arial", 8))
+        self.error_label.setStyleSheet("color: #ff4444; background: transparent;")
+        self.error_label.setAlignment(Qt.AlignCenter)
+        self.error_label.hide()
+        layout.addWidget(self.error_label)
+
+        layout.addStretch()
+
+        btn_layout = QHBoxLayout()
+        cancel_btn = QPushButton("CANCELAR")
+        cancel_btn.setFixedSize(110, 36)
+        cancel_btn.setFont(QFont(self.font_family, 10, QFont.Bold))
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet(
+            "QPushButton { background: rgba(80, 85, 95, 200); color: #ffffff; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background: rgba(100, 105, 115, 230); }"
+        )
+        cancel_btn.clicked.connect(self.reject)
+        
+        save_btn = QPushButton("GUARDAR")
+        save_btn.setFixedSize(110, 36)
+        save_btn.setFont(QFont(self.font_family, 10, QFont.Bold))
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet(
+            "QPushButton { background-color: #27AE60; color: #ffffff; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #2ECC71; }"
+        )
+        save_btn.clicked.connect(self._save)
+
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+    def _save(self):
+        import re
+        username = self.user_edit.text().strip()
+        if not username:
+            self.error_label.setText("El nombre no puede estar vacío")
+            self.error_label.show()
+            return
+        elif len(username) < 4:
+            self.error_label.setText("Mínimo 4 caracteres")
+            self.error_label.show()
+            return
+        elif not re.match(r'^[A-Za-z0-9_]+$', username):
+            self.error_label.setText("Solo letras, números y guiones bajos (_)")
+            self.error_label.show()
+            return
+
+        launcher_core.save_property("player.username", username)
         self.accept()
 
 
@@ -1268,6 +1423,24 @@ class LauncherUI:
         QThreadPool.globalInstance().start(self.verify_runnable)
 
     def start_verify(self):
+        # 1. Validar nombre de usuario antes de hacer cualquier cosa
+        props = launcher_core.load_properties()
+        username = props.get("player.username", "").strip()
+        
+        if not username:
+            # Mostrar ventana emergente obligatoria
+            dlg = UsernamePromptDialog(parent=self.window, font_family=self.font_family)
+            if dlg.exec() == QDialog.Accepted:
+                # Se guardó el nombre, recargarlo en la UI
+                props = launcher_core.load_properties()
+                username = props.get("player.username", "").strip()
+                if hasattr(self, 'welcome_label'):
+                    self.welcome_label.setText(f"¡Bienvenido {username}!")
+                    self.welcome_label.show()
+            else:
+                # El usuario canceló, abortar lanzamiento
+                return
+
         if hasattr(self, 'welcome_label'):
             self.welcome_label.hide()
         self.play_button.setText("VERIFICANDO")
