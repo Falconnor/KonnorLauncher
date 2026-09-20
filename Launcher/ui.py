@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import launcher_core
@@ -180,6 +180,7 @@ class SettingsDialog(QDialog):
         """Crea un QComboBox oscuro con bordes sutiles."""
         combo = QComboBox()
         combo.setFont(QFont(self.font_family, 10))
+        svg_path = os.path.join(os.path.dirname(__file__), "arrow_down.svg").replace("\\", "/")
         combo.setStyleSheet(
             "QComboBox {"
             "  background-color: rgba(15, 18, 22, 180);"
@@ -191,8 +192,8 @@ class SettingsDialog(QDialog):
             "QComboBox:focus {"
             "  border: 1px solid rgba(255, 255, 255, 60);"
             "}"
-            "QComboBox::drop-down { border: none; width: 20px; }"
-            "QComboBox::down-arrow { image: none; }"
+            "QComboBox::drop-down { border: none; width: 34px; }"
+            f"QComboBox::down-arrow {{ image: url({svg_path}); width: 18px; height: 18px; }}"
             "QComboBox QAbstractItemView {"
             "  background: rgba(25, 30, 38, 240);"
             "  color: #ffffff;"
@@ -220,17 +221,15 @@ class SettingsDialog(QDialog):
         panel.setGeometry(px, py, self.W, self.H)
         panel.setStyleSheet(
             "QFrame {"
-            "  background-color: rgba(35, 40, 48, 230);"
-            "  border: 0px solid rgba(255, 255, 255, 8);"
+            "  background-color: rgba(35, 40, 48, 240);"
             "  border-radius: 12px;"
             "}"
         )
 
-        # Sombra sutil para que el panel resalte sobre el fondo
+        # Sombra idéntica a la del menú de nombre vacío
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(40)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setBlurRadius(30)
+        shadow.setColor(QColor(0, 0, 0, 150))
         panel.setGraphicsEffect(shadow)
 
         # ── Layout principal del panel ───────────────────────────────
@@ -443,7 +442,7 @@ class SettingsDialog(QDialog):
             "  border-color: #2ECC71;"
             "}"
         )
-        self.verify_check.setChecked(props.get("enable.verify", "true").lower() == "true")
+        self.verify_check.setChecked(props.get("enable.verify", "false").lower() == "true")
         grid.addWidget(self.verify_check, 6, 1)
 
         # Fila 7: Label Carpeta de Minecraft
@@ -474,6 +473,25 @@ class SettingsDialog(QDialog):
         )
         browse_game_btn.clicked.connect(self._browse_game_path)
         game_row.addWidget(browse_game_btn)
+        
+        open_folder_btn = QPushButton("📁")
+        open_folder_btn.setFixedSize(36, 36)
+        open_folder_btn.setFont(QFont("Segoe UI Emoji", 11) if sys.platform == "win32" else QFont(self.font_family, 11))
+        open_folder_btn.setCursor(Qt.PointingHandCursor)
+        open_folder_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: rgba(80, 85, 95, 200);"
+            "  color: #ffffff;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background: rgba(100, 105, 115, 230);"
+            "}"
+        )
+        open_folder_btn.clicked.connect(self._open_game_folder_in_explorer)
+        game_row.addWidget(open_folder_btn)
+        
         grid.addLayout(game_row, 8, 0, 1, 2)
 
         # Fila 9: Label Skin
@@ -634,6 +652,27 @@ class SettingsDialog(QDialog):
         )
         if folder:
             self.game_path_edit.setText(folder)
+
+    def _open_game_folder_in_explorer(self):
+        path = self.game_path_edit.text().strip()
+        if not path:
+            return
+
+        if not os.path.isabs(path):
+            path = os.path.abspath(os.path.join(launcher_core.LAUNCH_PATH, path))
+            
+        path = os.path.normpath(path)
+        
+        # Crearla si no existe
+        if not os.path.exists(path):
+            try:
+                os.makedirs(path, exist_ok=True)
+            except Exception:
+                pass
+                
+        if os.path.exists(path):
+            if sys.platform == "win32":
+                os.startfile(path)
 
     def _browse_skin(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -999,7 +1038,11 @@ class LauncherUI:
         self.window.setWindowTitle("Fkonnor Launcher")
         
         from PySide6.QtGui import QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+        if hasattr(sys, '_MEIPASS'):
+            self._res_path = sys._MEIPASS
+        else:
+            self._res_path = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(self._res_path, "icon.png")
         if os.path.isfile(icon_path):
             app_icon = QIcon(icon_path)
             self.app.setWindowIcon(app_icon)
@@ -1038,7 +1081,7 @@ class LauncherUI:
 
     def _load_fonts(self):
         self.font_family = "Arial"
-        font_path = os.path.join(os.path.dirname(__file__), "Boring Time.otf")
+        font_path = os.path.join(self._res_path, "Boring Time.otf")
         if os.path.isfile(font_path):
             font_id = QFontDatabase.addApplicationFont(font_path)
             if font_id != -1:
@@ -1055,7 +1098,7 @@ class LauncherUI:
         self.background_label.setGeometry(0, 0, W, H)
         self.background_label.setScaledContents(True)
 
-        image_path = os.path.join(os.path.dirname(__file__), "background.png")
+        image_path = os.path.join(self._res_path, "background.png")
         if os.path.isfile(image_path):
             pixmap = QPixmap(image_path)
             if not pixmap.isNull():

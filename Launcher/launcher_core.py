@@ -5,7 +5,13 @@ import subprocess
 import verify_client as client_verifier
 
 
-LAUNCH_PATH = os.path.dirname(__file__)
+import sys
+
+if hasattr(sys, '_MEIPASS'):
+    LAUNCH_PATH = os.path.dirname(sys.executable)
+else:
+    LAUNCH_PATH = os.path.dirname(os.path.abspath(__file__))
+
 PROPERTIES_PATH = os.path.join(LAUNCH_PATH, "launcher.properties")
 
 
@@ -39,53 +45,55 @@ def _candidate_game_paths():
 
 def load_properties():
     properties = {}
+    
+    if not os.path.exists(PROPERTIES_PATH):
+        # Si no existe (nueva instalación), devolvemos propiedades vacías
+        return properties
 
-    with open(PROPERTIES_PATH, "r", encoding="utf-8") as file:
-        for line in file:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if "=" not in line:
-                continue
-
-            key, value = line.split("=", 1)
-            properties[key.strip()] = value.strip()
-
+    try:
+        with open(PROPERTIES_PATH, "r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    properties[key.strip()] = value.strip()
+    except Exception as e:
+        print(f"Advertencia: No se pudo cargar launcher.properties: {e}")
+        
     return properties
 
 
 def save_property(key: str, value: str):
-    if not os.path.isfile(PROPERTIES_PATH):
-        raise FileNotFoundError(f"No se encontró {PROPERTIES_PATH}")
-
-    updated = False
     lines = []
-
-    with open(PROPERTIES_PATH, "r", encoding="utf-8") as file:
-        for raw in file:
-            stripped = raw.strip()
-            if not stripped or stripped.startswith("#") or "=" not in raw:
-                lines.append(raw)
-                continue
-
-            current_key = raw.split("=", 1)[0].strip()
-            if current_key == key:
-                lines.append(f"{key}={value}\n")
-                updated = True
-            else:
-                lines.append(raw)
-
+    updated = False
+    if os.path.isfile(PROPERTIES_PATH):
+        try:
+            with open(PROPERTIES_PATH, "r", encoding="utf-8") as file:
+                for raw in file:
+                    stripped = raw.strip()
+                    if not stripped or stripped.startswith("#") or "=" not in raw:
+                        lines.append(raw)
+                        continue
+                    current_key = raw.split("=", 1)[0].strip()
+                    if current_key == key:
+                        lines.append(f"{key}={value}\n")
+                        updated = True
+                    else:
+                        lines.append(raw)
+        except Exception:
+            pass
     if not updated:
         if lines and not lines[-1].endswith("\n"):
             lines[-1] = lines[-1] + "\n"
         lines.append(f"{key}={value}\n")
+    try:
+        with open(PROPERTIES_PATH, "w", encoding="utf-8") as file:
+            file.writelines(lines)
+    except Exception as e:
+        print(f"Error guardando propiedad {key}: {e}")
 
-    with open(PROPERTIES_PATH, "w", encoding="utf-8") as file:
-        file.writelines(lines)
-
-    global PROPERTIES, GAME_PATH
-    PROPERTIES = load_properties()
-    GAME_PATH = get_game_path()
 
 
 def get_selected_version():
@@ -149,37 +157,42 @@ def set_selected_version(version: str):
     if not version:
         raise ValueError("La versión no puede estar vacía")
     save_property("minecraft.version", version)
-    global PROPERTIES
-    PROPERTIES = load_properties()
 
-PROPERTIES = load_properties()
 
 
 
 def get_game_path():
+    properties = load_properties()
+    game_path = properties.get("game.path", "").strip()
 
-    game_path = PROPERTIES.get("game.path", "")
-
+    # 1. Si el usuario configuró una ruta explícita, usarla
     if game_path:
-        if os.path.isabs(game_path):
-            candidate = os.path.normpath(game_path)
-            if os.path.isdir(candidate):
-                return candidate
-        else:
-            candidate = os.path.abspath(os.path.join(LAUNCH_PATH, game_path))
-            if os.path.isdir(candidate):
-                return candidate
+        candidate = game_path if os.path.isabs(game_path) else os.path.abspath(os.path.join(LAUNCH_PATH, game_path))
+        candidate = os.path.normpath(candidate)
 
-    for candidate in _candidate_game_paths():
+        if not os.path.exists(candidate):
+            try:
+                os.makedirs(candidate, exist_ok=True)
+            except Exception:
+                pass
+
         if os.path.isdir(candidate):
-            return os.path.abspath(candidate)
+            return candidate
 
-    return os.path.abspath(os.path.join(LAUNCH_PATH, "..", "Minecraft"))
+    # 2. Fallback principal: %AppData%\.minecraft (Ruta oficial de Minecraft)
+    appdata = os.getenv("APPDATA")
+    if appdata:
+        default_mc = os.path.join(appdata, ".minecraft")
+    else:
+        default_mc = os.path.abspath(os.path.join(os.path.expanduser("~"), "AppData", "Roaming", ".minecraft"))
 
+    if not os.path.exists(default_mc):
+        try:
+            os.makedirs(default_mc, exist_ok=True)
+        except Exception:
+            pass
 
-
-GAME_PATH = get_game_path()
-
+    return default_mc
 
 
 def get_client_version() -> str:
@@ -251,12 +264,12 @@ def install_vanilla_version(version: str, callback=None):
         state["status"] = text
         if callback: 
             global_pct = get_global_percentage(0, state['max'])
-            callback(f"MC_PROGRESS|Descargando archivos (0/{state['max']})|{global_pct}|100")
+            callback(f"MC_PROGRESS|Descargando contenido...|{global_pct}|100")
         
     def set_progress(val):
         if callback: 
             global_pct = get_global_percentage(val, state['max'])
-            callback(f"MC_PROGRESS|Descargando archivos ({val}/{state['max']})|{global_pct}|100")
+            callback(f"MC_PROGRESS|Descargando contenido...|{global_pct}|100")
     
     callbacks = {
         "setStatus": set_status,
@@ -334,9 +347,19 @@ def launch_game():
     # Parchear el JSON de Fabric antes de generar el comando
     _patch_fabric_json(version, game_path)
     
-    java_path = properties.get("java.path", "java")
-    if not os.path.isabs(java_path):
-        java_path = os.path.join(game_path, java_path)
+    java_path = properties.get("java.path", "java").strip()
+    
+    # Si está vacío o es un comando genérico, usar el del sistema
+    if not java_path or java_path.lower() in ("java", "java.exe", "javaw", "javaw.exe"):
+        java_path = "java"
+    else:
+        # Si es relativa, la unimos a la carpeta del juego (útil para runtimes portables integrados)
+        if not os.path.isabs(java_path):
+            java_path = os.path.abspath(os.path.join(game_path, java_path))
+            
+        # Si la ruta absoluta configurada (o relativa calculada) no existe en esta PC, hacer fallback
+        if not os.path.isfile(java_path):
+            java_path = "java"
 
     memory = properties.get("java.memory", "2G")
     

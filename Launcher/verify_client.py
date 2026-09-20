@@ -24,7 +24,10 @@ from urllib.request import urlopen
 
 # CONFIGURACION BASE
 # Las rutas se calculan desde la carpeta donde vive el launcher.
-LAUNCH_PATH = Path(__file__).resolve().parent
+if hasattr(sys, '_MEIPASS'):
+    LAUNCH_PATH = Path(sys.executable).resolve().parent
+else:
+    LAUNCH_PATH = Path(__file__).resolve().parent
 PROPERTIES_PATH = LAUNCH_PATH / "launcher.properties"
 # Solo estas carpetas son administradas por el launcher. La limpieza no toca
 # config, saves, screenshots ni otros datos personales del jugador.
@@ -60,25 +63,34 @@ class AssetBlock:
 def load_properties(path: Path = PROPERTIES_PATH) -> dict[str, str]:
     """Lee claves ``clave=valor`` e ignora comentarios y líneas vacías."""
     properties: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        properties[key.strip()] = value.strip()
+    if not path.exists():
+        return properties
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            properties[key.strip()] = value.strip()
+    except Exception:
+        pass
     return properties
 
 
 def get_game_path(properties: dict[str, str]) -> Path:
     """Convierte ``game.path`` en una ruta absoluta del directorio del juego."""
     configured_path = properties.get("game.path", "").strip()
-    if not configured_path:
-        raise VerificationError("game.path no está configurado")
+    if configured_path:
+        path = Path(configured_path)
+        if not path.is_absolute():
+            path = LAUNCH_PATH / path
+        return path.resolve()
 
-    path = Path(configured_path)
-    if not path.is_absolute():
-        path = LAUNCH_PATH / path
-    return path.resolve()
+    # Fallback: %AppData%\.minecraft
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return Path(appdata) / ".minecraft"
+    return Path.home() / "AppData" / "Roaming" / ".minecraft"
 
 
 def parse_bool(value: str | None) -> bool:
