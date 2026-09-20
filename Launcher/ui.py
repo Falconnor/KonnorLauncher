@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import json
 import launcher_core
@@ -1140,55 +1140,45 @@ class LauncherUI:
         if not username:
             self.welcome_label.hide()
 
-        # INFO jugador, RAM, version (inferior izquierda)
+        # INFO jugador (inferior izquierda)
         props = launcher_core.load_properties()
         
-        # Mostrar versión cacheada al instante (sin bloquear)
-        cached = props.get("cached.client.version", "")
-        version_text = f"v{cached}" if cached else "v-"
-        self.version_label = QLabel(version_text, self.central_widget)
-        self.version_label.setGeometry(36, H - 30, 180, 18)
-        self.version_label.setFont(QFont(self.font_family, 9))
-        self.version_label.setStyleSheet("color: rgba(255,255,255,220); background: transparent;")
+        # ELIMINAMOS el version_label antiguo redundante, ahora el botón será el indicador.
 
-        # BOTON VERSION + BOTON JUGAR
-        # JUGAR siempre centrado, VERSION a su izquierda
-        btn_play_w = 220
-        btn_play_h = 52
-        btn_ver_w = 140
-        btn_ver_h = 52
-        gap = 4
-        play_x = (W - btn_play_w) // 2
-        ver_x = play_x - btn_ver_w - gap
-
-        # Versión seleccionada
+        # BOTON DE VERSIONES (Esquina inferior izquierda)
         props_ver = launcher_core.load_properties()
         selected = props_ver.get("minecraft.version", "")
-        ver_display = selected if selected else "Sin versión"
+        ver_display = selected if selected else "Selecciona una versión"
 
-        self.version_button = QPushButton(f"▾  {ver_display}", self.central_widget)
-        self.version_button.setGeometry(ver_x, H - 92, btn_ver_w, btn_ver_h)
+        self.version_button = QPushButton(f"{ver_display}  ▾", self.central_widget)
+        self.version_button.setGeometry(30, H - 70, 220, 38)
         self.version_button.setFont(QFont(self.font_family, 10))
         self.version_button.setCursor(Qt.PointingHandCursor)
         self.version_button.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(20, 24, 32, 220);"
-            "  color: rgba(255, 255, 255, 200);"
-            "  border: 1px solid rgba(255, 255, 255, 30);"
-            "  border-radius: 10px;"
-            "  padding-left: 12px;"
+            "  background-color: rgba(10, 12, 16, 180);"
+            "  color: rgba(255, 255, 255, 180);"
+            "  border: 1px solid rgba(255, 255, 255, 15);"
+            "  border-radius: 19px;"
+            "  padding: 0px 16px;"
             "  text-align: left;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(30, 36, 48, 240);"
-            "  border-color: rgba(255, 255, 255, 60);"
+            "  background-color: rgba(30, 35, 45, 200);"
+            "  color: #ffffff;"
+            "  border: 1px solid rgba(255, 255, 255, 40);"
             "}"
             "QPushButton:disabled {"
-            "  background-color: rgba(20, 24, 32, 100);"
+            "  background-color: rgba(0, 0, 0, 50);"
             "  color: rgba(255, 255, 255, 50);"
             "  border: none;"
             "}"
         )
+
+        # BOTON JUGAR (Perfectamente centrado en la parte inferior)
+        btn_play_w = 260
+        btn_play_h = 56
+        play_x = (W - btn_play_w) // 2
 
         # VENTANA POPUP DE VERSIONES (Scrollable)
         from PySide6.QtWidgets import QListWidget, QVBoxLayout
@@ -1361,7 +1351,7 @@ class LauncherUI:
             QMessageBox.warning(self.window, "Error", f"No se pudo guardar la version:\n{ex}")
 
     def update_version_label(self, version):
-        self.version_button.setText(f"▾  {version}" if version else "▾  Sin versión")
+        self.version_button.setText(f"{version}  ▾" if version else "Selecciona una versión  ▾")
 
     def _apply_styles(self):
         self.central_widget.setStyleSheet("background: transparent;")
