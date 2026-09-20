@@ -265,9 +265,61 @@ def install_vanilla_version(version: str, callback=None):
     }
     minecraft_launcher_lib.install.install_minecraft_version(version, game_path, callback=callbacks)
 
+def ensure_base_version(version: str, callback=None):
+    """
+    Verifica si la versión actual hereda de otra (ej. Forge hereda de Vanilla).
+    Si la versión base no existe o le falta el .json, la descarga automáticamente.
+    """
+    import os, json
+    game_path = get_game_path()
+    json_path = os.path.join(game_path, "versions", version, f"{version}.json")
+    
+    if not os.path.isfile(json_path):
+        return
+        
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        inherits_from = data.get("inheritsFrom")
+        if inherits_from:
+            inherited_json = os.path.join(game_path, "versions", inherits_from, f"{inherits_from}.json")
+            if not os.path.isfile(inherited_json):
+                if callback:
+                    callback(f"MC_PROGRESS|Falta versión base {inherits_from}, descargando...|0|100")
+                install_vanilla_version(inherits_from, callback)
+    except Exception as e:
+        print(f"Error verificando versión base: {e}")
+
 def verify_client(callback):
     return client_verifier.verify_client(callback)
 
+
+def _patch_fabric_json(version, game_path):
+    """
+    Parchea el JSON de la versión si es Fabric/Quilt y usa 'values' en vez de 'value'.
+    minecraft_launcher_lib arroja KeyError si no encuentra 'value'.
+    """
+    import os, json
+    json_path = os.path.join(game_path, "versions", version, f"{version}.json")
+    if not os.path.isfile(json_path):
+        return
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        modified = False
+        if "arguments" in data:
+            for arg_type in ["game", "jvm"]:
+                if arg_type in data["arguments"]:
+                    for item in data["arguments"][arg_type]:
+                        if isinstance(item, dict) and "values" in item and "value" not in item:
+                            item["value"] = item.pop("values")
+                            modified = True
+        if modified:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Error al parchear JSON de Fabric: {e}")
 
 def launch_game():
     import minecraft_launcher_lib
@@ -279,13 +331,14 @@ def launch_game():
         
     game_path = get_game_path()
     
+    # Parchear el JSON de Fabric antes de generar el comando
+    _patch_fabric_json(version, game_path)
+    
     java_path = properties.get("java.path", "java")
     if not os.path.isabs(java_path):
         java_path = os.path.join(game_path, java_path)
 
     memory = properties.get("java.memory", "2G")
-    # Convert '2G' to '2048' roughly, or just pass it to JVM args directly.
-    # minecraft_launcher_lib maneja 'jvmArguments'.
     
     options = {
         "username": properties.get("player.username", "Player"),

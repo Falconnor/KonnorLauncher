@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import launcher_core
@@ -40,6 +40,10 @@ class VerifyRunnable(QRunnable):
                 launcher_core.install_vanilla_version(version, self.signals.status_updated.emit)
                 result = 0
             else:
+                if version:
+                    # Nos aseguramos de que si es Forge/Fabric, su versión base (ej. 1.20.1) exista
+                    launcher_core.ensure_base_version(version, self.signals.status_updated.emit)
+                
                 # Verificación normal del modpack / launcher original
                 result = launcher_core.verify_client(self.signals.status_updated.emit)
         except Exception as ex:
