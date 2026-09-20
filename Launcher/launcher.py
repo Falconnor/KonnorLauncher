@@ -5,6 +5,13 @@ import sys
 os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
 os.environ.setdefault("QT_SCALE_FACTOR_ROUNDING_POLICY", "PassThrough")
 
+try:
+    import ctypes
+    myappid = 'fkonnor.launcher.1.0'
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+except Exception:
+    pass
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
@@ -23,4 +30,4 @@ from ui import LauncherUI
 
 if __name__ == "__main__":
     app = LauncherUI()
-    app.run()
+    app.run()

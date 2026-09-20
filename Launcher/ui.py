@@ -67,21 +67,6 @@ class LaunchRunnable(QRunnable):
         self.signals.finished.emit(result)
 
 
-class VersionFetchSignals(QObject):
-    version_ready = Signal(str)
-
-class VersionFetchRunnable(QRunnable):
-    """Obtiene la version del cliente desde el servidor en segundo plano."""
-    def __init__(self):
-        super().__init__()
-        self.signals = VersionFetchSignals()
-        self.setAutoDelete(True)
-
-    def run(self):
-        version = launcher_core.get_client_version()
-        if version:
-            self.signals.version_ready.emit(version)
-
 
 class DraggableWindow(QMainWindow):
     # Ventana sin marcos del sistema, arrastrable con click-drag
@@ -1012,6 +997,14 @@ class LauncherUI:
         self.app = QApplication.instance() or QApplication(sys.argv)
         self.window = DraggableWindow()
         self.window.setWindowTitle("Fkonnor Launcher")
+        
+        from PySide6.QtGui import QIcon
+        icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+        if os.path.isfile(icon_path):
+            app_icon = QIcon(icon_path)
+            self.app.setWindowIcon(app_icon)
+            self.window.setWindowIcon(app_icon)
+            
         self.window.setFixedSize(self.WINDOW_WIDTH, self.WINDOW_HEIGHT)
 
         self.central_widget = QWidget()
@@ -1091,9 +1084,9 @@ class LauncherUI:
 
         # BOTON OPCIONES (superior izquierda)
         self.btn_settings = QPushButton("⚙  Opciones", self.central_widget)
-        self.btn_settings.setGeometry(12, 10, 110, 32)
+        self.btn_settings.setGeometry(12, 10, 126, 37)
         self.btn_settings.setCursor(Qt.PointingHandCursor)
-        self.btn_settings.setFont(QFont(self.font_family, 9, QFont.Bold))
+        self.btn_settings.setFont(QFont(self.font_family, 10, QFont.Bold))
         self.btn_settings.setStyleSheet(
             "QPushButton {"
             "  background-color: rgba(255,255,255,0);"
@@ -1143,37 +1136,57 @@ class LauncherUI:
         # INFO jugador (inferior izquierda)
         props = launcher_core.load_properties()
         
-        # ELIMINAMOS el version_label antiguo redundante, ahora el botón será el indicador.
+        # ETIQUETA DE VERSIÓN DEL LAUNCHER (Esquina inferior derecha)
+        self.version_label = QLabel("v1.0.1", self.central_widget)
+        self.version_label.setGeometry(W - 130, H - 30, 100, 18)
+        self.version_label.setAlignment(Qt.AlignRight)
+        self.version_label.setFont(QFont(self.font_family, 9, QFont.Bold))
+        self.version_label.setStyleSheet("color: rgba(255,255,255,255); background: transparent;")
 
         # BOTON DE VERSIONES (Esquina inferior izquierda)
         props_ver = launcher_core.load_properties()
         selected = props_ver.get("minecraft.version", "")
         ver_display = selected if selected else "Selecciona una versión"
 
-        self.version_button = QPushButton(f"{ver_display}  ▾", self.central_widget)
-        self.version_button.setGeometry(30, H - 70, 220, 38)
-        self.version_button.setFont(QFont(self.font_family, 10))
+        self.version_button = QPushButton(self.central_widget)
+        self.version_button.setGeometry(30, H - 73, 170, 44)
         self.version_button.setCursor(Qt.PointingHandCursor)
         self.version_button.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(10, 12, 16, 180);"
-            "  color: rgba(255, 255, 255, 180);"
-            "  border: 1px solid rgba(255, 255, 255, 15);"
-            "  border-radius: 19px;"
-            "  padding: 0px 16px;"
-            "  text-align: left;"
+            "  background-color: rgba(35, 40, 48, 230);"
+            "  border: 0px solid rgba(255, 255, 255, 8);"
+            "  border-radius: 12px;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(30, 35, 45, 200);"
-            "  color: #ffffff;"
-            "  border: 1px solid rgba(255, 255, 255, 40);"
-            "}"
-            "QPushButton:disabled {"
-            "  background-color: rgba(0, 0, 0, 50);"
-            "  color: rgba(255, 255, 255, 50);"
-            "  border: none;"
+            "  background-color: rgba(45, 52, 62, 240);"
             "}"
         )
+        
+        # Sombra sutil para que coincida con el menú de opciones
+        shadow = QGraphicsDropShadowEffect(self.central_widget)
+        shadow.setBlurRadius(25)
+        shadow.setOffset(0, 5)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        self.version_button.setGraphicsEffect(shadow)
+
+        # Layout interno para tener "VERSION" y "1.21.1"
+        v_layout = QVBoxLayout(self.version_button)
+        v_layout.setContentsMargins(12, 6, 12, 4)
+        v_layout.setSpacing(0)
+        v_layout.setAlignment(Qt.AlignVCenter)
+        
+        lbl_title = QLabel("VERSIÓN ▾")
+        lbl_title.setFont(QFont(self.font_family, 9, QFont.Bold))
+        lbl_title.setStyleSheet("color: #ffffff; background: transparent; border: none;")
+        lbl_title.setAttribute(Qt.WA_TransparentForMouseEvents)
+        
+        self.lbl_ver_val = QLabel(ver_display)
+        self.lbl_ver_val.setFont(QFont(self.font_family, 7, QFont.Bold))
+        self.lbl_ver_val.setStyleSheet("color: rgba(255, 255, 255, 140); background: transparent; border: none;")
+        self.lbl_ver_val.setAttribute(Qt.WA_TransparentForMouseEvents)
+        
+        v_layout.addWidget(lbl_title)
+        v_layout.addWidget(self.lbl_ver_val)
 
         # BOTON JUGAR (Perfectamente centrado en la parte inferior)
         btn_play_w = 260
@@ -1181,7 +1194,7 @@ class LauncherUI:
         play_x = (W - btn_play_w) // 2
 
         # VENTANA POPUP DE VERSIONES (Scrollable)
-        from PySide6.QtWidgets import QListWidget, QVBoxLayout
+        from PySide6.QtWidgets import QListWidget
         self.version_popup = QWidget(self.window)
         self.version_popup.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
         self.version_popup.setAttribute(Qt.WA_TranslucentBackground)
@@ -1214,18 +1227,27 @@ class LauncherUI:
             "QScrollBar:vertical {"
             "  border: none;"
             "  background: transparent;"
-            "  width: 5px;"
-            "  margin: 4px 0px 4px 0px;"
+            "  width: 6px;"
+            "  margin: 4px 2px 4px 0px;"
             "}"
             "QScrollBar::handle:vertical {"
             "  background: rgba(255, 255, 255, 50);"
-            "  border-radius: 2px;"
+            "  border-radius: 3px;"
+            "  min-height: 20px;"
             "}"
             "QScrollBar::handle:vertical:hover {"
             "  background: rgba(255, 255, 255, 90);"
             "}"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
-            "  border: none; background: none;"
+            "  border: none;"
+            "  background: none;"
+            "  height: 0px;"
+            "}"
+            "QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical {"
+            "  background: none;"
+            "}"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
+            "  background: none;"
             "}"
         )
         self.version_list.itemClicked.connect(self._on_version_item_clicked)
@@ -1337,11 +1359,31 @@ class LauncherUI:
             self.version_list.addItem(item)
             return
 
+        props_ver = launcher_core.load_properties()
+        selected_version = props_ver.get("minecraft.version", "")
+
+        from PySide6.QtGui import QColor, QFont
         for version in versions:
             display_text = version if version in installed else f"{version}  (Descargar ↓)"
+            is_selected = (version == selected_version)
+            
+            if is_selected:
+                display_text = f"✓  {display_text}"
+                
             item = QListWidgetItem(display_text)
             item.setData(Qt.UserRole, version)
+            
+            if is_selected:
+                font = item.font()
+                font.setBold(True)
+                item.setFont(font)
+                item.setForeground(QColor("#7ae08a")) # Verde claro
+                
             self.version_list.addItem(item)
+            
+            # Mantener seleccionado en UI
+            if is_selected:
+                item.setSelected(True)
 
     def select_version(self, version):
         try:
@@ -1351,7 +1393,10 @@ class LauncherUI:
             QMessageBox.warning(self.window, "Error", f"No se pudo guardar la version:\n{ex}")
 
     def update_version_label(self, version):
-        self.version_button.setText(f"{version}  ▾" if version else "Selecciona una versión  ▾")
+        if hasattr(self, 'lbl_ver_val'):
+            self.lbl_ver_val.setText(version if version else "Selecciona una versión")
+        else:
+            self.version_button.setText(f"{version}  ▾" if version else "Selecciona una versión  ▾")
 
     def _apply_styles(self):
         self.central_widget.setStyleSheet("background: transparent;")
@@ -1510,14 +1555,4 @@ class LauncherUI:
 
     def run(self):
         self.window.show()
-        # Consultar versión del servidor en segundo plano (no bloquea la UI)
-        self._fetch_version_async()
         return self.app.exec()
-
-    def _fetch_version_async(self):
-        runnable = VersionFetchRunnable()
-        runnable.signals.version_ready.connect(self._on_version_fetched)
-        QThreadPool.globalInstance().start(runnable)
-
-    def _on_version_fetched(self, version):
-        self.version_label.setText(f"v{version}")
