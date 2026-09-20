@@ -251,13 +251,12 @@ def install_vanilla_version(version: str, callback=None):
         state["status"] = text
         if callback: 
             global_pct = get_global_percentage(0, state['max'])
-            # Mostramos el contador de la fase actual, ej: "Descargando... (0/150)"
-            callback(f"MC_PROGRESS|{text} (0/{state['max']})|{global_pct}|100")
+            callback(f"MC_PROGRESS|Descargando archivos (0/{state['max']})|{global_pct}|100")
         
     def set_progress(val):
         if callback: 
             global_pct = get_global_percentage(val, state['max'])
-            callback(f"MC_PROGRESS|{state['status']} ({val}/{state['max']})|{global_pct}|100")
+            callback(f"MC_PROGRESS|Descargando archivos ({val}/{state['max']})|{global_pct}|100")
     
     callbacks = {
         "setStatus": set_status,

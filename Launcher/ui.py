@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import launcher_core
@@ -487,6 +487,55 @@ class SettingsDialog(QDialog):
         game_row.addWidget(browse_game_btn)
         grid.addLayout(game_row, 8, 0, 1, 2)
 
+        # Fila 9: Label Skin
+        grid.addWidget(self._make_label("SKIN DEL JUGADOR"), 9, 0, 1, 2)
+
+        # Fila 10: Input ruta skin + botón "..." + botón vista previa
+        skin_row = QHBoxLayout()
+        skin_row.setSpacing(6)
+        self.skin_edit = self._make_input()
+        self.skin_edit.setText(props.get("player.skin", ""))
+        self.skin_edit.setPlaceholderText("Ruta al archivo de skin (.png)...")
+        self.skin_edit.setReadOnly(True)
+        skin_row.addWidget(self.skin_edit)
+
+        browse_skin_btn = QPushButton("...")
+        browse_skin_btn.setFixedSize(36, 36)
+        browse_skin_btn.setFont(QFont(self.font_family, 11, QFont.Bold))
+        browse_skin_btn.setCursor(Qt.PointingHandCursor)
+        browse_skin_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: rgba(80, 85, 95, 200);"
+            "  color: #ffffff;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background: rgba(100, 105, 115, 230);"
+            "}"
+        )
+        browse_skin_btn.clicked.connect(self._browse_skin)
+        skin_row.addWidget(browse_skin_btn)
+
+        preview_skin_btn = QPushButton("👁")
+        preview_skin_btn.setFixedSize(36, 36)
+        preview_skin_btn.setFont(QFont("Arial", 13))
+        preview_skin_btn.setCursor(Qt.PointingHandCursor)
+        preview_skin_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: rgba(80, 85, 95, 200);"
+            "  color: #ffffff;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover {"
+            "  background: rgba(100, 105, 115, 230);"
+            "}"
+        )
+        preview_skin_btn.clicked.connect(self._preview_skin)
+        skin_row.addWidget(preview_skin_btn)
+        grid.addLayout(skin_row, 10, 0, 1, 2)
+
         content_layout.addLayout(grid)
         content_layout.addStretch()
 
@@ -597,6 +646,21 @@ class SettingsDialog(QDialog):
         if folder:
             self.game_path_edit.setText(folder)
 
+    def _browse_skin(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar Skin", "", "Imágenes PNG (*.png)"
+        )
+        if path:
+            self.skin_edit.setText(path)
+
+    def _preview_skin(self):
+        skin_path = self.skin_edit.text().strip()
+        if not skin_path or not os.path.isfile(skin_path):
+            QMessageBox.warning(self, "Sin skin", "Selecciona un archivo de skin primero.")
+            return
+        dlg = SkinPreviewDialog(skin_path, parent=self, font_family=self.font_family)
+        dlg.exec()
+
     def _save(self):
         import re
         username = self.user_edit.text().strip()
@@ -612,8 +676,173 @@ class SettingsDialog(QDialog):
         launcher_core.save_property("server.url",      self.srv_edit.text().strip())
         launcher_core.save_property("game.path",       self.game_path_edit.text().strip())
         launcher_core.save_property("enable.verify",   "true" if self.verify_check.isChecked() else "false")
+        launcher_core.save_property("player.skin",     self.skin_edit.text().strip())
 
         self.accept()
+
+
+class SkinPreviewDialog(QDialog):
+    """Ventana de vista previa de skin de Minecraft (2D front/back)."""
+
+    def __init__(self, skin_path, parent=None, font_family="Arial"):
+        super().__init__(parent)
+        self.font_family = font_family
+        self.setWindowTitle("Vista previa de Skin")
+        self.setFixedSize(360, 460)
+        self.setStyleSheet("background-color: rgba(25, 30, 38, 250);")
+        self._build(skin_path)
+
+    def _build(self, skin_path):
+        from PySide6.QtGui import QImage, QPainter
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        title = QLabel("VISTA PREVIA DE SKIN")
+        title.setAlignment(Qt.AlignCenter)
+        title.setFont(QFont(self.font_family, 12, QFont.Bold))
+        title.setStyleSheet("color: #ffffff; background: transparent;")
+        layout.addWidget(title)
+
+        # Cargar la imagen del skin
+        skin_img = QImage(skin_path)
+        if skin_img.isNull():
+            err = QLabel("No se pudo cargar la imagen")
+            err.setAlignment(Qt.AlignCenter)
+            err.setStyleSheet("color: #ff4444;")
+            layout.addWidget(err)
+            return
+
+        w = skin_img.width()
+        h = skin_img.height()
+
+        # Skins: 64x64 (modernas) o 64x32 (legacy)
+        is_modern = (w == 64 and h == 64)
+
+        # Escala para renderizar (cada pixel del skin → N pixeles en preview)
+        scale = 8
+
+        # ── Renderizar vista frontal ──
+        front_w = 16 * scale  # 16px de ancho (4 cabeza + 4 cuerpo + 4 brazos + bordes)
+        front_h = 32 * scale  # 32px de alto
+        front_img = QImage(front_w, front_h, QImage.Format_ARGB32)
+        front_img.fill(QColor(0, 0, 0, 0))
+
+        p = QPainter(front_img)
+        p.setRenderHint(QPainter.Antialiasing, False)
+
+        def draw_part(src_x, src_y, src_w, src_h, dst_x, dst_y):
+            """Dibuja una región del skin escalada en la imagen de preview."""
+            region = skin_img.copy(src_x, src_y, src_w, src_h)
+            p.drawImage(dst_x * scale, dst_y * scale, region.scaled(
+                src_w * scale, src_h * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+
+        # Cabeza frontal: (8,8) 8x8
+        draw_part(8, 8, 8, 8, 4, 0)
+        # Cuerpo frontal: (20,20) 8x12
+        draw_part(20, 20, 8, 12, 4, 8)
+        # Brazo izquierdo (front): (44,20) 4x12
+        draw_part(44, 20, 4, 12, 0, 8)
+        # Brazo derecho (front)
+        if is_modern:
+            draw_part(36, 52, 4, 12, 12, 8)
+        else:
+            # Legacy: mirror del brazo izquierdo
+            arm = skin_img.copy(44, 20, 4, 12).mirrored(True, False)
+            p.drawImage(12 * scale, 8 * scale, arm.scaled(
+                4 * scale, 12 * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+        # Pierna izquierda (front): (4,20) 4x12
+        draw_part(4, 20, 4, 12, 4, 20)
+        # Pierna derecha (front)
+        if is_modern:
+            draw_part(20, 52, 4, 12, 8, 20)
+        else:
+            leg = skin_img.copy(4, 20, 4, 12).mirrored(True, False)
+            p.drawImage(8 * scale, 20 * scale, leg.scaled(
+                4 * scale, 12 * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+
+        # ── Overlay de cabeza (capa 2) ──
+        draw_part(40, 8, 8, 8, 4, 0)
+
+        p.end()
+
+        # ── Renderizar vista trasera ──
+        back_img = QImage(front_w, front_h, QImage.Format_ARGB32)
+        back_img.fill(QColor(0, 0, 0, 0))
+
+        p2 = QPainter(back_img)
+        p2.setRenderHint(QPainter.Antialiasing, False)
+
+        def draw_part2(src_x, src_y, src_w, src_h, dst_x, dst_y):
+            region = skin_img.copy(src_x, src_y, src_w, src_h)
+            p2.drawImage(dst_x * scale, dst_y * scale, region.scaled(
+                src_w * scale, src_h * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+
+        # Cabeza trasera: (24,8) 8x8
+        draw_part2(24, 8, 8, 8, 4, 0)
+        # Cuerpo trasero: (32,20) 8x12
+        draw_part2(32, 20, 8, 12, 4, 8)
+        # Brazo izquierdo back: (52,20) 4x12
+        draw_part2(52, 20, 4, 12, 12, 8)
+        # Brazo derecho back
+        if is_modern:
+            draw_part2(44, 52, 4, 12, 0, 8)
+        else:
+            arm_b = skin_img.copy(52, 20, 4, 12).mirrored(True, False)
+            p2.drawImage(0, 8 * scale, arm_b.scaled(
+                4 * scale, 12 * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+        # Pierna izquierda back: (12,20) 4x12
+        draw_part2(12, 20, 4, 12, 8, 20)
+        # Pierna derecha back
+        if is_modern:
+            draw_part2(28, 52, 4, 12, 4, 20)
+        else:
+            leg_b = skin_img.copy(12, 20, 4, 12).mirrored(True, False)
+            p2.drawImage(4 * scale, 20 * scale, leg_b.scaled(
+                4 * scale, 12 * scale, Qt.IgnoreAspectRatio, Qt.FastTransformation
+            ))
+
+        # Overlay cabeza trasera
+        draw_part2(56, 8, 8, 8, 4, 0)
+
+        p2.end()
+
+        # ── Mostrar ambas vistas lado a lado ──
+        views_layout = QHBoxLayout()
+        views_layout.setSpacing(24)
+
+        for label_text, img in [("FRENTE", front_img), ("ESPALDA", back_img)]:
+            col = QVBoxLayout()
+            col.setSpacing(4)
+            lbl = QLabel(label_text)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setFont(QFont(self.font_family, 9, QFont.Bold))
+            lbl.setStyleSheet("color: rgba(255,255,255,150); background: transparent;")
+            col.addWidget(lbl)
+
+            preview = QLabel()
+            preview.setAlignment(Qt.AlignCenter)
+            preview.setPixmap(QPixmap.fromImage(img))
+            preview.setStyleSheet("background: rgba(0,0,0,40); border-radius: 8px; padding: 8px;")
+            col.addWidget(preview)
+            views_layout.addLayout(col)
+
+        layout.addLayout(views_layout)
+        layout.addStretch()
+
+        # Nombre del archivo
+        file_name = os.path.basename(skin_path)
+        info = QLabel(file_name)
+        info.setAlignment(Qt.AlignCenter)
+        info.setFont(QFont("Arial", 8))
+        info.setStyleSheet("color: rgba(255,255,255,100); background: transparent;")
+        layout.addWidget(info)
 
 
 class LauncherUI:
@@ -763,23 +992,43 @@ class LauncherUI:
         self.version_label.setFont(QFont(self.font_family, 9))
         self.version_label.setStyleSheet("color: rgba(255,255,255,220); background: transparent;")
 
-        # BOTON VERSION (inferior derecha, menu abre hacia arriba)
-        self.version_button = QPushButton("VERSION", self.central_widget)
-        self.version_button.setGeometry(W - 152, H - 56, 128, 34)
-        self.version_button.setFont(QFont(self.font_family, 9, QFont.Bold))
+        # BOTON VERSION + BOTON JUGAR
+        # JUGAR siempre centrado, VERSION a su izquierda
+        btn_play_w = 220
+        btn_play_h = 52
+        btn_ver_w = 140
+        btn_ver_h = 52
+        gap = 4
+        play_x = (W - btn_play_w) // 2
+        ver_x = play_x - btn_ver_w - gap
+
+        # Versión seleccionada
+        props_ver = launcher_core.load_properties()
+        selected = props_ver.get("minecraft.version", "")
+        ver_display = selected if selected else "Sin versión"
+
+        self.version_button = QPushButton(f"▾  {ver_display}", self.central_widget)
+        self.version_button.setGeometry(ver_x, H - 92, btn_ver_w, btn_ver_h)
+        self.version_button.setFont(QFont(self.font_family, 10))
         self.version_button.setCursor(Qt.PointingHandCursor)
         self.version_button.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(30, 35, 42, 230);"
-            "  color: rgba(255, 255, 255, 210);"
-            "  border: 1px solid rgba(255, 255, 255, 40);"
-            "  border-radius: 17px;"
+            "  background-color: rgba(20, 24, 32, 220);"
+            "  color: rgba(255, 255, 255, 200);"
+            "  border: 1px solid rgba(255, 255, 255, 30);"
+            "  border-radius: 10px;"
+            "  padding-left: 12px;"
+            "  text-align: left;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(40, 45, 55, 240);"
-            "  border-color: rgba(255, 255, 255, 80);"
+            "  background-color: rgba(30, 36, 48, 240);"
+            "  border-color: rgba(255, 255, 255, 60);"
             "}"
-            "QPushButton:disabled { background-color: rgba(30, 35, 42, 100); color: rgba(255, 255, 255, 60); border: none; }"
+            "QPushButton:disabled {"
+            "  background-color: rgba(20, 24, 32, 100);"
+            "  color: rgba(255, 255, 255, 50);"
+            "  border: none;"
+            "}"
         )
 
         # VENTANA POPUP DE VERSIONES (Scrollable)
@@ -791,40 +1040,40 @@ class LauncherUI:
         self.version_list = QListWidget(self.version_popup)
         self.version_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.version_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.version_list.setFont(QFont(self.font_family, 9))
         self.version_list.setStyleSheet(
             "QListWidget {"
-            "  background-color: rgba(25, 30, 38, 245);"
+            "  background-color: rgba(20, 24, 32, 245);"
             "  color: rgba(255, 255, 255, 200);"
-            "  font-weight: bold;"
-            "  border: 1px solid rgba(255, 255, 255, 40);"
+            "  border: 1px solid rgba(255, 255, 255, 30);"
             "  border-radius: 8px;"
             "  padding: 4px;"
             "  outline: none;"
             "}"
             "QListWidget::item {"
-            "  padding: 8px 12px;"
-            "  margin: 2px;"
+            "  padding: 7px 12px;"
+            "  margin: 1px;"
             "  border-radius: 4px;"
             "}"
             "QListWidget::item:hover {"
-            "  background-color: rgba(255, 255, 255, 15);"
+            "  background-color: rgba(255, 255, 255, 12);"
             "}"
             "QListWidget::item:selected {"
-            "  background-color: rgba(255, 255, 255, 30);"
+            "  background-color: rgba(255, 255, 255, 25);"
             "  color: #ffffff;"
             "}"
             "QScrollBar:vertical {"
             "  border: none;"
             "  background: transparent;"
-            "  width: 6px;"
+            "  width: 5px;"
             "  margin: 4px 0px 4px 0px;"
             "}"
             "QScrollBar::handle:vertical {"
-            "  background: rgba(255, 255, 255, 60);"
-            "  border-radius: 3px;"
+            "  background: rgba(255, 255, 255, 50);"
+            "  border-radius: 2px;"
             "}"
             "QScrollBar::handle:vertical:hover {"
-            "  background: rgba(255, 255, 255, 100);"
+            "  background: rgba(255, 255, 255, 90);"
             "}"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
             "  border: none; background: none;"
@@ -865,10 +1114,8 @@ class LauncherUI:
         self.progress_bar.hide()
 
         # BOTON JUGAR
-        btn_w = 260
-        btn_h = 52
         self.play_button = QPushButton("JUGAR", self.central_widget)
-        self.play_button.setGeometry((W - btn_w) // 2, H - 92, btn_w, btn_h)
+        self.play_button.setGeometry(play_x, H - 92, btn_play_w, btn_play_h)
         self.play_button.setFont(QFont(self.font_family, 16, QFont.Bold))
         self.play_button.setCursor(Qt.PointingHandCursor)
         self.play_button.clicked.connect(self.start_verify)
@@ -884,23 +1131,22 @@ class LauncherUI:
         btn = self.version_button
         
         # Calcular altura para ~6 items
-        item_height = 32  # aproximado basado en el padding
+        item_height = 30
         max_items = 6
         count = self.version_list.count()
         visible_items = min(count, max_items)
-        # 8px de padding vertical del popup + altura de los items
         popup_height = (visible_items * item_height) + 12
         if count == 0:
             popup_height = 40
             
-        popup_width = max(btn.width() + 40, 180)
+        popup_width = max(btn.width(), 200)
         self.version_popup.setFixedSize(popup_width, popup_height)
         
         global_pos = btn.mapToGlobal(QPoint(0, 0))
         
-        # Alinear el borde derecho del menú con el borde derecho del botón
-        popup_x = global_pos.x() + btn.width() - popup_width
-        # Colocarlo exactamente arriba con 4px de separación
+        # Alinear el borde izquierdo del popup con el borde izquierdo del botón
+        popup_x = global_pos.x()
+        # Colocarlo encima del botón con 4px de separación
         popup_y = global_pos.y() - popup_height - 4
         
         self.version_popup.move(popup_x, popup_y)
@@ -956,7 +1202,7 @@ class LauncherUI:
             QMessageBox.warning(self.window, "Error", f"No se pudo guardar la version:\n{ex}")
 
     def update_version_label(self, version):
-        pass  # El label muestra la version del launcher, no la del juego
+        self.version_button.setText(f"▾  {version}" if version else "▾  Sin versión")
 
     def _apply_styles(self):
         self.central_widget.setStyleSheet("background: transparent;")
@@ -967,8 +1213,8 @@ class LauncherUI:
             "    stop:0.00 #7ae08a,"
             "    stop:0.08 #7ae08a,"
             "    stop:0.09 #4fbf60,"
-            "    stop:0.84 #4fbf60,"
-            "    stop:0.85 #2d7a3c,"
+            "    stop:0.91 #4fbf60,"
+            "    stop:0.92 #2d7a3c,"
             "    stop:1.00 #2d7a3c);"
             "  color: #ffffff;"
             "  border-radius: 10px;"
@@ -980,20 +1226,20 @@ class LauncherUI:
             "    stop:0.00 #94efaa,"
             "    stop:0.12 #94efaa,"
             "    stop:0.13 #62d478,"
-            "    stop:0.84 #62d478,"
-            "    stop:0.85 #3a9a50,"
+            "    stop:0.91 #62d478,"
+            "    stop:0.92 #3a9a50,"
             "    stop:1.00 #3a9a50);"
             "  border: 0px solid rgba(0, 0, 0, 255);"
             "}"
             
             "QPushButton:pressed {"
             "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            "    stop:0.00 #2d7a3c,"
-            "    stop:0.15 #2d7a3c,"
-            "    stop:0.16 #3da050,"
-            "    stop:0.91 #3da050,"
-            "    stop:0.92 #5ecc70,"
-            "    stop:1.00 #5ecc70);"
+            "    stop:0.00 #94efaa,"
+            "    stop:0.15 #94efaa,"
+            "    stop:0.16 #62d478,"
+            "    stop:0.91 #62d478,"
+            "    stop:0.92 #3a9a50,"
+            "    stop:1.00 #3a9a50);"
             "  border: 0px solid rgba(0, 0, 0, 255);"
             "}"
             
@@ -1002,9 +1248,9 @@ class LauncherUI:
             "    stop:0.00 #2d7a3c,"
             "    stop:0.15 #2d7a3c,"
             "    stop:0.16 #3da050,"
-            "    stop:0.91 #3da050,"
-            "    stop:0.92 #5ecc70,"
-            "    stop:1.00 #5ecc70);"
+            "    stop:0.95 #3da050,"
+            "    stop:0.96 #7ae08a,"
+            "    stop:1.00 #7ae08a);"
             "  border: 0px solid rgba(0, 0, 0, 255);"
             "}"
             
