@@ -333,6 +333,49 @@ def _patch_fabric_json(version, game_path):
                 json.dump(data, f, indent=2)
     except Exception as e:
         print(f"Error al parchear JSON de Fabric: {e}")
+def _find_best_java() -> str:
+    import subprocess, re, shutil
+    search_paths = [
+        os.environ.get("PROGRAMFILES", "C:\\Program Files"),
+        os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")
+    ]
+    java_exes = []
+    
+    sys_java = shutil.which("java")
+    if sys_java:
+        java_exes.append(sys_java)
+        
+    common_vendors = ["Java", "Eclipse Adoptium", "AdoptOpenJDK", "Microsoft", "Amazon Corretto", "BellSoft", "Zulu"]
+    
+    for base in search_paths:
+        if not base or not os.path.isdir(base): continue
+        for v in common_vendors:
+            vp = os.path.join(base, v)
+            if os.path.isdir(vp):
+                for d in os.listdir(vp):
+                    fp = os.path.join(vp, d)
+                    if os.path.isdir(fp):
+                        exe = os.path.join(fp, "bin", "java.exe")
+                        if os.path.isfile(exe) and exe.lower() not in [x.lower() for x in java_exes]:
+                            java_exes.append(exe)
+                            
+    best = "java"
+    best_v = 0.0
+    
+    for exe in java_exes:
+        try:
+            r = subprocess.run([exe, "-version"], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            m = re.search(r'version \x22([^\x22]+)\x22', r.stderr)
+            if m:
+                v_str = m.group(1)
+                major = float(v_str.split(".")[1]) if v_str.startswith("1.") else float(v_str.split(".")[0])
+                if major > best_v:
+                    best_v = major
+                    best = exe
+        except Exception:
+            pass
+            
+    return best
 
 def launch_game():
     import minecraft_launcher_lib
@@ -349,9 +392,9 @@ def launch_game():
     
     java_path = properties.get("java.path", "java").strip()
     
-    # Si está vacío o es un comando genérico, usar el del sistema
+    # Si está vacío o es un comando genérico, usar la versión más reciente detectada en el sistema
     if not java_path or java_path.lower() in ("java", "java.exe", "javaw", "javaw.exe"):
-        java_path = "java"
+        java_path = _find_best_java()
     else:
         # Si es relativa, la unimos a la carpeta del juego (útil para runtimes portables integrados)
         if not os.path.isabs(java_path):
@@ -359,7 +402,7 @@ def launch_game():
             
         # Si la ruta absoluta configurada (o relativa calculada) no existe en esta PC, hacer fallback
         if not os.path.isfile(java_path):
-            java_path = "java"
+            java_path = _find_best_java()
 
     memory = properties.get("java.memory", "2G")
     

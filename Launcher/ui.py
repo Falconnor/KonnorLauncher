@@ -452,7 +452,7 @@ class SettingsDialog(QDialog):
         game_row = QHBoxLayout()
         game_row.setSpacing(6)
         self.game_path_edit = self._make_input()
-        self.game_path_edit.setText(props.get("game.path", "../Minecraft"))
+        self.game_path_edit.setText(props.get("game.path", ""))
         self.game_path_edit.setPlaceholderText("Ruta a la carpeta del juego...")
         game_row.addWidget(self.game_path_edit)
 
