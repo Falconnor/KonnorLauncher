@@ -393,6 +393,13 @@ class SettingsDialog(QDialog):
         java_row.setSpacing(6)
         self.java_edit = self._make_input()
         self.java_edit.setText(props.get("java.path", ""))
+        java_path_val = props.get("java.path", "").strip()
+        if not java_path_val or java_path_val.lower() in ("java", "java.exe", "javaw", "javaw.exe"):
+            try:
+                java_path_val = launcher_core._find_best_java()
+            except Exception:
+                java_path_val = "java"
+        self.java_edit.setText(java_path_val)
         self.java_edit.setPlaceholderText("C:\\ruta\\al\\java.exe")
         java_row.addWidget(self.java_edit)
 
@@ -453,6 +460,10 @@ class SettingsDialog(QDialog):
         game_row.setSpacing(6)
         self.game_path_edit = self._make_input()
         self.game_path_edit.setText(props.get("game.path", ""))
+        game_path_val = props.get("game.path", "").strip()
+        if not game_path_val:
+            game_path_val = os.path.join(os.getenv("APPDATA", ""), ".minecraft")
+        self.game_path_edit.setText(game_path_val)
         self.game_path_edit.setPlaceholderText("Ruta a la carpeta del juego...")
         game_row.addWidget(self.game_path_edit)
 
