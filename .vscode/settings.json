@@ -1,8 +1,0 @@
-{
-    "python.analysis.aiCodeActions": {
-        
-        "implementAbstractClasses": true,
-        "generateSymbol": true,
-        "convertFormatString": true
-    }
-}

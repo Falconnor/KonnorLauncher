@@ -1,0 +1,42 @@
+# CI de Fkonnor Launcher: pruebas, publicación e instalador en cada push/PR a main y en etiquetas v*.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Instalar Inno Setup
+        run: |
+          $found = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 7\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe") | Where-Object { Test-Path $_ }
+          if (-not $found) { choco install innosetup -y --no-progress }
+
+      - name: Pruebas, publicación e instalador
+        run: ./build.ps1
+
+      # Firma: solo en etiquetas de release y cuando haya certificado.
+      # - name: Firmar
+      #   if: startsWith(github.ref, 'refs/tags/v')
+      #   run: ...
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KonnorLauncher-Setup
+          path: artifacts/*.exe

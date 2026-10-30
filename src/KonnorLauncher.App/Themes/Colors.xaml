@@ -1,0 +1,103 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ═══ Paleta del launcher (colores en formato #AARRGGBB) ═══ -->
+    <SolidColorBrush x:Key="PanelBg" Color="#F0232830" />
+    <SolidColorBrush x:Key="VersionBtnBg" Color="#E6232830" />
+    <SolidColorBrush x:Key="VersionBtnHover" Color="#F02D343E" />
+    <SolidColorBrush x:Key="PopupBg" Color="#F5141820" />
+    <SolidColorBrush x:Key="InputBg" Color="#B40F1216" />
+    <SolidColorBrush x:Key="ComboDropBg" Color="#F0191E26" />
+    <SolidColorBrush x:Key="ComboSelection" Color="#7827AE60" />
+    <SolidColorBrush x:Key="SecondaryBtn" Color="#C850555F" />
+    <SolidColorBrush x:Key="SecondaryBtnHover" Color="#E6646973" />
+    <SolidColorBrush x:Key="InfoPopupBg" Color="#F01E232A" />
+    <SolidColorBrush x:Key="SkinWindowBg" Color="#FA191E26" />
+    <SolidColorBrush x:Key="Green" Color="#27AE60" />
+    <SolidColorBrush x:Key="GreenHover" Color="#2ECC71" />
+    <SolidColorBrush x:Key="GreenPressed" Color="#1E8449" />
+    <SolidColorBrush x:Key="SelectedVersionText" Color="#7AE08A" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="#FF4444" />
+    <SolidColorBrush x:Key="CloseHoverBg" Color="#3CFF5050" />
+    <SolidColorBrush x:Key="CloseHoverFg" Color="#FF5555" />
+    <SolidColorBrush x:Key="OptionsText" Color="#232323" />
+    <SolidColorBrush x:Key="ScrollThumb" Color="#78C8D2DC" />
+    <SolidColorBrush x:Key="ScrollThumbHover" Color="#B4E6EBF0" />
+
+    <!-- Blanco con alfa N (rgba(255,255,255,N)) -->
+    <SolidColorBrush x:Key="White" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA12" Color="#0CFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA18" Color="#12FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA20" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA25" Color="#19FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA30" Color="#1EFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA40" Color="#28FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA50" Color="#32FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA60" Color="#3CFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA80" Color="#50FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA90" Color="#5AFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA100" Color="#64FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA120" Color="#78FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA140" Color="#8CFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA150" Color="#96FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA160" Color="#A0FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA180" Color="#B4FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA190" Color="#BEFFFFFF" />
+    <SolidColorBrush x:Key="WhiteA200" Color="#C8FFFFFF" />
+    <SolidColorBrush x:Key="WhiteA220" Color="#DCFFFFFF" />
+
+    <!-- Fondo alternativo si background.png no carga -->
+    <LinearGradientBrush x:Key="FallbackBackground" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#0D1C2E" Offset="0" />
+        <GradientStop Color="#0A1220" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Barra de progreso: relleno horizontal #3ab55e → #72e89a -->
+    <LinearGradientBrush x:Key="ProgressFill" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#3AB55E" Offset="0" />
+        <GradientStop Color="#72E89A" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- ═══ Botón JUGAR: gradientes verticales con cortes duros ═══ -->
+    <LinearGradientBrush x:Key="PlayNormal" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#7AE08A" Offset="0" /><GradientStop Color="#7AE08A" Offset="0.08" />
+        <GradientStop Color="#4FBF60" Offset="0.09" /><GradientStop Color="#4FBF60" Offset="0.91" />
+        <GradientStop Color="#2D7A3C" Offset="0.92" /><GradientStop Color="#2D7A3C" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="PlayHover" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#94EFAA" Offset="0" /><GradientStop Color="#94EFAA" Offset="0.12" />
+        <GradientStop Color="#62D478" Offset="0.13" /><GradientStop Color="#62D478" Offset="0.91" />
+        <GradientStop Color="#3A9A50" Offset="0.92" /><GradientStop Color="#3A9A50" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="PlayPressed" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#94EFAA" Offset="0" /><GradientStop Color="#94EFAA" Offset="0.15" />
+        <GradientStop Color="#62D478" Offset="0.16" /><GradientStop Color="#62D478" Offset="0.91" />
+        <GradientStop Color="#3A9A50" Offset="0.92" /><GradientStop Color="#3A9A50" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="PlayDisabled" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#2D7A3C" Offset="0" /><GradientStop Color="#2D7A3C" Offset="0.15" />
+        <GradientStop Color="#3DA050" Offset="0.16" /><GradientStop Color="#3DA050" Offset="0.95" />
+        <GradientStop Color="#7AE08A" Offset="0.96" /><GradientStop Color="#7AE08A" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- ═══ Tamaños de fuente: definidos en puntos y convertidos a DIP (pt × 96/72) ═══ -->
+    <sys:Double x:Key="Pt7">9.33</sys:Double>
+    <sys:Double x:Key="Pt8">10.67</sys:Double>
+    <sys:Double x:Key="Pt9">12</sys:Double>
+    <sys:Double x:Key="Pt10">13.33</sys:Double>
+    <sys:Double x:Key="Pt11">14.67</sys:Double>
+    <sys:Double x:Key="Pt12">16</sys:Double>
+    <sys:Double x:Key="Pt13">17.33</sys:Double>
+    <sys:Double x:Key="Pt14">18.67</sys:Double>
+    <sys:Double x:Key="Pt15">20</sys:Double>
+    <sys:Double x:Key="Pt16">21.33</sys:Double>
+    <sys:Double x:Key="Pt38">50.67</sys:Double>
+
+    <!-- Fuente principal "Boring Time" (si no carga, App.xaml.cs la cambia por Arial) -->
+    <FontFamily x:Key="MainFont">pack://application:,,,/Assets/#Boring Time</FontFamily>
+    <FontFamily x:Key="ArialFont">Arial</FontFamily>
+
+    <!-- Sombra de paneles (BlurRadius 30, negro α150) -->
+    <DropShadowEffect x:Key="PanelShadow" BlurRadius="30" ShadowDepth="0" Color="Black" Opacity="0.59" />
+</ResourceDictionary>

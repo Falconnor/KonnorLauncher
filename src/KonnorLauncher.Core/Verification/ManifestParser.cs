@@ -1,0 +1,128 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace KonnorLauncher.Core.Verification;
+
+/// <summary>
+/// Parseo y validación de <c>client_manifest.json</c>. Todo se valida ANTES de tocar el disco.
+/// </summary>
+public static partial class ManifestParser
+{
+    [GeneratedRegex("^[0-9a-fA-F]{64}$")]
+    private static partial Regex Sha256Regex();
+
+    /// <summary>
+    /// Parsea el texto JSON. Un JSON mal formado se considera un fallo del servidor
+    /// (<c>servidor no responde</c>).
+    /// </summary>
+    public static ClientManifest Parse(string json)
+    {
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(json);
+        }
+        catch (JsonException ex)
+        {
+            throw new VerificationException(VerificationException.ServerNotResponding, ex);
+        }
+
+        using (document)
+            return Parse(document.RootElement);
+    }
+
+    /// <summary>Valida la estructura completa del manifest.</summary>
+    public static ClientManifest Parse(JsonElement root)
+    {
+        // Sección "files": obligatoria y debe ser un objeto.
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("files", out var filesElement)
+            || filesElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new VerificationException("El manifest no contiene una sección files válida");
+        }
+
+        string? clientVersion = null;
+        if (root.TryGetProperty("client_version", out var versionElement) && versionElement.ValueKind == JsonValueKind.String)
+            clientVersion = versionElement.GetString();
+
+        var files = ParseFiles(filesElement, blockName: null);
+        var blocks = ParseAssetBlocks(root);
+        return new ClientManifest(clientVersion, files, blocks);
+    }
+
+    /// <summary>
+    /// Sección opcional <c>asset_blocks</c>: si falta, está vacía o no es un objeto → lista vacía
+    /// (compatibilidad con manifests antiguos).
+    /// </summary>
+    private static List<AssetBlock> ParseAssetBlocks(JsonElement root)
+    {
+        var blocks = new List<AssetBlock>();
+        if (!root.TryGetProperty("asset_blocks", out var blocksElement) || blocksElement.ValueKind != JsonValueKind.Object)
+            return blocks;
+
+        var byName = new Dictionary<string, AssetBlock>(StringComparer.Ordinal);
+        foreach (var property in blocksElement.EnumerateObject())
+        {
+            var name = property.Name;
+            var meta = property.Value;
+            if (meta.ValueKind != JsonValueKind.Object)
+                throw new VerificationException($"Metadatos inválidos para bloque {name}");
+
+            // El nombre del bloque se usa como archivo en la carpeta temporal, así que se valida como una ruta más.
+            ManifestPath.Normalize(name);
+
+            var sha = ReadSha(meta) ?? throw new VerificationException($"SHA-256 inválido para bloque {name}");
+            var size = ReadSize(meta) ?? throw new VerificationException($"Tamaño inválido para bloque {name}");
+
+            if (!meta.TryGetProperty("files", out var blockFiles) || blockFiles.ValueKind != JsonValueKind.Object)
+                throw new VerificationException($"Sección files inválida en bloque {name}");
+
+            byName[name] = new AssetBlock(name, sha, size, ParseFiles(blockFiles, name));
+        }
+
+        blocks.AddRange(byName.Values);
+        return blocks;
+    }
+
+    /// <summary>Parsea un objeto <c>{ ruta: { sha256, size } }</c>. Claves repetidas: gana la última.</summary>
+    private static List<ManifestFile> ParseFiles(JsonElement filesElement, string? blockName)
+    {
+        var suffix = blockName is null ? string.Empty : $" en {blockName}";
+        var result = new Dictionary<string, ManifestFile>(StringComparer.Ordinal);
+        foreach (var property in filesElement.EnumerateObject())
+        {
+            var rawPath = property.Name;
+            var meta = property.Value;
+            if (meta.ValueKind != JsonValueKind.Object)
+                throw new VerificationException($"Metadatos inválidos para {rawPath}{suffix}");
+
+            var (relative, url) = ManifestPath.Normalize(rawPath);
+            var sha = ReadSha(meta) ?? throw new VerificationException($"SHA-256 inválido para {rawPath}{suffix}");
+            var size = ReadSize(meta) ?? throw new VerificationException($"Tamaño inválido para {rawPath}{suffix}");
+            result[rawPath] = new ManifestFile(relative, url, sha, size);
+        }
+
+        return [.. result.Values];
+    }
+
+    /// <summary>SHA-256 de 64 hex normalizado a mayúsculas, o null si no es válido.</summary>
+    private static string? ReadSha(JsonElement meta) =>
+        meta.TryGetProperty("sha256", out var value)
+        && value.ValueKind == JsonValueKind.String
+        && value.GetString() is { } text
+        && Sha256Regex().IsMatch(text)
+            ? text.ToUpperInvariant()
+            : null;
+
+    /// <summary>Tamaño: número entero ≥ 0 (se rechazan booleanos, decimales y cadenas), o null.</summary>
+    private static long? ReadSize(JsonElement meta) =>
+        meta.TryGetProperty("size", out var value)
+        && value.ValueKind == JsonValueKind.Number
+        && value.TryGetInt64(out var size)
+        && !value.GetRawText().Contains('.')
+        && !value.GetRawText().Contains('e', StringComparison.OrdinalIgnoreCase)
+        && size >= 0
+            ? size
+            : null;
+}

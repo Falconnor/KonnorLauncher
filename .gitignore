@@ -1,39 +1,8 @@
-# Python
-__pycache__/
-*.pyc
-
-/Launcher/tests/
-
-# Minecraft logs
-**/logs/
-
-# Minecraft saves
-**/saves/
-
-# Fabric cache
-**/.fabric/
-
-# Minecraft generated files
-
-
-# Crash reports
-**/crash-reports/
-
-# Launcher generated files
-Launcher/${game_directory}/
-
-# Minecraft generado/descargado
-Minecraft/
-Minecraft/assets/
-Minecraft/libraries/
-Minecraft/versions/
-Minecraft/runtime/
-Minecraft/options.txt
-Minecraft/usercache.json
-Minecraft/config/
-
-.vscode/
-BuildOutput5/
-LauncherLiveServer/Client/
-
-SESSION_CONTEXT.md
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+TestResults/
+docs/
