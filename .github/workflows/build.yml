@@ -1,6 +1,6 @@
 # CI de Konnor Launcher (monorepo).
 # - launcher: pruebas, publicación e instalador en cada push/PR a main y en etiquetas v*.
-# - backend: comprueba que el backend se instala y que su código compila.
+# - servidor: comprueba que el servidor se instala y que su código compila.
 name: build
 
 on:
@@ -44,7 +44,7 @@ jobs:
           name: KonnorLauncher-Setup
           path: Launcher/artifacts/*.exe
 
-  backend:
+  servidor:
     runs-on: ubuntu-latest
     defaults:
       run:

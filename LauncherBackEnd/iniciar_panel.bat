@@ -4,7 +4,7 @@ rem Se abre en una ventana propia (Edge o Chrome en modo aplicacion) en http://1
 rem Cerrar esta consola cierra el panel y el servidor que haya arrancado.
 chcp 65001 >nul
 set PYTHONUTF8=1
-title Panel - Konnor Launcher Backend
+title Panel - Servidor de Konnor Launcher
 call "%~dp0preparar_entorno.bat" || (pause & exit /b 1)
 
 "%PYTHON%" -m Panel %*

@@ -1,11 +1,10 @@
 # Archivos de prueba del cliente (varios GB): no van en git.
 tests/
 
-# Generados por el backend
+# Generados por el servidor
 client_manifest.json
-backends.json
-backend_config.json
-perfiles/
+servidores.json
+profiles/
 .cache/
 *.tmp
 

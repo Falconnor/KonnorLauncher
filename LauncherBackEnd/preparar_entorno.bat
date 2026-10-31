@@ -1,5 +1,5 @@
 @echo off
-rem Prepara el entorno de Python del backend (lo llaman los demas .bat).
+rem Prepara el entorno de Python de LauncherBackEnd (lo llaman los demas .bat).
 rem Crea .venv la primera vez e instala requirements.txt; solo reinstala si ese archivo cambia.
 rem Al terminar deja en PYTHON la ruta del interprete del entorno.
 cd /d "%~dp0"

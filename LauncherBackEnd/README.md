@@ -1,4 +1,4 @@
-# Konnor Launcher Backend
+# Servidor de Konnor Launcher
 
 Servidor de actualización de Konnor Launcher. Cuando el launcher tiene activada la casilla
 **VERIFICAR ARCHIVOS AL INICIAR**, descarga de aquí el manifest del cliente, lo compara con los
@@ -9,7 +9,7 @@ Los miles de archivos pequeños de `assets/` se empaquetan en bloques ZIP (16 po
 configurable): el launcher descarga un bloque mientras extrae el anterior, en lugar de hacer una
 petición por cada archivo.
 
-Se pueden tener varios **backends** con nombre (por ejemplo, uno por modpack o uno de pruebas),
+Se pueden tener varios **servidores** con nombre (por ejemplo, uno por modpack o uno de pruebas),
 cada uno con su puerto, su carpeta del cliente y su manifest, y tenerlos en marcha a la vez.
 
 ## Estructura
@@ -21,8 +21,9 @@ Panel/                         ← panel de control (interfaz web local, 127.0.0
   supervisor.py                ← arranque y parada de cada servidor, registro y actividad
   static/                      ← interfaz (HTML, CSS, JS)
 Services/
-  settings.py                  ← backends y su configuración (backends.json y variables de entorno)
-  serve.py                     ← arranca uvicorn para un backend, con su host y su puerto
+  settings.py                  ← servidores y su configuración (servidores.json y variables de entorno)
+  profile_files.py             ← crear y borrar los archivos de un servidor (con sus reglas de seguridad)
+  serve.py                     ← arranca uvicorn para un servidor, con su host y su puerto
   generate_manifest.py         ← genera client_manifest.json
   generate_asset_blocks.py     ← bloques ZIP de assets (incrementales)
   auto_update.py               ← actualización automática al arrancar y al cambiar el cliente
@@ -31,10 +32,10 @@ Services/
 tests/Client/                  ← archivos de prueba del cliente (no está en git)
   mods/  versions/  libraries/  assets/
   packages/                    ← bloques generados
-perfiles/<id>/                 ← archivos de los backends creados desde el panel (no está en git)
-backends.json                  ← backends y su configuración (no está en git)
+profiles/<id>/                 ← archivos de los servidores creados desde el panel (no está en git)
+servidores.json                ← servidores y su configuración (no está en git)
 iniciar_panel.bat              ← panel de control (recomendado)
-iniciar_servidor.bat [id]      ← producción sin panel: un backend, donde diga su configuración
+iniciar_servidor.bat [id]      ← producción sin panel: un servidor, donde diga su configuración
 iniciar_desarrollo.bat         ← desarrollo: 127.0.0.1:8000, recarga el código al editarlo
 actualizar_manifest.bat        ← regeneración manual (normalmente no hace falta)
 preparar_entorno.bat           ← crea .venv e instala requirements.txt (lo usan los demás)
@@ -48,11 +49,14 @@ iniciar_panel.bat
 
 La primera vez crea el entorno `.venv` e instala las dependencias. Después abre el panel de
 control en una ventana propia (Edge o Chrome en modo aplicación; si no hay ninguno, el navegador
-predeterminado). El panel está ordenado por importancia:
+predeterminado), siempre en proporción 4:3 y centrada según el tamaño de la pantalla. La ventana
+usa un perfil de navegador propio (`%LOCALAPPDATA%\KonnorLauncher\panel-navegador`) para no
+mezclarse con el navegador que ya esté abierto. El panel está ordenado por importancia:
 
-- **Backends** (columna izquierda): lista con el estado de cada uno; se elige cuál ver y se crean
-  nuevos con un nombre. Cada backend nuevo usa su propia carpeta en `perfiles/<id>/` y el
-  siguiente puerto libre. Varios pueden estar en marcha a la vez.
+- **Servidores** (columna izquierda, plegable): lista con el estado de cada uno; se elige cuál ver
+  y se crean nuevos con un nombre. Cada servidor nuevo usa su propia carpeta en `profiles/<id>/`
+  (se crea con `Client/mods`, `versions`, `libraries` y `assets`) y el siguiente puerto libre.
+  Varios pueden estar en marcha a la vez.
 - **Avisos**: lo que requiere atención, de más a menos grave (servidor caído, carpeta del cliente
   inexistente, generación fallida, reinicio pendiente, manifest desactualizado, errores servidos),
   cada uno con su acción.
@@ -64,12 +68,19 @@ predeterminado). El panel está ordenado por importancia:
   hace desde el propio panel.
 - **Registro**: salida del servidor en vivo, con filtro de avisos y errores.
 - **Configuración**: nombre, red, carpeta del cliente, número de bloques, actualización automática
-  y rutas avanzadas. Se guarda en `backends.json`; si el servidor está en marcha, el panel avisa
-  de que hay que reiniciarlo. Al final, la opción de quitar el backend de la lista (sus archivos
-  se quedan en el disco).
+  y rutas avanzadas. Se guarda en `servidores.json`; si el servidor está en marcha, el panel avisa
+  de que hay que reiniciarlo. Al final, la opción de eliminar el servidor.
+
+Al eliminar un servidor se puede marcar **Eliminar archivos**. El panel muestra antes qué se borra y
+cuánto ocupa. Solo se borra lo que está dentro de la carpeta LauncherBackEnd, no es parte del programa
+(`Services/`, `Panel/`, `.venv/`) y no usa ningún otro servidor; lo demás se conserva y se indica
+por qué (por ejemplo, una carpeta del cliente en otro disco nunca se borra).
+
+Si el código del panel cambia mientras está abierto, avisa de que hay que reiniciarlo: seguiría
+ejecutando la versión anterior.
 
 El panel solo escucha en `127.0.0.1`. Cerrar su consola detiene también los servidores que arrancó.
-Sin panel, `iniciar_servidor.bat` arranca el backend seleccionado en el panel, o el indicado
+Sin panel, `iniciar_servidor.bat` arranca el servidor seleccionado en el panel, o el indicado
 (`iniciar_servidor.bat principal`). Al arrancar, el servidor:
 
 1. Revisa la carpeta del cliente y actualiza el manifest en segundo plano. El servidor responde
@@ -106,17 +117,16 @@ Las descargas admiten `Range` (reanudación), `ETag` y `Last-Modified`.
 
 ## Configuración
 
-Se edita desde el panel y se guarda en `backends.json` (no está en git). La primera vez, si existe
-el `backend_config.json` de versiones anteriores, se importa como el backend "Principal".
+Se edita desde el panel y se guarda en `servidores.json` (no está en git).
 
-Dos backends no pueden compartir puerto, carpeta del cliente ni manifest. Cada valor se puede
+Dos servidores no pueden compartir puerto, carpeta del cliente ni manifest. Cada valor se puede
 forzar con una variable de entorno, que tiene prioridad al usar los `.bat`; los servidores que
-arranca el panel usan siempre los valores del panel. Los valores por defecto son los del backend
+arranca el panel usan siempre los valores del panel. Los valores por defecto son los del servidor
 principal.
 
 | Variable | Por defecto | Uso |
 |---|---|---|
-| `KONNOR_PROFILE` | el seleccionado en el panel | Backend que sirve el proceso (id de `backends.json`) |
+| `KONNOR_PROFILE` | el seleccionado en el panel | Servidor que sirve el proceso (id de `servidores.json`) |
 | `KONNOR_HOST` | `0.0.0.0` | Interfaz en la que escucha el servidor |
 | `KONNOR_PORT` | `59381` | Puerto del servidor |
 | `KONNOR_CLIENT_DIR` | `tests/Client` | Carpeta con los archivos del cliente |

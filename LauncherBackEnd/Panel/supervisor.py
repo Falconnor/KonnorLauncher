@@ -1,8 +1,8 @@
-"""Proceso del servidor de un backend visto desde el panel: arranque, parada, registro y actividad.
+"""Proceso de un servidor visto desde el panel: arranque, parada, registro y actividad.
 
-Cada backend corre como proceso hijo (``python -m Services.serve --backend <id>``) con su salida
+Cada servidor corre como proceso hijo (``python -m Services.serve --servidor <id>``) con su salida
 redirigida al panel. Así el panel puede mostrar su registro en vivo, detenerlo de forma ordenada
-y tener varios backends en marcha a la vez.
+y tener varios servidores en marcha a la vez.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class PanelError(Exception):
 
 
 def port_in_use(host: str, port: int) -> bool:
-    """True si algo ya escucha en ese puerto (otro servidor, otra copia del backend...)."""
+    """True si algo ya escucha en ese puerto (otro servidor, otra copia del servidor...)."""
     probe_host = "127.0.0.1" if host in ("0.0.0.0", "::", "localhost") else host
     try:
         with socket.create_connection((probe_host, port), timeout=0.5):
@@ -135,12 +135,12 @@ def port_in_use(host: str, port: int) -> bool:
 
 
 class ServerProcess:
-    """El servidor de un backend como proceso hijo del panel."""
+    """Un servidor como proceso hijo del panel."""
 
     STOP_TIMEOUT = 10  # segundos de margen para el cierre ordenado antes de forzarlo
 
-    def __init__(self, backend_id: str, logs: LogBuffer):
-        self.backend_id = backend_id
+    def __init__(self, profile_id: str, logs: LogBuffer):
+        self.profile_id = profile_id
         self.logs = logs
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
@@ -166,18 +166,18 @@ class ServerProcess:
         with self._lock:
             if self.alive:
                 raise PanelError("El servidor ya está en marcha")
-            settings = load_settings(self.backend_id, use_env=False)
+            settings = load_settings(self.profile_id, use_env=False)
             if port_in_use(settings.host, settings.port):
                 raise PanelError(f"El puerto {settings.port} ya está en uso. ¿Hay otro servidor abierto?")
 
-            # El panel manda: el servidor usa backends.json, sin variables KONNOR_* heredadas.
+            # El panel manda: el servidor usa servidores.json, sin variables KONNOR_* heredadas.
             env = {k: v for k, v in os.environ.items() if not k.upper().startswith("KONNOR_")}
-            env.update(PYTHONUTF8="1", PYTHONUNBUFFERED="1", **{PROFILE_ENV: self.backend_id})
+            env.update(PYTHONUTF8="1", PYTHONUNBUFFERED="1", **{PROFILE_ENV: self.profile_id})
             # Grupo de procesos propio: permite enviarle CTRL_BREAK (cierre ordenado) sin afectar al panel.
             flags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
 
             self._proc = subprocess.Popen(
-                [sys.executable, "-m", "Services.serve", "--backend", self.backend_id],
+                [sys.executable, "-m", "Services.serve", "--servidor", self.profile_id],
                 cwd=BASE_DIR, env=env, creationflags=flags,
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -186,7 +186,7 @@ class ServerProcess:
             self.crashed = False
             self.exit_code = None
             self.started_at = time.time()
-            self.config_at_start = raw_config(self.backend_id, use_env=False)
+            self.config_at_start = raw_config(self.profile_id, use_env=False)
             self.logs.reset_activity()
             self.logs.add(f"Iniciando servidor en {settings.host}:{settings.port} (PID {self._proc.pid})",
                           source="panel", level="info")

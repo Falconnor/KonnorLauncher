@@ -1,23 +1,23 @@
-"""Configuración del backend: uno o varios backends con nombre.
+"""Configuración: uno o varios servidores con nombre.
 
-Cada backend es un servidor independiente (su puerto, su carpeta del cliente, su manifest...).
-Se guardan en ``backends.json``, que es lo que edita el panel de control::
+Cada servidor es independiente (su puerto, su carpeta del cliente, su manifest...).
+Se guardan en ``servidores.json``, que es lo que edita el panel de control::
 
     {
       "selected": "principal",
-      "backends": [ {"id": "principal", "name": "Principal", "port": 59381, ...}, ... ]
+      "servers": [ {"id": "principal", "name": "Principal", "port": 59381, ...}, ... ]
     }
 
-Qué backend usa un proceso: ``KONNOR_PROFILE`` (lo fija el panel o ``iniciar_servidor.bat <id>``);
+Qué servidor usa un proceso: ``KONNOR_PROFILE`` (lo fija el panel o ``iniciar_servidor.bat <id>``);
 si no está, el seleccionado en el panel.
 
 Cada valor se toma, por orden de prioridad, de:
 
 1. una variable de entorno (``KONNOR_*``), útil para cambiar algo puntual desde un ``.bat``;
-2. el backend en ``backends.json``;
+2. el servidor en ``servidores.json``;
 3. el valor por defecto de la tabla.
 
-Las rutas relativas se resuelven respecto a la carpeta del backend.
+Las rutas relativas se resuelven respecto a la carpeta LauncherBackEnd.
 
 | Clave              | Variable                       | Por defecto                     | Uso                                           |
 |--------------------|--------------------------------|---------------------------------|-----------------------------------------------|
@@ -32,8 +32,8 @@ Las rutas relativas se resuelven respecto a la carpeta del backend.
 | ``watch``          | ``KONNOR_WATCH``               | ``true``                        | Vigilar la carpeta y regenerar al cambiar      |
 | ``watch_quiet_ms`` | ``KONNOR_WATCH_QUIET_MS``      | ``3000``                        | Silencio necesario antes de regenerar          |
 
-Los valores por defecto de la tabla son los del primer backend. Los que se crean después
-guardan sus archivos en ``perfiles/<id>/`` para no pisarse con los demás.
+Los valores por defecto de la tabla son los del primer servidor. Los que se crean después
+guardan sus archivos en ``profiles/<id>/`` para no pisarse con los demás.
 """
 
 from __future__ import annotations
@@ -49,9 +49,9 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-STORE_FILE = BASE_DIR / "backends.json"
-LEGACY_CONFIG_FILE = BASE_DIR / "backend_config.json"  # formato anterior (un solo backend)
-PROFILES_DIR = "perfiles"
+STORE_FILE = BASE_DIR / "servidores.json"
+PROFILES_DIR = "profiles"
+LEGACY_PROFILES_DIR = "perfiles"  # nombre anterior de la carpeta; se migra solo
 DEFAULT_ID = "principal"
 DEFAULT_NAME = "Principal"
 MAX_BLOCKS = 256
@@ -89,8 +89,8 @@ _lock = threading.RLock()
 
 @dataclass(frozen=True)
 class Settings:
-    backend_id: str
-    backend_name: str
+    profile_id: str
+    profile_name: str
     host: str
     port: int
     client_dir: Path
@@ -117,14 +117,14 @@ class Settings:
         return self.cache_dir / "hashes.json"
 
 
-# ── Valores por defecto de cada backend ─────────────────────────────────────
+# ── Valores por defecto de cada servidor ─────────────────────────────────────
 
-def profile_defaults(backend_id: str, port: int | None = None) -> dict[str, object]:
-    """Valores por defecto de un backend. El principal usa las rutas de siempre; el resto, su
-    propia carpeta en ``perfiles/<id>/``."""
-    if backend_id == DEFAULT_ID:
+def profile_defaults(profile_id: str, port: int | None = None) -> dict[str, object]:
+    """Valores por defecto de un servidor. El principal usa las rutas de siempre; el resto, su
+    propia carpeta en ``profiles/<id>/``."""
+    if profile_id == DEFAULT_ID:
         return dict(DEFAULTS)
-    base = f"{PROFILES_DIR}/{backend_id}"
+    base = f"{PROFILES_DIR}/{profile_id}"
     return {
         **DEFAULTS,
         "port": port if port is not None else DEFAULTS["port"],
@@ -139,10 +139,10 @@ def slugify(name: str) -> str:
     """Identificador estable a partir del nombre: minúsculas, sin acentos, letras, números y guiones."""
     ascii_name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")
-    return slug[:32].strip("-") or "backend"
+    return slug[:32].strip("-") or "servidor"
 
 
-# ── Almacén de backends ─────────────────────────────────────────────────────
+# ── Almacén de servidores ─────────────────────────────────────────────────────
 
 def _read_json(path: Path) -> dict | None:
     try:
@@ -153,42 +153,67 @@ def _read_json(path: Path) -> dict | None:
 
 
 def read_store() -> dict:
-    """Backends guardados. Sin ``backends.json``, uno solo ("Principal") con la configuración
-    antigua de ``backend_config.json`` si existe, o con los valores por defecto."""
+    """Servidores guardados. Sin ``servidores.json``, uno solo ("Principal") con los valores por
+    defecto."""
     with _lock:
         data = _read_json(STORE_FILE)
-        backends = [b for b in (data or {}).get("backends", []) if isinstance(b, dict) and b.get("id")]
-        if not backends:
-            legacy = {k: v for k, v in (_read_json(LEGACY_CONFIG_FILE) or {}).items() if k in DEFAULTS}
-            backends = [{"id": DEFAULT_ID, "name": DEFAULT_NAME, **DEFAULTS, **legacy}]
-        ids = [b["id"] for b in backends]
+        entries = [b for b in (data or {}).get("servers", []) if isinstance(b, dict) and b.get("id")]
+        if not entries:
+            entries = [{"id": DEFAULT_ID, "name": DEFAULT_NAME, **DEFAULTS}]
+        ids = [b["id"] for b in entries]
         selected = (data or {}).get("selected")
-        return {"selected": selected if selected in ids else ids[0], "backends": backends}
+        store = {"selected": selected if selected in ids else ids[0], "servers": entries}
+        if data is not None and _migrate_legacy_profiles(store):
+            write_store(store)
+        return store
+
+
+def _migrate_legacy_profiles(store: dict) -> bool:
+    """Pasa los servidores de ``perfiles/<id>/`` a ``profiles/<id>/``: cambia sus rutas y mueve
+    la carpeta si existe. Devuelve True si cambió algo."""
+    changed = False
+    for entry in store["servers"]:
+        old_prefix = f"{LEGACY_PROFILES_DIR}/{entry['id']}/"
+        moved = False
+        for key in PATH_KEYS:
+            value = str(entry.get(key, "")).replace("\\", "/")
+            if value.startswith(old_prefix):
+                entry[key] = f"{PROFILES_DIR}/{value[len(LEGACY_PROFILES_DIR) + 1:]}"
+                moved = changed = True
+        old_dir = BASE_DIR / LEGACY_PROFILES_DIR / entry["id"]
+        new_dir = BASE_DIR / PROFILES_DIR / entry["id"]
+        if moved and old_dir.is_dir() and not new_dir.exists():
+            new_dir.parent.mkdir(parents=True, exist_ok=True)
+            old_dir.rename(new_dir)
+    legacy_root = BASE_DIR / LEGACY_PROFILES_DIR
+    if changed and legacy_root.is_dir() and not any(legacy_root.iterdir()):
+        legacy_root.rmdir()
+    return changed
 
 
 def write_store(store: dict) -> None:
-    """Guarda ``backends.json`` de forma atómica."""
+    """Guarda ``servidores.json`` de forma atómica."""
     with _lock:
         tmp = STORE_FILE.with_name(STORE_FILE.name + ".tmp")
         tmp.write_text(json.dumps(store, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(tmp, STORE_FILE)
 
 
-def get_profile(backend_id: str) -> dict:
-    """Backend completo (con los valores por defecto aplicados). ``KeyError`` si no existe."""
-    for backend in read_store()["backends"]:
-        if backend["id"] == backend_id:
-            return {**profile_defaults(backend_id, backend.get("port")), **backend}
-    raise KeyError(backend_id)
+def get_profile(profile_id: str) -> dict:
+    """Servidor completo (con los valores por defecto aplicados). ``KeyError`` si no existe."""
+    for entry in read_store()["servers"]:
+        if entry["id"] == profile_id:
+            return {**profile_defaults(profile_id, entry.get("port")), **entry}
+    raise KeyError(profile_id)
 
 
 def list_profiles() -> tuple[str, list[dict]]:
     store = read_store()
-    return store["selected"], [get_profile(b["id"]) for b in store["backends"]]
+    return store["selected"], [get_profile(b["id"]) for b in store["servers"]]
 
 
 def validate_config(values: dict[str, object]) -> dict[str, object]:
-    """Comprueba y normaliza los valores de un backend. Lanza ``ValueError`` con un mensaje
+    """Comprueba y normaliza los valores de un servidor. Lanza ``ValueError`` con un mensaje
     legible para el panel si alguno no es válido."""
     clean: dict[str, object] = {}
 
@@ -225,17 +250,17 @@ def _int_in_range(value: object, label: str, low: int, high: int) -> int:
     return number
 
 
-def _check_conflicts(backend_id: str, values: dict, others: list[dict]) -> None:
-    """Dos backends no pueden compartir puerto, carpeta del cliente ni manifest: se pisarían."""
+def _check_conflicts(profile_id: str, values: dict, others: list[dict]) -> None:
+    """Dos servidores no pueden compartir puerto, carpeta del cliente ni manifest: se pisarían."""
     for other in others:
-        if other["id"] == backend_id:
+        if other["id"] == profile_id:
             continue
         other = {**profile_defaults(other["id"], other.get("port")), **other}
         if int(other["port"]) == values["port"]:
-            raise ValueError(f"Puerto: {values['port']} ya lo usa el backend «{other['name']}»")
+            raise ValueError(f"Puerto: {values['port']} ya lo usa el servidor «{other['name']}»")
         for key, label in (("client_dir", "Carpeta del cliente"), ("manifest", "Manifest")):
             if resolve_path(other[key]) == resolve_path(values[key]):
-                raise ValueError(f"{label}: ya la usa el backend «{other['name']}»")
+                raise ValueError(f"{label}: ya la usa el servidor «{other['name']}»")
 
 
 def _clean_name(name: object) -> str:
@@ -245,62 +270,62 @@ def _clean_name(name: object) -> str:
     return text
 
 
-def update_profile(backend_id: str, values: dict) -> dict:
-    """Valida y guarda nombre y configuración de un backend. Devuelve el backend guardado."""
+def update_profile(profile_id: str, values: dict) -> dict:
+    """Valida y guarda nombre y configuración de un servidor. Devuelve el servidor guardado."""
     with _lock:
         store = read_store()
-        current = next((b for b in store["backends"] if b["id"] == backend_id), None)
+        current = next((b for b in store["servers"] if b["id"] == profile_id), None)
         if current is None:
-            raise KeyError(backend_id)
-        merged = {**profile_defaults(backend_id, current.get("port")), **current, **values}
+            raise KeyError(profile_id)
+        merged = {**profile_defaults(profile_id, current.get("port")), **current, **values}
         clean = validate_config(merged)
         name = _clean_name(merged.get("name"))
-        _check_conflicts(backend_id, clean, store["backends"])
-        saved = {"id": backend_id, "name": name, **clean}
-        store["backends"] = [saved if b["id"] == backend_id else b for b in store["backends"]]
+        _check_conflicts(profile_id, clean, store["servers"])
+        saved = {"id": profile_id, "name": name, **clean}
+        store["servers"] = [saved if b["id"] == profile_id else b for b in store["servers"]]
         write_store(store)
         return saved
 
 
 def create_profile(name: str) -> dict:
-    """Crea un backend con su propia carpeta y el primer puerto libre entre los configurados."""
+    """Crea un servidor con su propia carpeta y el primer puerto libre entre los configurados."""
     with _lock:
         store = read_store()
         name = _clean_name(name)
-        ids = {b["id"] for b in store["backends"]}
+        ids = {b["id"] for b in store["servers"]}
         base = slugify(name)
-        backend_id, n = base, 2
-        while backend_id in ids:
-            backend_id, n = f"{base}-{n}", n + 1
-        used_ports = {int(get_profile(b["id"])["port"]) for b in store["backends"]}
+        profile_id, n = base, 2
+        while profile_id in ids:
+            profile_id, n = f"{base}-{n}", n + 1
+        used_ports = {int(get_profile(b["id"])["port"]) for b in store["servers"]}
         port = int(DEFAULTS["port"])
         while port in used_ports:
             port += 1
-        backend = {"id": backend_id, "name": name, **profile_defaults(backend_id, port)}
-        store["backends"].append(backend)
-        store["selected"] = backend_id
+        entry = {"id": profile_id, "name": name, **profile_defaults(profile_id, port)}
+        store["servers"].append(entry)
+        store["selected"] = profile_id
         write_store(store)
-        return backend
+        return entry
 
 
-def delete_profile(backend_id: str) -> None:
-    """Quita un backend de la lista. No borra ningún archivo del disco."""
+def delete_profile(profile_id: str) -> None:
+    """Quita un servidor de la lista. No borra ningún archivo del disco."""
     with _lock:
         store = read_store()
-        if len(store["backends"]) <= 1:
-            raise ValueError("Tiene que quedar al menos un backend")
-        store["backends"] = [b for b in store["backends"] if b["id"] != backend_id]
-        if store["selected"] == backend_id:
-            store["selected"] = store["backends"][0]["id"]
+        if len(store["servers"]) <= 1:
+            raise ValueError("Tiene que quedar al menos un servidor")
+        store["servers"] = [b for b in store["servers"] if b["id"] != profile_id]
+        if store["selected"] == profile_id:
+            store["selected"] = store["servers"][0]["id"]
         write_store(store)
 
 
-def select_profile(backend_id: str) -> None:
+def select_profile(profile_id: str) -> None:
     with _lock:
         store = read_store()
-        if backend_id not in {b["id"] for b in store["backends"]}:
-            raise KeyError(backend_id)
-        store["selected"] = backend_id
+        if profile_id not in {b["id"] for b in store["servers"]}:
+            raise KeyError(profile_id)
+        store["selected"] = profile_id
         write_store(store)
 
 
@@ -319,25 +344,25 @@ def _flag(value: object) -> bool:
 
 
 def resolve_path(value: object) -> Path:
-    """Ruta absoluta; las relativas, respecto a la carpeta del backend."""
+    """Ruta absoluta; las relativas, respecto a la carpeta LauncherBackEnd."""
     path = Path(str(value))
     return (path if path.is_absolute() else BASE_DIR / path).resolve()
 
 
 def current_profile_id(use_env: bool = True) -> str:
-    """Backend de este proceso: ``KONNOR_PROFILE`` o, si no está, el seleccionado en el panel."""
+    """Servidor de este proceso: ``KONNOR_PROFILE`` o, si no está, el seleccionado en el panel."""
     if use_env and os.environ.get(PROFILE_ENV):
         return os.environ[PROFILE_ENV]
     return read_store()["selected"]
 
 
-def raw_config(backend_id: str | None = None, use_env: bool = True) -> dict[str, object]:
-    """Valores sin resolver de un backend: por defecto ← backends.json ← entorno."""
-    backend_id = backend_id or current_profile_id(use_env)
+def raw_config(profile_id: str | None = None, use_env: bool = True) -> dict[str, object]:
+    """Valores sin resolver de un servidor: por defecto ← servidores.json ← entorno."""
+    profile_id = profile_id or current_profile_id(use_env)
     try:
-        values = get_profile(backend_id)
+        values = get_profile(profile_id)
     except KeyError:
-        raise SystemExit(f"No existe el backend '{backend_id}' en {STORE_FILE.name}") from None
+        raise SystemExit(f"No existe el servidor '{profile_id}' en {STORE_FILE.name}") from None
     if use_env:
         for key, env in ENV_VARS.items():
             if env in os.environ:
@@ -345,12 +370,12 @@ def raw_config(backend_id: str | None = None, use_env: bool = True) -> dict[str,
     return values
 
 
-def load_settings(backend_id: str | None = None, use_env: bool = True) -> Settings:
-    """Configuración de un backend, con las rutas resueltas."""
-    values = raw_config(backend_id, use_env)
+def load_settings(profile_id: str | None = None, use_env: bool = True) -> Settings:
+    """Configuración de un servidor, con las rutas resueltas."""
+    values = raw_config(profile_id, use_env)
     return Settings(
-        backend_id=str(values["id"]),
-        backend_name=str(values["name"]),
+        profile_id=str(values["id"]),
+        profile_name=str(values["name"]),
         host=str(values["host"]),
         port=int(values["port"]),  # type: ignore[arg-type]
         client_dir=resolve_path(values["client_dir"]),

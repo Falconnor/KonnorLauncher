@@ -9,7 +9,7 @@ namespace KonnorLauncher.Core.Tests.Infrastructure;
 /// <summary>
 /// Servidor HTTP/1.1 mínimo sobre <see cref="TcpListener"/> en 127.0.0.1. Se usa en vez de
 /// HttpListener porque no necesita permisos de administrador. Sirve las rutas registradas,
-/// admite <c>Range: bytes=N-</c> (como el backend real) y puede simular cortes de conexión.
+/// admite <c>Range: bytes=N-</c> (como el servidor real) y puede simular cortes de conexión.
 /// </summary>
 public sealed partial class LocalHttpServer : IAsyncDisposable
 {

@@ -1,4 +1,4 @@
-"""Backend de Konnor Launcher: publica el manifest y los archivos del cliente.
+"""Servidor de Konnor Launcher: publica el manifest y los archivos del cliente.
 
 Endpoints (el launcher depende de estas rutas exactas):
 
@@ -9,8 +9,8 @@ Endpoints (el launcher depende de estas rutas exactas):
 - ``POST /admin/regenerate``        regeneración bajo demanda, solo desde el propio equipo (panel)
 
 La configuración (carpeta del cliente, puerto, bloques, actualización automática...) se describe en
-``Services/settings.py``: ``backends.json`` (lo edita el panel) o variables de entorno. Cada proceso
-sirve un solo backend: el de ``KONNOR_PROFILE`` o, si no está, el seleccionado en el panel.
+``Services/settings.py``: ``servidores.json`` (lo edita el panel) o variables de entorno. Cada proceso
+sirve un solo servidor: el de ``KONNOR_PROFILE`` o, si no está, el seleccionado en el panel.
 Arranque: ``iniciar_panel.bat``, ``iniciar_servidor.bat`` o ``iniciar_desarrollo.bat``.
 """
 
@@ -28,7 +28,7 @@ from Services.settings import load_settings
 
 
 settings = load_settings()
-logger = logging.getLogger("konnor.backend")
+logger = logging.getLogger("konnor.servidor")
 # Los mensajes de la actualización automática salen en la misma consola que los de uvicorn.
 logger.setLevel(logging.INFO)
 if not logger.handlers:
@@ -41,7 +41,7 @@ if not logger.handlers:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Al arrancar: actualización automática del manifest. Al cerrar: detiene el vigilante."""
-    logger.info("Backend «%s»: carpeta del cliente %s", settings.backend_name, settings.client_dir)
+    logger.info("Servidor «%s»: carpeta del cliente %s", settings.profile_name, settings.client_dir)
     if not settings.client_dir.is_dir():
         logger.warning("La carpeta del cliente no existe; /client devolverá 404")
     updater = AutoUpdater(settings)
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     await updater.stop()
 
 
-app = FastAPI(title="Konnor Launcher Backend", lifespan=lifespan)
+app = FastAPI(title="Servidor de Konnor Launcher", lifespan=lifespan)
 _background_tasks: set[asyncio.Task] = set()
 
 
@@ -65,8 +65,8 @@ def root():
         pass
     return {
         "status": "online",
-        "server": "Konnor Launcher Backend",
-        "backend": {"id": settings.backend_id, "name": settings.backend_name},
+        "server": "Servidor de Konnor Launcher",
+        "profile": {"id": settings.profile_id, "name": settings.profile_name},
         "manifest": settings.manifest_file.is_file(),
         "client_version": client_version,
         "auto_update": app.state.updater.status(),

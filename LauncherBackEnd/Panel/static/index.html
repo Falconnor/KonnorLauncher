@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Konnor Launcher Backend · Panel</title>
+  <title>Servidor de Konnor Launcher · Panel</title>
   <link rel="icon" href="/static/mark.png">
   <link rel="stylesheet" href="/static/panel.css">
 </head>
@@ -11,12 +11,12 @@
   <!-- Fondo: la misma imagen que el launcher, detrás de los paneles de cristal. -->
   <div class="backdrop" aria-hidden="true"></div>
 
-  <!-- ── Barra superior: backend seleccionado, su estado y el encendido ─── -->
+  <!-- ── Barra superior: servidor seleccionado, su estado y el encendido ─── -->
   <header class="topbar glass">
     <div class="brand">
       <img src="/static/mark.png" alt="" width="40" height="40">
       <div>
-        <h1 id="backendTitle">Konnor Launcher Backend</h1>
+        <h1 id="serverTitle">Servidor de Konnor Launcher</h1>
         <p>Panel de control del servidor de actualización</p>
       </div>
     </div>
@@ -31,18 +31,27 @@
   </header>
 
   <div class="shell">
-    <!-- ── Backends: elegir, crear ───────────────────────────────────────── -->
-    <aside class="sidebar glass" aria-labelledby="h-backends">
-      <h2 id="h-backends">Backends</h2>
-      <ul class="backend-list" id="backendList"></ul>
+    <!-- ── Servidores: elegir, crear ───────────────────────────────────────── -->
+    <!-- Se pliega a una tira estrecha (iniciales y estado) para dejar sitio a las zonas. -->
+    <aside class="sidebar glass" id="sidebar" aria-labelledby="h-servers">
+      <div class="sidebar-head">
+        <h2 id="h-servers">Servidores</h2>
+        <button type="button" class="icon-btn" id="btnSidebar" aria-expanded="true" aria-controls="sidebar" aria-label="Plegar la lista de servidores">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <ul class="server-list" id="serverList"></ul>
 
-      <form class="new-backend" id="newBackendForm">
-        <label for="newBackendName">Nuevo backend</label>
+      <button type="button" class="server-add" id="btnAddServer" aria-label="Nuevo servidor" title="Nuevo servidor">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <form class="new-server" id="newServerForm">
+        <label for="newServerName">Nuevo servidor</label>
         <div class="joined">
-          <input id="newBackendName" maxlength="40" autocomplete="off" required aria-describedby="hint-new">
+          <input id="newServerName" maxlength="40" autocomplete="off" required aria-describedby="hint-new">
           <button type="submit" class="btn" id="btnCreate">Crear</button>
         </div>
-        <p class="hint" id="hint-new">Tendrá su propia carpeta en perfiles/ y el siguiente puerto libre.</p>
+        <p class="hint" id="hint-new">Se crea su carpeta en profiles/ con la estructura del cliente, y usa el siguiente puerto libre.</p>
       </form>
     </aside>
 
@@ -91,6 +100,24 @@
         </dl>
       </section>
 
+      <!-- ── Registro en vivo ───────────────────────────────────────────── -->
+      <section class="zone zone-log glass glass-dense" aria-labelledby="h-log">
+        <header class="zone-head">
+          <h2 id="h-log">Registro</h2>
+          <div class="segmented" role="radiogroup" aria-label="Filtrar registro">
+            <button type="button" role="radio" aria-checked="true" data-filter="all">Todo</button>
+            <button type="button" role="radio" aria-checked="false" data-filter="warn">Avisos</button>
+            <button type="button" role="radio" aria-checked="false" data-filter="error">Errores</button>
+          </div>
+        </header>
+        <div class="log" id="log" role="log" aria-live="polite" tabindex="0" data-filter="all"></div>
+        <footer class="log-foot">
+          <label class="check"><input type="checkbox" id="autoscroll" checked> Seguir el final</label>
+          <span class="muted" id="logCount"></span>
+          <button type="button" class="btn btn-small btn-quiet" id="btnClearLog">Limpiar</button>
+        </footer>
+      </section>
+
       <!-- ── Manifest: versión publicada, contenido y regeneración ──────── -->
       <section class="zone zone-manifest glass" aria-labelledby="h-manifest">
         <header class="zone-head">
@@ -123,29 +150,11 @@
         <div class="folders" id="mfFolders" aria-label="Archivos sueltos por carpeta"></div>
       </section>
 
-      <!-- ── Registro en vivo ───────────────────────────────────────────── -->
-      <section class="zone zone-log glass glass-dense" aria-labelledby="h-log">
-        <header class="zone-head">
-          <h2 id="h-log">Registro</h2>
-          <div class="segmented" role="radiogroup" aria-label="Filtrar registro">
-            <button type="button" role="radio" aria-checked="true" data-filter="all">Todo</button>
-            <button type="button" role="radio" aria-checked="false" data-filter="warn">Avisos</button>
-            <button type="button" role="radio" aria-checked="false" data-filter="error">Errores</button>
-          </div>
-        </header>
-        <div class="log" id="log" role="log" aria-live="polite" tabindex="0" data-filter="all"></div>
-        <footer class="log-foot">
-          <label class="check"><input type="checkbox" id="autoscroll" checked> Seguir el final</label>
-          <span class="muted" id="logCount"></span>
-          <button type="button" class="btn btn-small btn-quiet" id="btnClearLog">Limpiar</button>
-        </footer>
-      </section>
-
-      <!-- ── Configuración del backend seleccionado ─────────────────────── -->
+      <!-- ── Configuración del servidor seleccionado ─────────────────────── -->
       <section class="zone zone-config glass" aria-labelledby="h-config">
         <header class="zone-head">
           <h2 id="h-config">Configuración</h2>
-          <span class="zone-meta">backends.json · <span id="backendIdMeta"></span></span>
+          <span class="zone-meta">servidores.json · <span id="serverIdMeta"></span></span>
         </header>
 
         <form id="configForm" novalidate>
@@ -180,7 +189,7 @@
                   <input id="cfg-client_dir" name="client_dir" spellcheck="false" required aria-describedby="hint-client">
                   <button type="button" class="btn" id="btnOpenClient">Abrir</button>
                 </div>
-                <p class="hint" id="hint-client">Absoluta o relativa a la carpeta del backend. Con mods, versions, libraries y assets.</p>
+                <p class="hint" id="hint-client">Absoluta o relativa a la carpeta LauncherBackEnd. Con mods, versions, libraries y assets.</p>
               </div>
               <div class="field">
                 <label for="cfg-block_count">Bloques de assets</label>
@@ -244,14 +253,30 @@
 
         <div class="danger">
           <div>
-            <h3>Quitar este backend</h3>
-            <p class="hint" id="deleteHint">Se quita de la lista del panel. Sus archivos (cliente, manifest y bloques) se quedan en el disco.</p>
+            <h3>Eliminar este servidor</h3>
+            <p class="hint" id="deleteHint">Se elimina de la lista del panel. Al confirmar se puede elegir si se borran también sus archivos.</p>
           </div>
-          <button type="button" class="btn btn-danger" id="btnDelete">Quitar backend</button>
+          <button type="button" class="btn btn-danger" id="btnDelete">Eliminar servidor</button>
         </div>
       </section>
     </main>
   </div>
+
+  <!-- Diálogo propio del panel (sustituye a confirm() del navegador). -->
+  <dialog class="dialog glass" id="dialog" aria-labelledby="dialogTitle" aria-describedby="dialogText">
+    <form method="dialog" class="dialog-body">
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogText"></p>
+      <label class="check dialog-check" id="dialogCheckRow" hidden>
+        <input type="checkbox" id="dialogCheck"> <span id="dialogCheckLabel"></span>
+      </label>
+      <div class="dialog-extra" id="dialogExtra" aria-live="polite" hidden></div>
+      <div class="dialog-actions">
+        <button type="submit" value="cancel" class="btn btn-quiet" id="dialogCancel">Cancelar</button>
+        <button type="submit" value="ok" class="btn btn-primary" id="dialogOk">Aceptar</button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toast glass" id="toast" role="status" aria-live="polite" hidden></div>
 

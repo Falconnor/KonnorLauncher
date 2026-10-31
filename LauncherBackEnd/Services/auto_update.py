@@ -23,7 +23,7 @@ from Services.generate_manifest import GenerationResult, generate_manifest
 from Services.settings import Settings
 
 
-logger = logging.getLogger("konnor.backend")
+logger = logging.getLogger("konnor.servidor")
 
 
 class _ClientFilter(DefaultFilter):

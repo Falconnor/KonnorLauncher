@@ -1,5 +1,5 @@
-// Panel de control del backend.
-// Consulta cada 2 s la lista de backends y el estado del seleccionado, y cada segundo su registro.
+// Panel de control del servidor.
+// Consulta cada 2 s la lista de servidores y el estado del seleccionado, y cada segundo su registro.
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -23,8 +23,8 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 
-/** Ruta de la API del backend seleccionado. */
-const bk = (path) => `/api/backends/${encodeURIComponent(selectedId)}/${path}`;
+/** Ruta de la API del servidor seleccionado. */
+const bk = (path) => `/api/servers/${encodeURIComponent(selectedId)}/${path}`;
 
 const number = new Intl.NumberFormat("es-ES");
 const clock = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -63,6 +63,34 @@ function toast(message, tone = "ok") {
   toastTimer = setTimeout(() => (el.hidden = true), tone === "error" ? 6000 : 3000);
 }
 
+/**
+ * Diálogo propio del panel. Devuelve { confirmed, checked }.
+ * checkbox: { label, onChange(checked, { extra, ok }) } añade una casilla con contenido asociado.
+ */
+function openDialog({ title, text, confirmLabel = "Aceptar", danger = false, checkbox = null }) {
+  const dialog = $("dialog");
+  const ok = $("dialogOk");
+  const check = $("dialogCheck");
+  const extra = $("dialogExtra");
+  $("dialogTitle").textContent = title;
+  $("dialogText").textContent = text;
+  ok.textContent = confirmLabel;
+  ok.className = `btn ${danger ? "btn-danger" : "btn-primary"}`;
+  ok.disabled = false;
+  $("dialogCheckRow").hidden = !checkbox;
+  check.checked = false;
+  check.onchange = checkbox ? () => checkbox.onChange?.(check.checked, { extra, ok }) : null;
+  if (checkbox) $("dialogCheckLabel").textContent = checkbox.label;
+  extra.hidden = true;
+  extra.replaceChildren();
+  dialog.returnValue = "";
+  dialog.showModal();
+  // En una acción destructiva el foco empieza en Cancelar: Intro no borra nada por accidente.
+  (danger ? $("dialogCancel") : ok).focus();
+  return new Promise((resolve) => dialog.addEventListener("close",
+    () => resolve({ confirmed: dialog.returnValue === "ok", checked: check.checked }), { once: true }));
+}
+
 /** Ejecuta una acción con el botón bloqueado mientras dura. */
 async function withButton(button, action) {
   button.disabled = true;
@@ -73,7 +101,7 @@ async function withButton(button, action) {
   } finally {
     button.disabled = false;
     refreshState();
-    refreshBackends();
+    refreshServers();
   }
 }
 
@@ -89,82 +117,164 @@ const STATUS = {
   offline: { chip: "El panel no responde", big: "Sin conexión", power: "Iniciar servidor", short: "—" },
 };
 
-// ── Backends ─────────────────────────────────────────────────────────────
+// ── Servidores ─────────────────────────────────────────────────────────────
 
 let selectedId = null;
-let backendList = [];
+let serverList = [];
 
-async function refreshBackends() {
+async function refreshServers() {
   try {
-    const data = await api("/api/backends");
-    backendList = data.backends;
-    if (!selectedId || !backendList.some((b) => b.id === selectedId)) await switchBackend(data.selected, { remember: false });
-    renderBackends();
+    const data = await api("/api/servers");
+    serverList = data.servers;
+    if (!selectedId || !serverList.some((b) => b.id === selectedId)) await switchServer(data.selected, { remember: false });
+    renderServers();
   } catch {
     /* el estado ya muestra que el panel no responde */
   }
 }
 
-function renderBackends() {
-  const html = backendList.map((b) => `
+/** Iniciales para la tira plegada: "Servidor principal" → "SP", "Pruebas" → "PR". */
+function initials(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const text = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
+  return text.toUpperCase();
+}
+
+function renderServers() {
+  const html = serverList.map((b) => {
+    const label = `${b.name} · ${STATUS[b.status].short} · puerto ${b.port}`;
+    return `
     <li>
-      <button type="button" class="backend-item" data-id="${escapeHtml(b.id)}" data-status="${b.status}" aria-current="${b.id === selectedId}">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="backend-name">${escapeHtml(b.name)}</span>
-        <span class="backend-sub">${STATUS[b.status].short} · puerto ${b.port}</span>
+      <button type="button" class="server-item" data-id="${escapeHtml(b.id)}" data-status="${b.status}"
+              aria-current="${b.id === selectedId}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+        <span class="mono" aria-hidden="true">${escapeHtml(initials(b.name))}<span class="dot"></span></span>
+        <span class="server-text" aria-hidden="true">
+          <span class="server-name">${escapeHtml(b.name)}</span>
+          <span class="server-sub">${STATUS[b.status].short} · puerto ${b.port}</span>
+        </span>
       </button>
-    </li>`).join("");
-  const list = $("backendList");
+    </li>`;
+  }).join("");
+  const list = $("serverList");
   if (list.dataset.html !== html) {
     list.dataset.html = html;
     list.innerHTML = html;
   }
 }
 
-$("backendList").addEventListener("click", (event) => {
-  const item = event.target.closest(".backend-item");
-  if (item && item.dataset.id !== selectedId) switchBackend(item.dataset.id);
+// ── Lista plegable (se recuerda entre sesiones) ──────────────────────────
+
+function setSidebar(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  const button = $("btnSidebar");
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", collapsed ? "Desplegar la lista de servidores" : "Plegar la lista de servidores");
+  localStorage.setItem("konnor.sidebarCollapsed", collapsed ? "1" : "0");
+}
+setSidebar(localStorage.getItem("konnor.sidebarCollapsed") === "1");
+$("btnSidebar").addEventListener("click", () => setSidebar(!document.body.classList.contains("sidebar-collapsed")));
+$("btnAddServer").addEventListener("click", () => {
+  setSidebar(false);
+  $("newServerName").focus();
 });
 
-/** Cambia el backend que se muestra (y lo recuerda como seleccionado en backends.json). */
-async function switchBackend(id, { remember = true } = {}) {
-  if (configDirty() && !confirm("Hay cambios sin guardar en la configuración. ¿Descartarlos?")) return;
+$("serverList").addEventListener("click", (event) => {
+  const item = event.target.closest(".server-item");
+  if (item && item.dataset.id !== selectedId) switchServer(item.dataset.id);
+});
+
+/** Cambia el servidor que se muestra (y lo recuerda como seleccionado en servidores.json). */
+async function switchServer(id, { remember = true } = {}) {
+  if (configDirty()) {
+    const { confirmed } = await openDialog({
+      title: "Cambios sin guardar",
+      text: "La configuración de este servidor tiene cambios sin guardar. Si cambias de servidor, se pierden.",
+      confirmLabel: "Descartar y cambiar",
+    });
+    if (!confirmed) { renderServers(); return; }
+  }
   selectedId = id;
   current = null;
   versionDirty = false;
   resetLog();
-  renderBackends();
-  if (remember) api("/api/backends/selected", { method: "PUT", body: { id } }).catch(() => {});
+  renderServers();
+  if (remember) api("/api/servers/selected", { method: "PUT", body: { id } }).catch(() => {});
   await Promise.all([loadConfig(), refreshState(), refreshLogs()]);
 }
 
-$("newBackendForm").addEventListener("submit", (event) => {
+$("newServerForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  const input = $("newBackendName");
+  const input = $("newServerName");
   if (!input.value.trim()) { input.focus(); return; }
   withButton($("btnCreate"), async () => {
-    const backend = await api("/api/backends", { method: "POST", body: { name: input.value } });
+    const created = await api("/api/servers", { method: "POST", body: { name: input.value } });
     input.value = "";
-    await refreshBackends();
-    await switchBackend(backend.id, { remember: false });
-    toast(`Backend «${backend.name}» creado en el puerto ${backend.port}. Revisa su carpeta del cliente.`);
+    await refreshServers();
+    await switchServer(created.id, { remember: false });
+    toast(`Servidor «${created.name}» creado en el puerto ${created.port}. Revisa su carpeta del cliente.`);
     $("cfg-client_dir").focus();
   });
 });
 
-$("btnDelete").addEventListener("click", () => {
-  const name = savedConfig?.name || selectedId;
-  if (!confirm(`¿Quitar el backend «${name}» del panel? Sus archivos se quedan en el disco.`)) return;
+/** Lista de lo que se borraría y lo que se conservaría al eliminar los archivos. */
+function renderFileList(container, files) {
+  container.replaceChildren();
+  if (files.error) { container.textContent = `No se pudo consultar: ${files.error}`; return; }
+  if (!files.items.length) { container.textContent = "Este servidor no tiene archivos en el disco."; return; }
+  const total = files.items.filter((i) => i.delete).reduce((sum, i) => sum + i.size, 0);
+  const summary = document.createElement("p");
+  summary.className = "file-total";
+  summary.textContent = total ? `Se eliminarán ${bytes(total)}. No se puede deshacer.` : "Ninguno de estos archivos se puede eliminar desde aquí.";
+  const list = document.createElement("ul");
+  list.className = "file-list";
+  for (const item of files.items) {
+    const li = document.createElement("li");
+    li.dataset.delete = String(item.delete);
+    li.innerHTML = `<span class="file-label"></span><span class="file-size"></span><span class="file-path"></span><span class="file-state"></span>`;
+    li.querySelector(".file-label").textContent = item.label;
+    li.querySelector(".file-size").textContent = bytes(item.size);
+    li.querySelector(".file-path").textContent = item.path;
+    li.querySelector(".file-state").textContent = item.delete ? "Se elimina" : `Se conserva: ${item.reason.toLowerCase()}`;
+    list.append(li);
+  }
+  container.append(summary, list);
+}
+
+$("btnDelete").addEventListener("click", async () => {
+  const id = selectedId;
+  const name = savedConfig?.name || id;
+  // La lista se pide ya, mientras el usuario lee el diálogo.
+  const files = api(bk("files")).catch((error) => ({ error: error.message }));
+  const { confirmed, checked } = await openDialog({
+    title: `Eliminar «${name}»`,
+    text: "Se elimina de la lista del panel. Si no marcas la casilla, sus archivos se quedan en el disco.",
+    confirmLabel: "Eliminar servidor",
+    danger: true,
+    checkbox: {
+      label: "Eliminar archivos",
+      onChange: async (on, { extra, ok }) => {
+        ok.textContent = on ? "Eliminar servidor y archivos" : "Eliminar servidor";
+        extra.hidden = !on;
+        if (!on) return;
+        extra.textContent = "Calculando…";
+        renderFileList(extra, await files);
+      },
+    },
+  });
+  if (!confirmed) return;
   withButton($("btnDelete"), async () => {
-    await api(`/api/backends/${encodeURIComponent(selectedId)}`, { method: "DELETE" });
+    const query = checked ? "?eliminar_archivos=true" : "";
+    const result = await api(`/api/servers/${encodeURIComponent(id)}${query}`, { method: "DELETE" });
     selectedId = null;
     savedConfig = null;
-    await refreshBackends();
-    toast(`Backend «${name}» quitado.`);
+    await refreshServers();
+    if (result.errors.length) toast(`Servidor «${name}» eliminado, pero no se pudieron borrar: ${result.errors.join("; ")}`, "error");
+    else if (checked) toast(`Servidor «${name}» eliminado junto con ${result.deleted.length} ${result.deleted.length === 1 ? "elemento" : "elementos"} del disco.`);
+    else toast(`Servidor «${name}» eliminado. Sus archivos siguen en el disco.`);
   });
 });
 
-// ── Estado del backend seleccionado ──────────────────────────────────────
+// ── Estado del servidor seleccionado ──────────────────────────────────────
 
 let current = null;
 
@@ -173,7 +283,7 @@ async function refreshState() {
   const id = selectedId;
   try {
     const state = await api(bk("state"));
-    if (id !== selectedId) return; // llegó tarde, de un backend que ya no se muestra
+    if (id !== selectedId) return; // llegó tarde, de un servidor que ya no se muestra
     current = state;
     renderState(state);
   } catch {
@@ -200,9 +310,9 @@ function renderState(s) {
   const labels = STATUS[status];
   setStatus(status);
 
-  // Barra superior: nombre del backend, estado y encendido.
-  $("backendTitle").textContent = s.backend.name;
-  document.title = `${s.backend.name} · Konnor Launcher Backend`;
+  // Barra superior: nombre del servidor, estado y encendido.
+  $("serverTitle").textContent = s.profile.name;
+  document.title = `${s.profile.name} · Servidor de Konnor Launcher`;
   $("statusText").textContent = labels.chip;
   const power = $("btnPower");
   power.textContent = labels.power;
@@ -211,12 +321,12 @@ function renderState(s) {
   power.disabled = ["starting", "stopping", "external"].includes(status) || s.local_generation.running;
   power.dataset.action = status === "running" ? "stop" : "start";
   $("btnRestart").disabled = status !== "running";
-  $("btnDelete").disabled = !["stopped", "crashed"].includes(status) || backendList.length <= 1;
-  $("deleteHint").textContent = backendList.length <= 1
-    ? "Es el único backend: tiene que quedar al menos uno."
+  $("btnDelete").disabled = !["stopped", "crashed"].includes(status) || serverList.length <= 1;
+  $("deleteHint").textContent = serverList.length <= 1
+    ? "Es el único servidor: tiene que quedar al menos uno."
     : ["stopped", "crashed"].includes(status)
-      ? "Se quita de la lista del panel. Sus archivos (cliente, manifest y bloques) se quedan en el disco."
-      : "Detén su servidor antes de quitarlo.";
+      ? "Se elimina de la lista del panel. Al confirmar se puede elegir si se borran también sus archivos."
+      : "Detén su servidor antes de eliminarlo.";
 
   // Servidor.
   $("bigState").textContent = labels.big;
@@ -286,7 +396,7 @@ function renderAlerts(s, generation) {
   if (s.activity.errors > 0)
     alerts.push({ tone: "warn", text: `${number.format(s.activity.errors)} respuestas con error a los launchers desde el arranque.`, action: "Ver errores", run: showErrors });
   if (s.server.status === "external")
-    alerts.push({ tone: "info", text: "Este backend lo arrancó otro proceso: el panel no puede detenerlo ni ver su registro." });
+    alerts.push({ tone: "info", text: "Este servidor lo arrancó otro proceso: el panel no puede detenerlo ni ver su registro." });
 
   const key = JSON.stringify(alerts.map((a) => [a.tone, a.text]));
   const list = $("alertList");
@@ -413,9 +523,16 @@ $("versionForm").addEventListener("submit", (event) => {
   }).then(() => ($("btnVersion").disabled = !versionDirty));
 });
 
-function regenerate(forceBlocks) {
+async function regenerate(forceBlocks) {
   const button = forceBlocks ? $("btnForce") : $("btnRegen");
-  if (forceBlocks && !confirm("Se rehacen los ZIP de todos los bloques de assets. Puede tardar varios minutos. ¿Continuar?")) return;
+  if (forceBlocks) {
+    const { confirmed } = await openDialog({
+      title: "Rehacer todos los bloques",
+      text: "Se rehacen los ZIP de todos los bloques de assets aunque no hayan cambiado. Puede tardar varios minutos.",
+      confirmLabel: "Rehacer bloques",
+    });
+    if (!confirmed) return;
+  }
   withButton(button, async () => {
     const result = await api(bk("manifest/regenerate"), { method: "POST", body: { force_blocks: forceBlocks } });
     toast(result.where === "server" ? "Regeneración en marcha en el servidor." : "Regenerando desde el panel (servidor detenido).");
@@ -508,11 +625,11 @@ function renderBlockHint() {
   const hint = $("hint-blocks");
   if (!Number.isInteger(n) || n < 1 || n > 256) { hint.textContent = "Entre 1 y 256."; return; }
   const m = current?.manifest;
-  const size = m?.exists && m.blocks_size ? `unos ${bytes(m.blocks_size / n)} por bloque con los assets actuales. ` : "";
+  const size = m?.exists && m.blocks_size ? `, unos ${bytes(m.blocks_size / n)} cada uno con los assets actuales` : "";
   const changed = savedConfig && n !== savedConfig.block_count
     ? "Al guardar, los bloques se rehacen en la siguiente generación; los jugadores que ya tienen los assets no los vuelven a descargar."
-    : "Más bloques: descargas más pequeñas y más paralelas. Menos: menos peticiones.";
-  hint.textContent = `${n} ${n === 1 ? "bloque" : "bloques"}: ${size}${changed}`;
+    : "Más bloques: descargas más pequeñas y más paralelas. Menos bloques: menos peticiones.";
+  hint.textContent = `${n} ${n === 1 ? "bloque" : "bloques"}${size}. ${changed}`;
 }
 
 async function loadConfig() {
@@ -521,7 +638,7 @@ async function loadConfig() {
   if (id !== selectedId) return;
   savedConfig = config.values;
   defaults = config.defaults;
-  $("backendIdMeta").textContent = `id: ${config.values.id}`;
+  $("serverIdMeta").textContent = `id: ${config.values.id}`;
   fillForm(savedConfig);
   const overrides = Object.values(config.env_overrides);
   $("envNote").hidden = overrides.length === 0;
@@ -569,7 +686,7 @@ const log = $("log");
 let lastSeq = 0;
 
 function lineText(text) {
-  // Quita el prefijo de nivel de uvicorn ("INFO:     ") y la hora que añade el backend
+  // Quita el prefijo de nivel de uvicorn ("INFO:     ") y la hora que añade el servidor
   // ("13:28:23  "): el color ya indica el nivel y la hora está en su propia columna.
   return text.replace(/^(INFO|WARNING|ERROR|DEBUG):\s+/, "").replace(/^\d{2}:\d{2}:\d{2}\s+/, "");
 }
@@ -635,7 +752,25 @@ $("btnClearLog").addEventListener("click", () =>
 
 // ── Arranque ─────────────────────────────────────────────────────────────
 
-refreshBackends();
-setInterval(refreshBackends, STATE_INTERVAL);
+const API_VERSION = 3;
+
+/**
+ * La interfaz se lee del disco, pero la API es la del panel que está en marcha. Si ese panel es
+ * de una versión anterior o su código cambió desde que arrancó, hay que reiniciarlo.
+ */
+async function checkApiVersion() {
+  try {
+    const ping = await api("/api/ping");
+    if ((ping.api || 0) >= API_VERSION && !ping.outdated) return;
+  } catch {
+    return; // sin conexión: ya lo indica el estado
+  }
+  toast("El panel se actualizó mientras estaba abierto. Cierra su consola y vuelve a abrir iniciar_panel.bat.", "error");
+  clearTimeout(toastTimer); // este aviso se queda fijo
+}
+
+checkApiVersion();
+refreshServers();
+setInterval(refreshServers, STATE_INTERVAL);
 setInterval(refreshState, STATE_INTERVAL);
 setInterval(refreshLogs, LOG_INTERVAL);

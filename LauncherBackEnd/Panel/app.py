@@ -1,13 +1,14 @@
 """API del panel de control (solo en 127.0.0.1).
 
-Backends (``backends.json``):
+Servidores (``servidores.json``):
 
-- ``GET    /api/backends``                    lista con el estado de cada uno y el seleccionado
-- ``POST   /api/backends``                    crea uno nuevo ``{name}``
-- ``PUT    /api/backends/selected``           cambia el seleccionado ``{id}``
-- ``DELETE /api/backends/{id}``               lo quita de la lista (no borra archivos)
+- ``GET    /api/servers``                    lista con el estado de cada uno y el seleccionado
+- ``POST   /api/servers``                    crea uno nuevo ``{name}``
+- ``PUT    /api/servers/selected``           cambia el seleccionado ``{id}``
+- ``DELETE /api/servers/{id}``               lo quita de la lista; ``?eliminar_archivos=true``
+                                              borra también sus archivos (ver ``profile_files``)
 
-Un backend (``/api/backends/{id}/...``):
+Un servidor (``/api/servers/{id}/...``):
 
 - ``GET  state``                     estado del servidor, del manifest y de la actividad
 - ``GET  logs?after=N``              líneas nuevas del registro · ``POST logs/clear``
@@ -16,6 +17,7 @@ Un backend (``/api/backends/{id}/...``):
 - ``PUT  client-version``            versión que anuncia el manifest
 - ``POST manifest/regenerate``       regenera (en su servidor si está en marcha; si no, aquí)
 - ``POST open``                      abre la carpeta del cliente en el Explorador
+- ``GET  files``                     archivos en disco y si se borrarían al eliminarlo
 """
 
 from __future__ import annotations
@@ -40,59 +42,81 @@ from pydantic import BaseModel
 
 from Panel.supervisor import LogBuffer, PanelError, ServerProcess
 from Services.generate_manifest import generate_manifest, read_client_version
-from Services.settings import (BASE_DIR, MAX_BLOCKS, Settings, create_profile, delete_profile,
-                               env_overrides, get_profile, list_profiles, load_settings,
-                               profile_defaults, raw_config, select_profile, update_profile)
+from Services.profile_files import create_client_dir, delete_files, describe_files
+from Services.settings import (BASE_DIR, MAX_BLOCKS, PROFILES_DIR, Settings, create_profile,
+                               delete_profile, env_overrides, get_profile, list_profiles,
+                               load_settings, profile_defaults, raw_config, resolve_path,
+                               select_profile, update_profile)
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 PANEL_PORT = int(os.environ.get("KONNOR_PANEL_PORT", "59380"))
+# Versión de la API. La interfaz se sirve desde el disco, así que un panel abierto antes de
+# actualizar serviría la interfaz nueva con la API vieja: con esto ambas lo detectan.
+API_VERSION = 3
 
 
-# ── Estado en memoria de cada backend ───────────────────────────────────────
+def _source_stamp() -> int:
+    """Fecha de modificación más reciente del código Python del panel y de los servidores."""
+    files = [*Path(__file__).resolve().parent.glob("*.py"), *(BASE_DIR / "Services").glob("*.py")]
+    return max((f.stat().st_mtime_ns for f in files if f.is_file()), default=0)
+
+
+# Si el código cambia con el panel abierto, este sigue ejecutando el anterior hasta reiniciarse.
+_STARTED_STAMP = _source_stamp()
+
+
+# ── Estado en memoria de cada servidor ───────────────────────────────────────
 
 @dataclass
 class Runtime:
-    """Lo que el panel sabe de un backend mientras está abierto: su proceso y su registro."""
-    backend_id: str
+    """Lo que el panel sabe de un servidor mientras está abierto: su proceso y su registro."""
+    profile_id: str
     logs: LogBuffer = field(default_factory=LogBuffer)
     server: ServerProcess = field(init=False)
     local: dict = field(default_factory=lambda: {"running": False, "result": None, "finished": None})
     manifest_cache: dict = field(default_factory=lambda: {"key": None, "data": None})
 
     def __post_init__(self):
-        self.server = ServerProcess(self.backend_id, self.logs)
+        self.server = ServerProcess(self.profile_id, self.logs)
 
 
 _runtimes: dict[str, Runtime] = {}
 _runtimes_lock = threading.Lock()
 
 
-def runtime(backend_id: str) -> Runtime:
-    """Estado de un backend existente (404 si no está en backends.json)."""
+def runtime(profile_id: str) -> Runtime:
+    """Estado de un servidor existente (404 si no está en servidores.json)."""
     try:
-        get_profile(backend_id)
+        get_profile(profile_id)
     except KeyError:
-        raise HTTPException(404, f"No existe el backend '{backend_id}'") from None
+        raise HTTPException(404, f"No existe el servidor '{profile_id}'") from None
     with _runtimes_lock:
-        if backend_id not in _runtimes:
-            _runtimes[backend_id] = Runtime(backend_id)
-            _runtimes[backend_id].logs.add("Panel de control listo", source="panel", level="info")
-        return _runtimes[backend_id]
+        if profile_id not in _runtimes:
+            _runtimes[profile_id] = Runtime(profile_id)
+            _runtimes[profile_id].logs.add("Panel de control listo", source="panel", level="info")
+        return _runtimes[profile_id]
 
 
-def settings_of(backend_id: str) -> Settings:
-    return load_settings(backend_id, use_env=False)
+def settings_of(profile_id: str) -> Settings:
+    return load_settings(profile_id, use_env=False)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Servidores creados en profiles/ cuya carpeta del cliente falta (por ejemplo, creados con una
+    # versión anterior del panel): se crea con su estructura.
+    _, profiles = list_profiles()
+    for profile in profiles:
+        client_dir = resolve_path(profile["client_dir"])
+        if not client_dir.exists() and (BASE_DIR / PROFILES_DIR / profile["id"]) in client_dir.parents:
+            create_client_dir(profile["id"])
     yield
     # Al cerrar el panel se detienen también los servidores que arrancó.
     await asyncio.gather(*(asyncio.to_thread(rt.server.stop) for rt in list(_runtimes.values())))
 
 
-app = FastAPI(title="Konnor Launcher Backend - Panel", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title="Servidor de Konnor Launcher - Panel", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
 # ── Protección del panel ────────────────────────────────────────────────────
@@ -118,9 +142,23 @@ def _probe_host(host: str) -> str:
     return "127.0.0.1" if host in ("0.0.0.0", "::", "localhost") else host
 
 
-def _backend_request(settings: Settings, method: str, path: str, timeout: float = 1.5) -> dict | None:
-    """Petición al servidor de un backend; None si no responde."""
-    url = f"http://{_probe_host(settings.host)}:{settings.port}{path}"
+def _port_open(host: str, port: int) -> bool:
+    """Comprobación rápida de que algo escucha. En Windows, conectar a un puerto local cerrado
+    tarda unos 2 s (el sistema reintenta); sin esto, cada sondeo a un servidor detenido frenaría
+    la interfaz."""
+    try:
+        with socket.create_connection((host, port), timeout=0.25):
+            return True
+    except OSError:
+        return False
+
+
+def _server_request(settings: Settings, method: str, path: str, timeout: float = 1.5) -> dict | None:
+    """Petición a un servidor; None si no responde."""
+    host = _probe_host(settings.host)
+    if not _port_open(host, settings.port):
+        return None
+    url = f"http://{host}:{settings.port}{path}"
     request = urllib.request.Request(url, method=method)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -131,13 +169,13 @@ def _backend_request(settings: Settings, method: str, path: str, timeout: float 
 
 def _server_status(rt: Runtime, probe: dict | None) -> str:
     """Estado combinando el proceso hijo y la respuesta del servidor en su puerto."""
-    online = bool(probe and probe.get("server") == "Konnor Launcher Backend")
+    online = bool(probe and probe.get("server") == "Servidor de Konnor Launcher")
     if rt.server.alive:
         if rt.server.stopping:
             return "stopping"
         return "running" if online else "starting"
     if online:
-        return "external"  # responde un backend que no arrancó este panel (p. ej. el .bat)
+        return "external"  # responde un servidor que no arrancó este panel (p. ej. el .bat)
     return "crashed" if rt.server.crashed else "stopped"
 
 
@@ -190,8 +228,8 @@ def _manifest_summary(rt: Runtime, path: Path) -> dict:
 
 
 def _run_local_generation(rt: Runtime, force_blocks: bool) -> None:
-    """Regeneración desde el panel, para cuando el servidor del backend está detenido."""
-    settings = settings_of(rt.backend_id)
+    """Regeneración desde el panel, para cuando el servidor está detenido."""
+    settings = settings_of(rt.profile_id)
     log = lambda text: rt.logs.add(str(text), source="panel")
     log("Regenerando el manifest desde el panel (servidor detenido)...")
     try:
@@ -207,16 +245,16 @@ def _run_local_generation(rt: Runtime, force_blocks: bool) -> None:
     rt.local.update(running=False, result=asdict(result) if result else None, finished=time.time())
 
 
-# ── Lista de backends ───────────────────────────────────────────────────────
+# ── Lista de servidores ───────────────────────────────────────────────────────
 
-@app.get("/api/backends")
-async def backends():
+@app.get("/api/servers")
+async def servers():
     selected, profiles = list_profiles()
 
     async def summary(profile: dict) -> dict:
         rt = runtime(profile["id"])
         settings = settings_of(profile["id"])
-        probe = await asyncio.to_thread(_backend_request, settings, "GET", "/", 1.0)
+        probe = await asyncio.to_thread(_server_request, settings, "GET", "/", 1.0)
         return {
             "id": profile["id"],
             "name": profile["name"],
@@ -225,68 +263,86 @@ async def backends():
             "status": _server_status(rt, probe),
         }
 
-    return {"selected": selected, "backends": await asyncio.gather(*(summary(p) for p in profiles))}
+    return {"selected": selected, "servers": await asyncio.gather(*(summary(p) for p in profiles))}
 
 
 class NameBody(BaseModel):
     name: str
 
 
-@app.post("/api/backends")
-def new_backend(body: NameBody):
+@app.post("/api/servers")
+def new_server(body: NameBody):
     try:
-        backend = create_profile(body.name)
+        profile = create_profile(body.name)
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
-    runtime(backend["id"]).logs.add(f"Backend «{backend['name']}» creado", source="panel", level="info")
-    return backend
+    logs = runtime(profile["id"]).logs
+    logs.add(f"Servidor «{profile['name']}» creado", source="panel", level="info")
+    # La carpeta del cliente se crea ya, con su estructura, lista para copiar el modpack.
+    try:
+        client_dir = create_client_dir(profile["id"])
+        logs.add(f"Carpeta del cliente creada: {client_dir}", source="panel", level="info")
+    except OSError as error:
+        logs.add(f"No se pudo crear la carpeta del cliente: {error}", source="panel", level="error")
+    return profile
 
 
 class IdBody(BaseModel):
     id: str
 
 
-@app.put("/api/backends/selected")
+@app.put("/api/servers/selected")
 def set_selected(body: IdBody):
     try:
         select_profile(body.id)
     except KeyError:
-        raise HTTPException(404, f"No existe el backend '{body.id}'") from None
+        raise HTTPException(404, f"No existe el servidor '{body.id}'") from None
     return {"selected": body.id}
 
 
-@app.delete("/api/backends/{backend_id}")
-def remove_backend(backend_id: str):
-    rt = runtime(backend_id)
+@app.get("/api/servers/{profile_id}/files")
+async def server_files(profile_id: str):
+    runtime(profile_id)
+    return {"items": await asyncio.to_thread(describe_files, profile_id)}
+
+
+@app.delete("/api/servers/{profile_id}")
+async def remove_server(profile_id: str, eliminar_archivos: bool = False):
+    rt = runtime(profile_id)
     if rt.server.alive:
-        raise HTTPException(409, "Detén el servidor de este backend antes de quitarlo")
+        raise HTTPException(409, "Detén este servidor antes de eliminarlo")
+    if rt.local["running"]:
+        raise HTTPException(409, "Espera a que termine la regeneración del manifest")
+    # Qué se borra se decide ahora, en el servidor, con los demás servidores todavía en la lista.
+    items = await asyncio.to_thread(describe_files, profile_id) if eliminar_archivos else []
     try:
-        delete_profile(backend_id)
+        delete_profile(profile_id)
     except ValueError as error:
         raise HTTPException(409, str(error)) from None
     with _runtimes_lock:
-        _runtimes.pop(backend_id, None)
-    return {"ok": True}
+        _runtimes.pop(profile_id, None)
+    deleted, errors = await asyncio.to_thread(delete_files, items)
+    return {"ok": True, "deleted": deleted, "errors": errors}
 
 
-# ── Un backend ──────────────────────────────────────────────────────────────
+# ── Un servidor ──────────────────────────────────────────────────────────────
 
-@app.get("/api/backends/{backend_id}/state")
-async def state(backend_id: str):
-    rt = runtime(backend_id)
-    settings = settings_of(backend_id)
-    probe = await asyncio.to_thread(_backend_request, settings, "GET", "/")
+@app.get("/api/servers/{profile_id}/state")
+async def state(profile_id: str):
+    rt = runtime(profile_id)
+    settings = settings_of(profile_id)
+    probe = await asyncio.to_thread(_server_request, settings, "GET", "/")
     status = _server_status(rt, probe)
     online = status in ("running", "external")
 
-    current = raw_config(backend_id, use_env=False)
+    current = raw_config(profile_id, use_env=False)
     server = rt.server
     restart_required = server.alive and server.config_at_start is not None and server.config_at_start != current
     port = settings.port
     lan = _lan_addresses() if settings.host in ("0.0.0.0", "::") else [settings.host]
 
     return {
-        "backend": {"id": settings.backend_id, "name": settings.backend_name},
+        "profile": {"id": settings.profile_id, "name": settings.profile_name},
         "server": {
             "status": status,
             "pid": server.pid,
@@ -312,21 +368,21 @@ async def state(backend_id: str):
     }
 
 
-@app.get("/api/backends/{backend_id}/logs")
-def get_logs(backend_id: str, after: int = 0):
-    lines, last = runtime(backend_id).logs.since(after)
+@app.get("/api/servers/{profile_id}/logs")
+def get_logs(profile_id: str, after: int = 0):
+    lines, last = runtime(profile_id).logs.since(after)
     return {"lines": lines, "last": last}
 
 
-@app.post("/api/backends/{backend_id}/logs/clear")
-def clear_logs(backend_id: str):
-    runtime(backend_id).logs.clear()
+@app.post("/api/servers/{profile_id}/logs/clear")
+def clear_logs(profile_id: str):
+    runtime(profile_id).logs.clear()
     return {"ok": True}
 
 
-@app.post("/api/backends/{backend_id}/server/{action}")
-async def server_action(backend_id: str, action: str):
-    rt = runtime(backend_id)
+@app.post("/api/servers/{profile_id}/server/{action}")
+async def server_action(profile_id: str, action: str):
+    rt = runtime(profile_id)
     if action not in ("start", "stop", "restart"):
         raise HTTPException(404, "Acción desconocida")
     if action != "stop" and rt.local["running"]:
@@ -341,11 +397,11 @@ async def server_action(backend_id: str, action: str):
 
 # ── Configuración ───────────────────────────────────────────────────────────
 
-@app.get("/api/backends/{backend_id}/config")
-def get_config(backend_id: str):
-    runtime(backend_id)
-    profile = get_profile(backend_id)
-    defaults = profile_defaults(backend_id, profile["port"] if backend_id != "principal" else None)
+@app.get("/api/servers/{profile_id}/config")
+def get_config(profile_id: str):
+    runtime(profile_id)
+    profile = get_profile(profile_id)
+    defaults = profile_defaults(profile_id, profile["port"] if profile_id != "principal" else None)
     return {
         "values": profile,
         "defaults": defaults,
@@ -360,16 +416,16 @@ class ConfigBody(BaseModel):
     values: dict
 
 
-@app.put("/api/backends/{backend_id}/config")
-def put_config(backend_id: str, body: ConfigBody):
-    rt = runtime(backend_id)
+@app.put("/api/servers/{profile_id}/config")
+def put_config(profile_id: str, body: ConfigBody):
+    rt = runtime(profile_id)
     values = {k: v for k, v in body.values.items() if k != "id"}  # el id no cambia nunca
     try:
-        saved = update_profile(backend_id, values)
+        saved = update_profile(profile_id, values)
     except ValueError as error:
         raise HTTPException(422, str(error)) from None
     rt.logs.add("Configuración guardada", source="panel", level="info")
-    restart = rt.server.alive and rt.server.config_at_start != raw_config(backend_id, use_env=False)
+    restart = rt.server.alive and rt.server.config_at_start != raw_config(profile_id, use_env=False)
     return {"values": saved, "restart_required": restart}
 
 
@@ -377,18 +433,18 @@ class VersionBody(BaseModel):
     version: str
 
 
-@app.put("/api/backends/{backend_id}/client-version")
-async def put_client_version(backend_id: str, body: VersionBody):
-    rt = runtime(backend_id)
+@app.put("/api/servers/{profile_id}/client-version")
+async def put_client_version(profile_id: str, body: VersionBody):
+    rt = runtime(profile_id)
     version = body.version.strip()
     if not version or len(version) > 64 or any(c.isspace() for c in version):
         raise HTTPException(422, "La versión no puede estar vacía ni contener espacios (máx. 64 caracteres)")
-    settings = settings_of(backend_id)
+    settings = settings_of(profile_id)
     settings.version_file.parent.mkdir(parents=True, exist_ok=True)
     settings.version_file.write_text(version + "\n", encoding="utf-8")
     rt.logs.add(f"Versión del cliente cambiada a {version}", source="panel", level="info")
     # El archivo de versión no está en la carpeta vigilada: se pide la regeneración expresamente.
-    queued = await asyncio.to_thread(_backend_request, settings, "POST", "/admin/regenerate")
+    queued = await asyncio.to_thread(_server_request, settings, "POST", "/admin/regenerate")
     return {"version": version, "regenerating": queued is not None}
 
 
@@ -396,12 +452,12 @@ class RegenerateBody(BaseModel):
     force_blocks: bool = False
 
 
-@app.post("/api/backends/{backend_id}/manifest/regenerate")
-async def regenerate(backend_id: str, body: RegenerateBody):
-    rt = runtime(backend_id)
-    settings = settings_of(backend_id)
+@app.post("/api/servers/{profile_id}/manifest/regenerate")
+async def regenerate(profile_id: str, body: RegenerateBody):
+    rt = runtime(profile_id)
+    settings = settings_of(profile_id)
     path = "/admin/regenerate" + ("?forzar_bloques=true" if body.force_blocks else "")
-    if await asyncio.to_thread(_backend_request, settings, "POST", path) is not None:
+    if await asyncio.to_thread(_server_request, settings, "POST", path) is not None:
         return {"where": "server"}
     if rt.server.alive:
         raise HTTPException(409, "El servidor está arrancando; inténtalo en unos segundos")
@@ -412,10 +468,10 @@ async def regenerate(backend_id: str, body: RegenerateBody):
     return {"where": "panel"}
 
 
-@app.post("/api/backends/{backend_id}/open")
-def open_folder(backend_id: str):
-    runtime(backend_id)
-    folder = settings_of(backend_id).client_dir
+@app.post("/api/servers/{profile_id}/open")
+def open_folder(profile_id: str):
+    runtime(profile_id)
+    folder = settings_of(profile_id).client_dir
     if not folder.is_dir():
         raise HTTPException(404, f"No existe la carpeta {folder}")
     if sys.platform == "win32":
@@ -427,7 +483,7 @@ def open_folder(backend_id: str):
 
 @app.get("/api/ping")
 def ping():
-    return {"panel": "Konnor Launcher Backend"}
+    return {"panel": "Servidor de Konnor Launcher", "api": API_VERSION, "outdated": _source_stamp() != _STARTED_STAMP}
 
 
 @app.get("/")

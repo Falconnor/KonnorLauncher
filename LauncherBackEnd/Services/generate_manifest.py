@@ -18,7 +18,7 @@ puede lanzar a mano::
     python -m Services.generate_manifest                  # actualiza el manifest
     python -m Services.generate_manifest --forzar-bloques # además rehace todos los ZIP
     python -m Services.generate_manifest --salida otro.json
-    python -m Services.generate_manifest --backend <id>   # otro backend (por defecto, el seleccionado)
+    python -m Services.generate_manifest --servidor <id>   # otro servidor (por defecto, el seleccionado)
 """
 
 from __future__ import annotations
@@ -184,11 +184,11 @@ def main() -> int:
                         help="rehace todos los ZIP de assets aunque no hayan cambiado")
     parser.add_argument("--salida", type=Path, default=None,
                         help="ruta del manifest generado (por defecto, la configurada)")
-    parser.add_argument("--backend", default=None,
-                        help="id del backend (por defecto, KONNOR_PROFILE o el seleccionado en el panel)")
+    parser.add_argument("--servidor", default=None,
+                        help="id del servidor (por defecto, KONNOR_PROFILE o el seleccionado en el panel)")
     args = parser.parse_args()
-    settings = load_settings(args.backend)
-    print(f"Backend: {settings.backend_name} ({settings.backend_id})")
+    settings = load_settings(args.servidor)
+    print(f"Servidor: {settings.profile_name} ({settings.profile_id})")
     result = generate_manifest(settings, force_blocks=args.forzar_bloques,
                                output=args.salida.resolve() if args.salida else None)
     if not result.ok:
