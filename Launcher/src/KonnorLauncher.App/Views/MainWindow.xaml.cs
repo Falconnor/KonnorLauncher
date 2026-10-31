@@ -48,6 +48,16 @@ public partial class MainWindow : Window
             _viewModel.UsernamePrompt.CancelCommand.Execute(null);
             e.Handled = true;
         }
+        else if (_viewModel.Confirm.IsOpen)
+        {
+            _viewModel.Confirm.CancelCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (_viewModel.Editor.IsOpen)
+        {
+            _viewModel.Editor.CancelCommand.Execute(null);
+            e.Handled = true;
+        }
         else if (_viewModel.Options.IsOpen)
         {
             _viewModel.Options.CancelCommand.Execute(null);

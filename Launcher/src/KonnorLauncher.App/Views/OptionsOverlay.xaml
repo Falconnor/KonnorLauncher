@@ -4,125 +4,127 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
+             xmlns:c="clr-namespace:KonnorLauncher.App.Controls"
              xmlns:conv="clr-namespace:KonnorLauncher.App.Converters"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:OptionsViewModel}"
              IsVisibleChanged="OnIsVisibleChanged">
     <UserControl.Resources>
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
+
+        <!-- RAM: opciones como botones de segmento -->
+        <Style x:Key="RamItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{StaticResource Surface}" BorderBrush="Transparent" BorderThickness="1"
+                                CornerRadius="9" Height="34" MinWidth="62" Padding="12,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentSoft}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
-    <!-- Fondo de captura casi invisible (negro α0.01): hace el overlay modal -->
-    <Grid Background="#03000000">
-        <!-- Panel 560×380 centrado, #F0232830, radio 12, sombra blur 30 negro α150 -->
-        <Border Width="560" Height="380" Background="{StaticResource PanelBg}" CornerRadius="12"
-                Effect="{StaticResource PanelShadow}">
-            <DockPanel Margin="24,16,24,20" KeyboardNavigation.TabNavigation="Cycle">
+    <Grid Background="{StaticResource ModalScrim}">
+        <c:GlassPanel Width="620" Height="652" Padding="0" Background="{StaticResource GlassTintStrong}" BlurRadius="40">
+            <DockPanel KeyboardNavigation.TabNavigation="Cycle">
+                <!-- Cabecera -->
+                <DockPanel DockPanel.Dock="Top" Margin="28,22,20,8">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconClose}"
+                            FontSize="11" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar" />
+                    <StackPanel>
+                        <TextBlock Text="Opciones" Style="{StaticResource H2}" FontSize="21" />
+                        <TextBlock Text="Ajustes del jugador, comunes a todas las instancias." Style="{StaticResource Hint}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </DockPanel>
 
-                <!-- Cabecera: OPCIONES + ✕ (= Cancelar) -->
-                <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
-                    <TextBlock Text="OPCIONES" FontSize="{StaticResource Pt15}" FontWeight="Bold"
-                               Foreground="{StaticResource White}" VerticalAlignment="Center" />
-                    <Button Content="✕" Style="{StaticResource PanelCloseButton}" HorizontalAlignment="Right"
-                            Command="{Binding CancelCommand}" />
-                </Grid>
-
-                <!-- Separador 1 px α40 y 8 px de espacio -->
-                <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource WhiteA40}" Margin="0,0,0,14" />
-
-                <!-- Botonera inferior a la derecha: GUARDAR y CANCELAR -->
-                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                    <Button Content="GUARDAR" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" Margin="0,0,6,0" />
-                    <Button Content="CANCELAR" Style="{StaticResource SecondaryButton}" Command="{Binding CancelCommand}" />
+                <!-- Pie -->
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="28,12,28,22">
+                    <Button Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource AccentButton}" Content="Guardar" Command="{Binding SaveCommand}" Padding="24,0" />
                 </StackPanel>
 
-                <!-- Contenido con scroll vertical (barra 6 px; margen derecho 8) -->
-                <ScrollViewer Template="{StaticResource ThinScrollViewer}" Tag="{StaticResource OptionsScrollBar}"
-                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <Grid Margin="0,0,8,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />  <!-- 0 etiquetas RAM / nombre -->
-                            <RowDefinition Height="Auto" />  <!-- 1 combo RAM / campo nombre -->
-                            <RowDefinition Height="Auto" />  <!-- 2 error del nombre -->
-                            <RowDefinition Height="Auto" />  <!-- 3 RUTA DE JAVA -->
-                            <RowDefinition Height="Auto" />  <!-- 4 campo Java + ... -->
-                            <RowDefinition Height="Auto" />  <!-- 5 URL DEL SERVIDOR -->
-                            <RowDefinition Height="Auto" />  <!-- 6 URL / casilla -->
-                            <RowDefinition Height="Auto" />  <!-- 7 CARPETA DE MINECRAFT -->
-                            <RowDefinition Height="Auto" />  <!-- 8 carpeta + ... + 📁 -->
-                            <RowDefinition Height="Auto" />  <!-- 9 SKIN DEL JUGADOR -->
-                            <RowDefinition Height="Auto" />  <!-- 10 skin + ... + 👁 -->
-                        </Grid.RowDefinitions>
-                        <!-- Fila 0 -->
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="MEMORIA RAM" Style="{StaticResource OptionLabel}" Margin="0,0,0,6" />
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="0,0,0,6">
-                            <TextBlock Text="NOMBRE DE JUGADOR" Style="{StaticResource OptionLabel}" />
-                            <Border Style="{StaticResource InfoBadge}" Margin="6,0,0,0" VerticalAlignment="Center">
-                                <Border.ToolTip>
-                                    <ToolTip Style="{StaticResource InfoToolTip}"
-                                             Content="• De 4 a 16 caracteres&#x0a;• Solo letras, números y guion bajo ( _ )&#x0a;• Sin espacios ni símbolos especiales" />
-                                </Border.ToolTip>
-                                <TextBlock Text="i" FontFamily="Arial" FontSize="{StaticResource Pt7}" FontWeight="Bold"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
-                            </Border>
+                <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="28,8,14,0">
+                    <StackPanel Margin="0,0,14,8">
+                        <!-- Nombre -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Nombre de jugador" Style="{StaticResource FieldLabel}" />
+                            <TextBlock Text="4 a 16 letras, números o _" Style="{StaticResource Hint}" Margin="10,1,0,0" />
                         </StackPanel>
-
-                        <!-- Fila 1 -->
-                        <ComboBox Grid.Row="1" Grid.Column="0" Style="{StaticResource DarkComboBox}" Margin="0,0,0,6"
-                                  ItemsSource="{Binding RamOptions}" SelectedItem="{Binding SelectedRam}" DisplayMemberPath="Display" />
-                        <TextBox x:Name="UsernameBox" Grid.Row="1" Grid.Column="2" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"
-                                 Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" MaxLength="16" Tag="Nombre de jugador..." />
-
-                        <!-- Fila 2: error del nombre (oculto si es válido) -->
-                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource ErrorText}" Margin="0,0,0,6"
-                                   Text="{Binding UsernameError}"
+                        <TextBox x:Name="UsernameBox" Style="{StaticResource GlassTextBox}" MaxLength="16" Tag="Nombre de jugador"
+                                 Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="{Binding UsernameError}" Foreground="{StaticResource Danger}" FontSize="12.5" Margin="0,6,0,0"
                                    Visibility="{Binding UsernameError, Converter={StaticResource TextToVisibility}}" />
 
-                        <!-- Filas 3-4: Java -->
-                        <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Text="RUTA DE JAVA" Style="{StaticResource OptionLabel}" Margin="0,0,0,6" />
-                        <DockPanel Grid.Row="4" Grid.ColumnSpan="3" Margin="0,0,0,6">
-                            <Button DockPanel.Dock="Right" Content="..." Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                        <!-- RAM -->
+                        <TextBlock Text="Memoria para el juego" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                        <ListBox ItemsSource="{Binding RamOptions}" SelectedItem="{Binding SelectedRam}" DisplayMemberPath="Display"
+                                 ItemContainerStyle="{StaticResource RamItem}" Background="Transparent" BorderThickness="0" Padding="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Memoria para el juego">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                        </ListBox>
+
+                        <!-- Java -->
+                        <TextBlock Text="Java" Style="{StaticResource FieldLabel}" Margin="0,16,0,8" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Examinar" Margin="8,0,0,0"
                                     Command="{Binding BrowseJavaCommand}" />
-                            <TextBox Style="{StaticResource DarkTextBox}" Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="Automático (recomendado)" />
+                            <TextBox Style="{StaticResource GlassTextBox}" Tag="Automático: el Java correcto para cada versión (recomendado)"
+                                     Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" />
                         </DockPanel>
 
-                        <!-- Filas 5-6: servidor y verificación -->
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="URL DEL SERVIDOR" Style="{StaticResource OptionLabel}" Margin="0,0,0,6" />
-                        <TextBox Grid.Row="6" Grid.Column="0" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"
-                                 Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" Tag="http://servidor:puerto" />
-                        <CheckBox Grid.Row="6" Grid.Column="2" Style="{StaticResource DarkCheckBox}" Margin="0,0,0,6"
-                                  VerticalAlignment="Center" Content="VERIFICAR ARCHIVOS AL INICIAR" IsChecked="{Binding VerifyOnStart}" />
-
-                        <!-- Filas 7-8: carpeta del juego -->
-                        <TextBlock Grid.Row="7" Grid.ColumnSpan="3" Text="CARPETA DE MINECRAFT" Style="{StaticResource OptionLabel}" Margin="0,0,0,6" />
-                        <DockPanel Grid.Row="8" Grid.ColumnSpan="3" Margin="0,0,0,6">
-                            <Button DockPanel.Dock="Right" Content="📁" Style="{StaticResource IconButton}" Margin="6,0,0,0"
-                                    FontFamily="Segoe UI Emoji" FontWeight="Normal" Command="{Binding OpenGameFolderCommand}" />
-                            <Button DockPanel.Dock="Right" Content="..." Style="{StaticResource IconButton}" Margin="6,0,0,0"
-                                    Command="{Binding BrowseGamePathCommand}" />
-                            <TextBox Style="{StaticResource DarkTextBox}" Text="{Binding GamePath, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="Ruta a la carpeta del juego..." />
-                        </DockPanel>
-
-                        <!-- Filas 9-10: skin (solo lectura) -->
-                        <TextBlock Grid.Row="9" Grid.ColumnSpan="3" Text="SKIN DEL JUGADOR" Style="{StaticResource OptionLabel}" Margin="0,0,0,6" />
-                        <DockPanel Grid.Row="10" Grid.ColumnSpan="3">
-                            <Button DockPanel.Dock="Right" Content="👁" Style="{StaticResource IconButton}" Margin="6,0,0,0"
-                                    FontFamily="Arial" FontSize="{StaticResource Pt13}" FontWeight="Normal" Command="{Binding PreviewSkinCommand}" />
-                            <Button DockPanel.Dock="Right" Content="..." Style="{StaticResource IconButton}" Margin="6,0,0,0"
+                        <!-- Skin -->
+                        <TextBlock Text="Skin del jugador" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Ver" Margin="8,0,0,0"
+                                    Command="{Binding PreviewSkinCommand}" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Examinar" Margin="8,0,0,0"
                                     Command="{Binding BrowseSkinCommand}" />
-                            <TextBox Style="{StaticResource DarkTextBox}" Text="{Binding SkinPath}" IsReadOnly="True"
-                                     Tag="Ruta al archivo de skin (.png)..." />
+                            <TextBox Style="{StaticResource GlassTextBox}" Text="{Binding SkinPath}" IsReadOnly="True" Tag="Archivo .png de la skin" />
                         </DockPanel>
-                    </Grid>
+
+                        <!-- Carpeta de datos -->
+                        <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,24,0,0">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Margin="12,0,0,0"
+                                        Command="{Binding OpenDataFolderCommand}" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
+                                        <TextBlock Text="Abrir" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel>
+                                    <TextBlock Text="Carpeta de datos" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding DataDir}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0"
+                                               Text="instances: una carpeta por instancia · meta: versiones, librerías, assets y Java compartidos" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
                 </ScrollViewer>
             </DockPanel>
-        </Border>
+        </c:GlassPanel>
     </Grid>
 </UserControl>

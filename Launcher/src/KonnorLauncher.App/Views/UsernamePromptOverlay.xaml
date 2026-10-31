@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
+             xmlns:c="clr-namespace:KonnorLauncher.App.Controls"
              xmlns:conv="clr-namespace:KonnorLauncher.App.Converters"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:UsernamePromptViewModel}"
@@ -12,46 +13,29 @@
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
     </UserControl.Resources>
 
-    <!-- Fondo oscurecido negro α0.4 -->
-    <Grid Background="#66000000">
-        <!-- Panel 380×220 centrado, márgenes 24/20, espaciado 10 -->
-        <Border Width="380" Height="220" Background="{StaticResource PanelBg}" CornerRadius="12"
-                Effect="{StaticResource PanelShadow}">
-            <Grid Margin="24,20" KeyboardNavigation.TabNavigation="Cycle">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+    <!-- Antes de la primera partida: el nombre es obligatorio -->
+    <Grid Background="{StaticResource ModalScrim}">
+        <c:GlassPanel Width="420" Padding="28,26" VerticalAlignment="Center" Background="{StaticResource GlassTintStrong}">
+            <StackPanel KeyboardNavigation.TabNavigation="Cycle">
+                <TextBlock Text="Escribe tu nombre" Style="{StaticResource H2}" FontSize="21" />
+                <TextBlock Text="Es el nombre con el que te verán los demás en el servidor." Foreground="{StaticResource Ink2}"
+                           FontSize="14" TextWrapping="Wrap" Margin="0,8,0,18" />
 
-                <TextBlock Grid.Row="0" Text="ESCRIBE TU NOMBRE" FontSize="{StaticResource Pt14}" FontWeight="Bold"
-                           Foreground="{StaticResource White}" HorizontalAlignment="Center" />
-                <TextBlock Grid.Row="1" Text="Necesitas un nombre de jugador para entrar al mundo." Margin="0,6,0,0"
-                           FontSize="{StaticResource Pt10}" Foreground="{StaticResource WhiteA160}"
-                           TextAlignment="Center" TextWrapping="Wrap" />
-
-                <!-- Campo (padding 8/12, 11 pt) -->
-                <TextBox x:Name="NameBox" Grid.Row="2" Style="{StaticResource DarkTextBox}" Margin="0,14,0,0"
-                         Padding="12,8" FontSize="{StaticResource Pt11}" MaxLength="16" Tag="Nombre de jugador..."
-                         Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox x:Name="NameBox" Style="{StaticResource GlassTextBox}" Height="42" FontSize="15" MaxLength="16"
+                         Tag="Nombre de jugador" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
                     </TextBox.InputBindings>
                 </TextBox>
+                <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" FontSize="12.5" Margin="0,6,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
+                <TextBlock Text="De 4 a 16 caracteres: letras, números y guion bajo." Style="{StaticResource Hint}" Margin="0,8,0,0" />
 
-                <!-- Error centrado (Arial 8 pt, #FF4444) -->
-                <TextBlock Grid.Row="3" Style="{StaticResource ErrorText}" Margin="0,4,0,0" TextAlignment="Center"
-                           Text="{Binding Error}" Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
-
-                <!-- Botones centrados: CANCELAR y GUARDAR -->
-                <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Content="CANCELAR" Style="{StaticResource SecondaryButton}" Command="{Binding CancelCommand}" Margin="0,0,6,0" />
-                    <Button Content="GUARDAR" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                    <Button Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource AccentButton}" Content="Guardar y jugar" Command="{Binding SaveCommand}" Padding="20,0" />
                 </StackPanel>
-            </Grid>
-        </Border>
+            </StackPanel>
+        </c:GlassPanel>
     </Grid>
 </UserControl>

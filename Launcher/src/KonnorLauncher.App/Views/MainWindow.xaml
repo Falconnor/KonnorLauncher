@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
         xmlns:views="clr-namespace:KonnorLauncher.App.Views"
+        xmlns:c="clr-namespace:KonnorLauncher.App.Controls"
         xmlns:conv="clr-namespace:KonnorLauncher.App.Converters"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
@@ -13,122 +14,339 @@
         Width="1275" Height="700"
         WindowStyle="None" ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="Black"
+        Background="#0B0E13"
         UseLayoutRounding="True"
-        FontFamily="{DynamicResource MainFont}"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{StaticResource Ink}"
         TextOptions.TextFormattingMode="Ideal"
         MouseLeftButtonDown="OnWindowMouseLeftButtonDown"
         PreviewKeyDown="OnPreviewKeyDown">
 
     <Window.Resources>
-        <conv:InverseBoolConverter x:Key="InverseBool" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
     </Window.Resources>
 
-    <!-- Capa 1: lienzo 1275×700 con posiciones absolutas.
-         Capa 2: overlay OPCIONES. Capa 3: overlay ESCRIBE TU NOMBRE. -->
     <Grid>
-        <Canvas x:Name="MainCanvas" Width="1275" Height="700" ClipToBounds="True">
-
-            <!-- FONDO: background.png cubriendo toda la ventana; si falla, queda el gradiente -->
-            <Border Width="1275" Height="700" Background="{StaticResource FallbackBackground}" />
-            <Image Width="1275" Height="700" Stretch="UniformToFill"
-                   Source="pack://application:,,,/Assets/background.png"
+        <!-- ── Fondo: es lo que se ve desenfocado a través de los paneles de cristal ─────── -->
+        <Grid x:Name="Backdrop">
+            <Border Background="{StaticResource FallbackBackground}" />
+            <Image Source="pack://application:,,,/Assets/background.png" Stretch="UniformToFill"
                    RenderOptions.BitmapScalingMode="HighQuality" />
+            <Border Background="{StaticResource Scrim}" />
+        </Grid>
 
-            <!-- CONTROLES DE VENTANA (arriba a la derecha) -->
-            <Button Canvas.Left="1235" Canvas.Top="10" Content="✕" Style="{StaticResource WindowControlButton}"
-                    Click="OnCloseClick" ToolTipService.IsEnabled="False" />
-            <Button Canvas.Left="1199" Canvas.Top="10" Content="—" Style="{StaticResource WindowControlButton}"
-                    Click="OnMinimizeClick" />
+        <!-- ── Contenido principal ─────────────────────────────────────────────────────── -->
+        <Grid x:Name="MainContent" c:GlassPanel.Backdrop="{Binding ElementName=Backdrop}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="292" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- BOTÓN OPCIONES (arriba a la izquierda) -->
-            <Button Canvas.Left="12" Canvas.Top="10" Width="126" Height="37" Content="⚙  Opciones"
-                    Style="{StaticResource GhostButton}" Command="{Binding OpenOptionsCommand}" />
+            <!-- ═══ Barra lateral: instancias, jugador y Opciones (abajo a la izquierda) ═══ -->
+            <c:GlassPanel Grid.Column="0" Margin="12,12,6,12" Padding="14,16,14,14">
+                <DockPanel>
+                    <!-- Marca -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,0,20">
+                        <Image Source="pack://application:,,,/Assets/icon.png" Width="30" Height="30"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Konnor Launcher" FontFamily="{StaticResource DisplayFont}" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding LauncherVersionText}" FontSize="12" Foreground="{StaticResource Ink3}" />
+                        </StackPanel>
+                    </StackPanel>
 
-            <!-- TÍTULO y SUBTÍTULO (no reciben clics: se puede arrastrar la ventana sobre ellos) -->
-            <TextBlock Canvas.Left="0" Canvas.Top="28" Width="1275" Height="52" Text="KONNOR"
-                       FontSize="{StaticResource Pt38}" FontWeight="Bold" Foreground="{StaticResource White}"
-                       TextAlignment="Center" LineStackingStrategy="BlockLineHeight" LineHeight="52"
-                       IsHitTestVisible="False" />
-            <TextBlock Canvas.Left="0" Canvas.Top="78" Width="1275" Height="24" Text="LAUNCHER"
-                       FontSize="{StaticResource Pt13}" Foreground="{StaticResource WhiteA150}"
-                       TextAlignment="Center" LineStackingStrategy="BlockLineHeight" LineHeight="24"
-                       IsHitTestVisible="False" />
+                    <!-- Cabecera de la lista -->
+                    <DockPanel DockPanel.Dock="Top" Margin="6,0,0,10">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconAdd}"
+                                Command="{Binding NewInstanceCommand}" ToolTip="Nueva instancia" AutomationProperties.Name="Nueva instancia" />
+                        <TextBlock Text="Instancias" Style="{StaticResource H2}" FontSize="15" VerticalAlignment="Center" />
+                    </DockPanel>
 
-            <!-- MENSAJE DE BIENVENIDA (oculto si no hay nombre y mientras se juega) -->
-            <TextBlock Canvas.Left="0" Canvas.Top="572" Width="1275" Height="22" Text="{Binding WelcomeText}"
-                       FontSize="{StaticResource Pt12}" FontStyle="Italic" Foreground="{StaticResource WhiteA190}"
-                       TextAlignment="Center" IsHitTestVisible="False"
-                       Visibility="{Binding IsWelcomeVisible, Converter={StaticResource BoolToVisibility}}" />
+                    <!-- Pie: jugador y Opciones -->
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Border Height="1" Background="#14FFFFFF" Margin="4,10,4,12" />
+                        <DockPanel Margin="4,0,0,10">
+                            <Border Width="34" Height="34" CornerRadius="17" Background="{StaticResource AccentSoft}"
+                                    BorderBrush="{StaticResource Accent}" BorderThickness="1">
+                                <TextBlock Text="{Binding PlayerInitials}" FontSize="12" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PlayerName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="Jugador sin conexión" FontSize="12" Foreground="{StaticResource Ink3}" />
+                            </StackPanel>
+                        </DockPanel>
+                        <Button Style="{StaticResource GlassButton}" HorizontalContentAlignment="Left" Height="40"
+                                Command="{Binding OpenOptionsCommand}" AutomationProperties.Name="Opciones">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{StaticResource IconSettings}" Style="{StaticResource Icon}" Margin="0,0,10,0" />
+                                <TextBlock Text="Opciones" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
 
-            <!-- ESTADO (acción) y BARRA DE PROGRESO sobre el botón JUGAR -->
-            <TextBlock Canvas.Left="427" Canvas.Top="570" Width="420" Height="18" Text="{Binding ActionText}"
-                       FontSize="{StaticResource Pt10}" FontWeight="Bold" Foreground="{StaticResource White}"
-                       TextAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
-            <ProgressBar Canvas.Left="427" Canvas.Top="594" Width="420" Height="6" Style="{StaticResource ThinProgressBar}"
-                         Value="{Binding ProgressValue}" IsHitTestVisible="False"
-                         Visibility="{Binding IsProgressVisible, Converter={StaticResource BoolToVisibility}}" />
+                    <!-- Lista de instancias -->
+                    <Grid>
+                        <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
+                                 Background="Transparent" BorderThickness="0" Padding="0"
+                                 ItemContainerStyle="{StaticResource InstanceListItem}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AutomationProperties.Name="Instancias">
+                            <ListBox.Template>
+                                <ControlTemplate TargetType="ListBox">
+                                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" Focusable="False">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </ControlTemplate>
+                            </ListBox.Template>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:InstanceItemViewModel}">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
+                                            <Border CornerRadius="10" Background="{StaticResource Surface}" BorderBrush="#14FFFFFF" BorderThickness="1">
+                                                <TextBlock Text="{Binding Initials}" FontWeight="Bold" FontSize="13"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <!-- Punto verde: instancia sincronizada con el servidor -->
+                                            <Ellipse Width="11" Height="11" Fill="{StaticResource Ok}" Stroke="#1A1F27" StrokeThickness="2"
+                                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-3"
+                                                     Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="Todavía no hay instancias." Style="{StaticResource Hint}" Margin="8,4,0,0"
+                                   Visibility="{Binding HasInstances, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </Grid>
+                </DockPanel>
+            </c:GlassPanel>
 
-            <!-- BOTÓN JUGAR (centrado abajo) -->
-            <Button Canvas.Left="507" Canvas.Top="608" Width="260" Height="56" Style="{StaticResource PlayButton}"
-                    Content="{Binding PlayButtonText}" IsEnabled="{Binding IsPlayEnabled}"
-                    Command="{Binding PlayCommand}" />
+            <!-- ═══ Zona principal ═══ -->
+            <Grid Grid.Column="1" Margin="6,12,12,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="40" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!-- SELECTOR DE VERSIÓN (abajo a la izquierda); el popup se abre ENCIMA, 4 px de separación -->
-            <ToggleButton x:Name="VersionButton" Canvas.Left="30" Canvas.Top="627" Width="170" Height="44"
-                          Style="{StaticResource VersionButton}"
-                          IsChecked="{Binding IsVersionPopupOpen, Mode=TwoWay}"
-                          IsHitTestVisible="{Binding IsOpen, ElementName=VersionPopup, Converter={StaticResource InverseBool}}">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="VERSIÓN ▾" FontSize="{StaticResource Pt9}" FontWeight="Bold" Foreground="{StaticResource White}" />
-                    <TextBlock Text="{Binding SelectedVersionLabel}" FontSize="{StaticResource Pt7}" FontWeight="Bold"
-                               Foreground="{StaticResource WhiteA140}" TextTrimming="CharacterEllipsis" />
+                <!-- Controles de ventana (la zona libre de esta fila sirve para arrastrar) -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Style="{StaticResource WindowButton}" Content="{StaticResource IconMinimize}" Click="OnMinimizeClick"
+                            AutomationProperties.Name="Minimizar" />
+                    <Button Style="{StaticResource WindowCloseButton}" Content="{StaticResource IconClose}" Click="OnCloseClick"
+                            AutomationProperties.Name="Cerrar" Margin="4,0,0,0" />
                 </StackPanel>
-            </ToggleButton>
 
-            <!-- VERSIÓN DEL LAUNCHER (abajo a la derecha, del ensamblado) -->
-            <TextBlock Canvas.Left="1145" Canvas.Top="670" Width="100" Height="18" Text="{Binding LauncherVersionText}"
-                       FontSize="{StaticResource Pt9}" FontWeight="Bold" Foreground="{StaticResource White}"
-                       TextAlignment="Right" />
-        </Canvas>
-
-        <!-- Popup con la lista de versiones (ancho 200, alto min(n,6)×30+12) -->
-        <Popup x:Name="VersionPopup" PlacementTarget="{Binding ElementName=VersionButton}" Placement="Top"
-               VerticalOffset="-4" AllowsTransparency="True" StaysOpen="False" PopupAnimation="None"
-               IsOpen="{Binding IsVersionPopupOpen, Mode=TwoWay}">
-            <Border Width="200" Height="{Binding VersionPopupHeight}" Background="{StaticResource PopupBg}"
-                    BorderBrush="{StaticResource WhiteA30}" BorderThickness="1" CornerRadius="8" Padding="4">
-                <ScrollViewer Template="{StaticResource ThinScrollViewer}" Tag="{StaticResource VersionListScrollBar}"
-                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding VersionItems}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:VersionItem}">
-                                <Button x:Name="Item" Style="{StaticResource VersionListItem}" IsEnabled="{Binding IsSelectable}"
-                                        Command="{Binding DataContext.SelectVersionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}">
-                                    <TextBlock x:Name="Label" Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
+                <!-- Instancia seleccionada -->
+                <c:GlassPanel Grid.Row="1" Padding="32,30,32,28" Margin="0,0,0,12"
+                              Visibility="{Binding HasInstances, Converter={StaticResource BoolToVisibility}}">
+                    <DockPanel DataContext="{Binding SelectedInstance}">
+                        <!-- Acciones -->
+                        <DockPanel DockPanel.Dock="Bottom" Margin="0,24,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" AutomationProperties.Name="Eliminar instancia"
+                                    Command="{Binding DataContext.DeleteInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{StaticResource IconDelete}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
+                                    <TextBlock Text="Eliminar" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource GlassButton}" Margin="0,0,10,0" AutomationProperties.Name="Editar instancia"
+                                        Command="{Binding DataContext.EditInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{StaticResource IconEdit}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
+                                        <TextBlock Text="Editar" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button>
-                                <DataTemplate.Triggers>
-                                    <!-- Seleccionada: "✓  ", negrita, #7AE08A y fondo blanco α25 -->
-                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                        <Setter TargetName="Item" Property="Background" Value="{StaticResource WhiteA25}" />
-                                        <Setter TargetName="Label" Property="FontWeight" Value="Bold" />
-                                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource SelectedVersionText}" />
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </Border>
-        </Popup>
+                                <Button Style="{StaticResource GlassButton}" AutomationProperties.Name="Abrir carpeta de la instancia"
+                                        Command="{Binding DataContext.OpenInstanceFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
+                                        <TextBlock Text="Abrir carpeta" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </DockPanel>
 
-        <!-- Capa 2: OPCIONES -->
-        <views:OptionsOverlay DataContext="{Binding Options}"
-                              Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- Cabecera: icono, nombre y etiquetas -->
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                            <Border Width="84" Height="84" CornerRadius="20" Background="{StaticResource Surface}"
+                                    BorderBrush="#1FFFFFFF" BorderThickness="1">
+                                <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="22,2,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource H1}" MaxWidth="760" />
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Border Style="{StaticResource Chip}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ink2}" />
+                                            <TextBlock Text="{Binding MinecraftVersion, StringFormat=Minecraft {0}}" FontSize="13" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Chip}">
+                                        <TextBlock Text="{Binding LoaderText}" FontSize="13" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Style="{StaticResource Chip}" Background="#1F4FD18B"
+                                            Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ok}" />
+                                            <TextBlock Text="{Binding SyncText}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Ok}" />
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
+                            </StackPanel>
+                        </StackPanel>
 
-        <!-- Capa 3: ESCRIBE TU NOMBRE -->
-        <views:UsernamePromptOverlay DataContext="{Binding UsernamePrompt}"
-                                     Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- Contenido de la instancia -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,24,0,0">
+                            <UniformGrid Rows="1" Columns="5" Margin="0,0,-12,0">
+                                <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Última partida" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding LastPlayedText}" FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Mods" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding ModCount}" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Mundos" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding WorldCount}" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Paquetes de recursos" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding ResourcePackCount}" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16,14" Margin="0,0,12,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Shaders" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding ShaderPackCount}" FontFamily="{StaticResource DisplayFont}" FontSize="26" FontWeight="SemiBold" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                            <DockPanel Margin="2,16,0,0">
+                                <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource Ink3}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding Directory}" Style="{StaticResource Hint}" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                        </StackPanel>
+
+                        <!-- Mods de la instancia (ocupa el espacio que queda) -->
+                        <DockPanel Margin="0,20,0,0">
+                            <TextBlock DockPanel.Dock="Top" Text="Mods" Style="{StaticResource H2}" FontSize="15" Margin="2,0,0,10" />
+                            <Border Background="{StaticResource SurfaceSunken}" CornerRadius="14" Padding="6">
+                                <Grid>
+                                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding ModFiles}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="10,7">
+                                                        <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="12"
+                                                                   Foreground="{StaticResource Ink3}" Margin="0,0,10,0" />
+                                                        <TextBlock Text="{Binding}" FontSize="13.5" TextTrimming="CharacterEllipsis" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <TextBlock FontSize="13.5" Margin="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                               TextAlignment="Center" MaxWidth="440"
+                                               Visibility="{Binding ModFiles.Count, Converter={StaticResource ZeroToVisible}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                                <Setter Property="Text" Value="Todavía no hay mods. Copia los archivos .jar a la carpeta mods (botón Abrir carpeta)." />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsModded}" Value="False">
+                                                        <Setter Property="Text" Value="Las instancias vanilla no cargan mods. Edita la instancia y elige Fabric, Forge, NeoForge o Quilt para usarlos." />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                        </DockPanel>
+                    </DockPanel>
+                </c:GlassPanel>
+
+                <!-- Sin instancias -->
+                <c:GlassPanel Grid.Row="1" Padding="40" Margin="0,0,0,12"
+                              Visibility="{Binding HasInstances, Converter={StaticResource InverseBoolToVisibility}}">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
+                        <TextBlock Text="Crea tu primera instancia" Style="{StaticResource H1}" FontSize="30" TextAlignment="Center" />
+                        <TextBlock Margin="0,12,0,24" FontSize="15" Foreground="{StaticResource Ink2}" TextWrapping="Wrap" TextAlignment="Center"
+                                   Text="Elige la versión de Minecraft y, si quieres mods, Fabric, Forge, NeoForge o Quilt. El launcher descarga e instala todo lo necesario." />
+                        <Button Style="{StaticResource AccentButton}" HorizontalAlignment="Center" Height="44" Padding="22,0"
+                                Command="{Binding NewInstanceCommand}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,10,0" />
+                                <TextBlock Text="Nueva instancia" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </c:GlassPanel>
+
+                <!-- Barra de juego: estado, progreso y JUGAR -->
+                <c:GlassPanel Grid.Row="2" Padding="24,18,18,18">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="260" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                            <TextBlock FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding ActionText}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ActionText}" Value="">
+                                                <Setter Property="Text" Value="{Binding SelectedInstance.Name, StringFormat=Listo para jugar a {0}}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding SelectedInstance.Summary}" FontSize="13" Foreground="{StaticResource Ink3}" Margin="0,3,0,0"
+                                       Visibility="{Binding IsProgressVisible, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <ProgressBar Style="{StaticResource GlassProgressBar}" Value="{Binding ProgressValue}" Margin="0,10,0,0"
+                                         Visibility="{Binding IsProgressVisible, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Height="58" Style="{StaticResource GlassPlayButton}"
+                                Content="{Binding PlayButtonText}" IsEnabled="{Binding IsPlayEnabled}"
+                                Command="{Binding PlayCommand}" />
+                    </Grid>
+                </c:GlassPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ── Capas modales: su cristal desenfoca la ventana entera ───────────────────── -->
+        <Grid c:GlassPanel.Backdrop="{Binding ElementName=MainContent}">
+            <views:InstanceEditorOverlay DataContext="{Binding Editor}"
+                                         Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+            <views:OptionsOverlay DataContext="{Binding Options}"
+                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+            <views:ConfirmOverlay DataContext="{Binding Confirm}"
+                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+            <views:UsernamePromptOverlay DataContext="{Binding UsernamePrompt}"
+                                         Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
     </Grid>
 </Window>

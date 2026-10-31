@@ -19,8 +19,9 @@ public sealed record RamOption(string Display, string Value)
 }
 
 /// <summary>
-/// ViewModel del overlay "OPCIONES". Carga los valores de <c>launcher.properties</c> al abrirlo
-/// y los guarda todos juntos al pulsar GUARDAR.
+/// ViewModel del overlay "OPCIONES" (ajustes del jugador, comunes a todas las instancias). Carga los
+/// valores de <c>launcher.properties</c> al abrirlo y los guarda todos juntos al pulsar GUARDAR.
+/// La versión, el servidor y la carpeta del juego son de cada instancia.
 /// </summary>
 public sealed partial class OptionsViewModel : ObservableObject
 {
@@ -30,7 +31,6 @@ public sealed partial class OptionsViewModel : ObservableObject
     private readonly LauncherPaths _paths;
     private readonly IDialogService _dialogs;
     private readonly ILogger<OptionsViewModel> _logger;
-    private string _originalGamePath = string.Empty;
 
     public OptionsViewModel(LauncherSettings settings, LauncherPaths paths, IDialogService dialogs, ILogger<OptionsViewModel> logger)
     {
@@ -53,10 +53,10 @@ public sealed partial class OptionsViewModel : ObservableObject
     [ObservableProperty] private string _username = string.Empty;
     [ObservableProperty] private string? _usernameError;
     [ObservableProperty] private string _javaPath = string.Empty;
-    [ObservableProperty] private string _serverUrl = string.Empty;
-    [ObservableProperty] private bool _verifyOnStart;
-    [ObservableProperty] private string _gamePath = string.Empty;
     [ObservableProperty] private string _skinPath = string.Empty;
+
+    /// <summary>Carpeta con las instancias y los archivos compartidos.</summary>
+    public string DataDir => LauncherPaths.DataDir;
 
     /// <summary>Valida el nombre mientras se escribe.</summary>
     partial void OnUsernameChanged(string value) => UsernameError = UsernameRules.ValidateForOptions(value);
@@ -85,12 +85,6 @@ public sealed partial class OptionsViewModel : ObservableObject
 
         // Java vacío = automático (el campo muestra "Automático (recomendado)").
         JavaPath = JavaSelector.IsAutomatic(_settings.JavaPath) ? string.Empty : _settings.JavaPath;
-        ServerUrl = _settings.ServerUrl;
-        VerifyOnStart = _settings.EnableVerify;
-
-        // Si la carpeta está vacía, se muestra la ruta que se usa por defecto.
-        _originalGamePath = _settings.GamePath;
-        GamePath = string.IsNullOrWhiteSpace(_originalGamePath) ? _paths.ResolveGameDir(null) : _originalGamePath;
         SkinPath = _settings.PlayerSkin;
         IsOpen = true;
     }
@@ -108,19 +102,11 @@ public sealed partial class OptionsViewModel : ObservableObject
             return;
         }
 
-        // Si no se cambió la carpeta por defecto mostrada, se deja vacía (= por defecto).
-        var gamePath = GamePath.Trim();
-        if (string.IsNullOrWhiteSpace(_originalGamePath) && string.Equals(gamePath, _paths.ResolveGameDir(null), StringComparison.OrdinalIgnoreCase))
-            gamePath = string.Empty;
-
         _settings.Properties.SetMany(
         [
             new(LauncherSettings.KeyPlayerUsername, username),
             new(LauncherSettings.KeyJavaMemory, SelectedRam?.Value ?? LauncherSettings.DefaultMemory),
             new(LauncherSettings.KeyJavaPath, JavaPath.Trim()),
-            new(LauncherSettings.KeyServerUrl, ServerUrl.Trim()),
-            new(LauncherSettings.KeyGamePath, gamePath),
-            new(LauncherSettings.KeyEnableVerify, VerifyOnStart ? "true" : "false"),
             new(LauncherSettings.KeyPlayerSkin, SkinPath.Trim()),
         ]);
         _logger.LogInformation("Opciones guardadas");
@@ -141,22 +127,11 @@ public sealed partial class OptionsViewModel : ObservableObject
             JavaPath = path;
     }
 
-    /// <summary>"..." de la carpeta del juego.</summary>
+    /// <summary>Abre en el Explorador la carpeta de datos (instancias y archivos compartidos).</summary>
     [RelayCommand]
-    private void BrowseGamePath()
+    private void OpenDataFolder()
     {
-        var folder = _dialogs.PickFolder("Seleccionar carpeta de Minecraft");
-        if (folder is not null)
-            GamePath = folder;
-    }
-
-    /// <summary>📁: crea la carpeta si no existe y la abre en el Explorador (una ruta relativa es relativa al launcher).</summary>
-    [RelayCommand]
-    private void OpenGameFolder()
-    {
-        var path = _paths.ResolveUserFolder(GamePath);
-        if (path is null)
-            return;
+        var path = DataDir;
         try
         {
             Directory.CreateDirectory(path);

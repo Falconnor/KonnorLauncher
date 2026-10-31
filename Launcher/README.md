@@ -1,9 +1,14 @@
 # Konnor Launcher
 
 Launcher de Minecraft para Windows pensado para servidores privados: se juega con cuenta offline
-y no envía ningún tipo de telemetría. Descarga cualquier versión de Minecraft junto con el Java
-que esa versión necesita, y mantiene el cliente sincronizado con el servidor (mods, versiones y
-assets) para que todos los jugadores usen los mismos archivos.
+y no envía ningún tipo de telemetría. Organiza el juego en **instancias** (como el launcher de
+Modrinth): cada una tiene su versión de Minecraft, su cargador de mods (Fabric, Forge, NeoForge o
+Quilt) y su propia carpeta de mods, configuración y mundos. El launcher descarga e instala todo lo
+necesario, incluido el Java que pide cada versión, y puede mantener una instancia sincronizada con
+el servidor (LauncherBackEnd) para que todos los jugadores usen los mismos archivos.
+
+La interfaz usa el mismo diseño glassmorphism que el panel del servidor: paneles de cristal
+desenfocado sobre el fondo del launcher, con el verde del launcher solo en acciones y estados.
 
 El proyecto empezó en Python (PySide6 + minecraft-launcher-lib) y fue reescrito en
 **C# / .NET 10 / WPF**. Las versiones, librerías, assets y Java se gestionan con
@@ -18,8 +23,12 @@ Directory.Packages.props       ← versiones de NuGet centralizadas
 global.json                    ← SDK de .NET 10 y runner de pruebas
 build.ps1                      ← pruebas + publicación + instalador en un solo paso
 src/
-  KonnorLauncher.Core/         ← lógica sin UI: configuración, verificación, CmlLib, flujo de JUGAR
+  KonnorLauncher.Core/         ← lógica sin UI: configuración, instancias, cargadores, verificación, CmlLib, flujo de JUGAR
+    Instances/                 ← instancias (instance.json) y sus carpetas
+    Loaders/                   ← versiones e instalación de Fabric, Quilt, Forge y NeoForge
   KonnorLauncher.App/          ← interfaz WPF (MVVM), assets y launcher.properties por defecto
+    Controls/GlassPanel.cs     ← panel de cristal: desenfoca lo que hay detrás (WPF no tiene backdrop-filter)
+    Themes/Glass.xaml          ← estilos glassmorphism (mismos tokens que el panel del servidor)
   KonnorLauncher.VerifyCli/    ← herramienta de consola para diagnosticar el servidor
 tests/
   KonnorLauncher.Core.Tests/   ← pruebas unitarias, incluido el verificador contra un servidor HTTP local
@@ -52,23 +61,51 @@ instalado) y genera `artifacts/KonnorLauncher-Setup-<versión>.exe`. El instalad
 
 - instala en `%APPDATA%\KonnorLauncher` sin pedir permisos de administrador;
 - conserva el `launcher.properties` de cada jugador al reinstalar o actualizar;
-- incluye desinstalador, que nunca toca la carpeta del juego.
+- incluye desinstalador, que nunca toca las instancias ni los archivos del juego.
+
+## Instancias y carpetas
+
+Todo se guarda en `%APPDATA%\KonnorLauncher`:
+
+```
+instances/<id>/        ← una carpeta por instancia: instance.json, mods, config, saves, resourcepacks...
+meta/                  ← compartido entre instancias (como en Modrinth)
+  versions/  libraries/  assets/  runtime/   (runtime = Java de Mojang)
+```
+
+- **Crear una instancia**: nombre, versión de Minecraft (barra que se despliega, con buscador),
+  cargador de mods (Vanilla, Fabric, Forge, NeoForge o Quilt) y, si hay cargador, su versión:
+  **Estable**, **Última** u **Otra** (lista de todas las disponibles para esa versión de Minecraft).
+- **Dependencias automáticas**: al pulsar JUGAR se instala el cargador (Fabric y Quilt desde sus
+  servicios oficiales; Forge y NeoForge con su instalador oficial, mediante CmlLib.Core.Installer.Forge)
+  y después CmlLib descarga la versión de Minecraft, librerías, assets y el Java adecuado. Lo que
+  ya está en `meta/` no se vuelve a descargar.
+- **Sincronizar con el servidor** (casilla por instancia): antes de jugar se verifican los archivos
+  con LauncherBackEnd. Una instancia sincronizada guarda sus propios `versions`, `libraries` y
+  `assets` dentro de su carpeta, porque la verificación borra lo que no está en el manifest y nunca
+  debe tocar los archivos compartidos de las demás.
+- **Sin conexión**: si el cargador ya se instaló, la instancia se puede jugar sin internet.
+- **Migración**: la primera vez, si `launcher.properties` tenía una versión o la verificación
+  activada, esa configuración se convierte en la instancia "Konnor".
+
+La variable `KONNOR_DATA_DIR` cambia la carpeta de datos (útil para pruebas o una instalación portátil).
 
 ## Configuración (`launcher.properties`)
 
-El archivo se encuentra junto al ejecutable. Mantiene las mismas claves que la versión en Python,
-por lo que las instalaciones existentes siguen funcionando:
+El archivo se encuentra junto al ejecutable y guarda los ajustes del jugador, comunes a todas las
+instancias (se editan en **Opciones**, abajo a la izquierda de la barra lateral):
 
 | Clave | Uso |
 |---|---|
-| `game.path` | Carpeta del juego (vacía = `%APPDATA%\.minecraft`) |
-| `java.path` | Vacía = se usa el Java de Mojang adecuado para cada versión; con una ruta, se usa ese Java |
-| `minecraft.version` | Versión seleccionada |
-| `server.url` | Servidor de actualización (`/client_manifest.json`, `/client/...`, `/client/packages/...`) |
-| `enable.verify` | `true` = sincroniza el cliente con el servidor antes de jugar |
-| `delete_unauthorized` | `true` = borra de `mods`, `versions`, `libraries` y `assets` lo que no esté en el manifest (nunca en la `.minecraft` oficial) |
-| `java.memory` | Memoria máxima para el juego (`4G`) |
 | `player.username` | Nombre del jugador offline (de 4 a 16 caracteres: letras, números y `_`) |
+| `java.memory` | Memoria máxima para el juego (`4G`) |
+| `java.path` | Vacía = se usa el Java de Mojang adecuado para cada versión; con una ruta, se usa ese Java |
+| `player.skin` | Skin del jugador (.png) |
+| `instance.selected` | Instancia seleccionada en la barra lateral |
+| `server.url` | Dirección que se propone al marcar "Sincronizar con el servidor" en una instancia nueva |
+
+`minecraft.version`, `game.path`, `enable.verify` y `delete_unauthorized` son de la versión
+anterior: solo se leen para migrarlos a la primera instancia (y los usa la herramienta de diagnóstico).
 
 ## Diagnosticar el servidor
 

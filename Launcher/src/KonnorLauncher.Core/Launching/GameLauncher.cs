@@ -4,6 +4,7 @@ using CmlLib.Core.Auth;
 using CmlLib.Core.Installers;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.VersionLoader;
+using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Players;
 using KonnorLauncher.Core.Progress;
@@ -32,6 +33,9 @@ public sealed record LaunchRequest
     public string VersionsPath { get; init; } = "versions";
     public string LibrariesPath { get; init; } = "libraries";
     public string AssetsPath { get; init; } = "assets";
+
+    /// <summary>Carpetas de una instancia. Si está, tiene prioridad sobre las tres rutas anteriores.</summary>
+    public InstanceLayout? Layout { get; init; }
 }
 
 /// <summary>
@@ -71,6 +75,9 @@ public sealed class GameLauncher
     /// </summary>
     public static MinecraftPath CreateMinecraftPath(LaunchRequest request)
     {
+        if (request.Layout is not null)
+            return request.Layout.ToMinecraftPath();
+
         var path = new MinecraftPath(request.GameDir)
         {
             Versions = LauncherPaths.ResolveGameSubDir(request.GameDir, request.VersionsPath, "versions"),
@@ -80,7 +87,8 @@ public sealed class GameLauncher
         return path;
     }
 
-    private MinecraftLauncher CreateLauncher(MinecraftPath path, bool localOnly)
+    /// <summary>Launcher de CmlLib para unas rutas. Con <paramref name="localOnly"/> no consulta a Mojang.</summary>
+    public MinecraftLauncher CreateLauncher(MinecraftPath path, bool localOnly)
     {
         var parameters = MinecraftLauncherParameters.CreateDefault(path, _httpFactory.CreateClient(HttpClientName));
         if (localOnly)

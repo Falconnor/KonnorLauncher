@@ -8,7 +8,9 @@ using KonnorLauncher.App.ViewModels;
 using KonnorLauncher.App.Views;
 using KonnorLauncher.Core;
 using KonnorLauncher.Core.Configuration;
+using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Launching;
+using KonnorLauncher.Core.Loaders;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Versions;
 using Microsoft.Extensions.DependencyInjection;
@@ -76,8 +78,18 @@ public partial class App : Application
 
         var logger = _host.Services.GetRequiredService<ILogger<App>>();
         var paths = _host.Services.GetRequiredService<LauncherPaths>();
-        logger.LogInformation("Konnor Launcher {Version} iniciado. Carpeta: {Dir}",
-            typeof(App).Assembly.GetName().Version, paths.LaunchDir);
+        logger.LogInformation("Konnor Launcher {Version} iniciado. Carpeta: {Dir}. Datos: {Data}",
+            typeof(App).Assembly.GetName().Version, paths.LaunchDir, LauncherPaths.DataDir);
+
+        // Primera vez con instancias: la configuración de launcher.properties pasa a la instancia "Konnor".
+        try
+        {
+            _host.Services.GetRequiredService<InstanceStore>().MigrateLegacy(_host.Services.GetRequiredService<LauncherSettings>());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogError(ex, "No se pudo migrar la configuración antigua a una instancia");
+        }
 
         var window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
@@ -107,9 +119,18 @@ public partial class App : Application
             c.Timeout = Timeout.InfiniteTimeSpan;
             c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         });
+        // Fabric, Quilt, Forge y NeoForge: listas de versiones e instaladores.
+        services.AddHttpClient(LoaderVersionService.HttpClientName, c =>
+        {
+            c.Timeout = Timeout.InfiniteTimeSpan;
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        });
 
-        // Core.
+        // Core. Las instancias viven en %APPDATA%\KonnorLauncher\instances.
+        services.AddSingleton(sp => new InstanceStore(LauncherPaths.InstancesDir, sp.GetRequiredService<ILogger<InstanceStore>>()));
         services.AddSingleton<VersionService>();
+        services.AddSingleton<LoaderVersionService>();
+        services.AddSingleton<LoaderInstaller>();
         services.AddSingleton<GameLauncher>();
         services.AddSingleton<PlayWorkflow>();
 
@@ -117,6 +138,8 @@ public partial class App : Application
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<OptionsViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
+        services.AddSingleton<InstanceEditorViewModel>();
+        services.AddSingleton<ConfirmViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
     }

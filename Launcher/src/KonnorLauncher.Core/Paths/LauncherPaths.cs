@@ -30,6 +30,22 @@ public sealed class LauncherPaths
     /// <summary>Carpeta de logs: %APPDATA%\KonnorLauncher\logs.</summary>
     public static string LogsDir => Path.Combine(AppDataDir, "logs");
 
+    /// <summary>
+    /// Carpeta de datos del juego: %APPDATA%\KonnorLauncher, o la de la variable <c>KONNOR_DATA_DIR</c>
+    /// (para pruebas o una instalación portátil).
+    /// </summary>
+    public static string DataDir =>
+        Environment.GetEnvironmentVariable("KONNOR_DATA_DIR") is { Length: > 0 } custom ? Path.GetFullPath(custom) : AppDataDir;
+
+    /// <summary>Instancias: una carpeta por instancia con su <c>instance.json</c>, mods, config, saves...</summary>
+    public static string InstancesDir => Path.Combine(DataDir, "instances");
+
+    /// <summary>
+    /// Archivos compartidos entre instancias (como en Modrinth): <c>versions</c>, <c>libraries</c>,
+    /// <c>assets</c> y el Java de Mojang (<c>runtime</c>).
+    /// </summary>
+    public static string MetaDir => Path.Combine(DataDir, "meta");
+
     /// <summary>Carpeta oficial del launcher de Mojang: %APPDATA%\.minecraft.</summary>
     public static string DefaultGameDir
     {

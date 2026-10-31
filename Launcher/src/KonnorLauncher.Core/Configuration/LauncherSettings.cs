@@ -25,6 +25,9 @@ public sealed class LauncherSettings
     public const string KeyPlayerUuid = "player.uuid";
     public const string KeyPlayerAccessToken = "player.accessToken";
 
+    /// <summary>Instancia seleccionada en la barra lateral (id = nombre de su carpeta).</summary>
+    public const string KeySelectedInstance = "instance.selected";
+
     /// <summary>Memoria por defecto si el archivo no dice nada.</summary>
     public const string DefaultMemory = "4G";
 

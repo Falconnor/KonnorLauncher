@@ -7,6 +7,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="CmlLib.Core" Version="4.1.0" />
+    <!-- Forge y NeoForge (incluye los dos instaladores y sus listas de versiones) -->
+    <PackageVersion Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.14" />
