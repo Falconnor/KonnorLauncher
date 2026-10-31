@@ -48,6 +48,9 @@ public sealed partial class GameInstance
     /// <summary>Versión concreta del cargador, resuelta al guardar la instancia (null en vanilla).</summary>
     public string? LoaderVersion { get; set; }
 
+    /// <summary>Memoria para esta instancia en MB. null = la de Opciones (<c>java.memory</c>).</summary>
+    public int? MemoryMb { get; set; }
+
     /// <summary>Versión que se lanzó la última vez (la que crea el cargador). Permite jugar sin conexión.</summary>
     public string? InstalledVersionId { get; set; }
 

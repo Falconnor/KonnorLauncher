@@ -40,7 +40,12 @@ public partial class App : Application
         _ = NativeMethods.SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
 
         // ── Instancia única: si ya hay una abierta, se activa su ventana y se sale ──
-        _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
+        // Una sola copia por carpeta de datos: dos launchers sobre los mismos archivos se pisarían.
+        // Con otra carpeta (KONNOR_DATA_DIR, para pruebas o una instalación portátil) sí puede haber dos.
+        var mutexName = LauncherPaths.DataDir == LauncherPaths.AppDataDir
+            ? SingleInstanceMutexName
+            : $"{SingleInstanceMutexName}.{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(LauncherPaths.DataDir.ToUpperInvariant())))[..12]}";
+        _singleInstance = new Mutex(initiallyOwned: true, mutexName, out var createdNew);
         if (!createdNew)
         {
             ActivateExistingInstance();

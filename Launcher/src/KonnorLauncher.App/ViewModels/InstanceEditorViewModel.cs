@@ -58,6 +58,9 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     /// <summary>Se dispara con la instancia ya guardada.</summary>
     public event EventHandler<GameInstance>? Saved;
 
+    /// <summary>"Eliminar instancia": la ventana principal pide confirmación y la borra.</summary>
+    public event EventHandler<GameInstance>? DeleteRequested;
+
     public ObservableCollection<VersionOption> VersionOptions { get; } = [];
     public ObservableCollection<LoaderOption> LoaderOptions { get; } = [];
 
@@ -86,6 +89,21 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     [ObservableProperty] private string _syncStatus = string.Empty;
     [ObservableProperty] private double _syncProgress;
     [ObservableProperty] private bool _isSyncProgressKnown;
+    [ObservableProperty] private bool _customMemory;
+    [ObservableProperty] private double _memoryMb = 4096;
+    [ObservableProperty] private string _memoryText = string.Empty;
+
+    // ── Memoria ──────────────────────────────────────────────────────────
+    public double MemoryMinMb => SystemMemory.MinMb;
+    public double MemoryMaxMb => SystemMemory.MaxMb;
+    public double MemoryStepMb => SystemMemory.StepMb;
+    public string MemoryRangeText => $"De {FormatMemory(SystemMemory.MinMb)} a {FormatMemory(SystemMemory.MaxMb)} (memoria instalada).";
+    public string DefaultMemoryText => CustomMemory
+        ? $"Solo para esta instancia. Las demás usan la de Opciones ({FormatMemory(_settings.MemoryMb)})."
+        : $"Desactivado: se usa la de Opciones ({FormatMemory(_settings.MemoryMb)}).";
+
+    /// <summary>Más del 75 % de la RAM del equipo: Windows y el resto de programas se quedan cortos.</summary>
+    public bool IsMemoryHigh => CustomMemory && MemoryMb > SystemMemory.TotalMb * 0.75;
 
     /// <summary>"Otra": se muestra la barra con la lista de versiones del cargador.</summary>
     public bool IsSpecificChannel => Channel == LoaderChannel.Specific;
@@ -129,6 +147,8 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Channel = LoaderChannel.Stable;
         SpecificLoaderVersion = null;
         SyncWithServer = false;
+        CustomMemory = false;
+        MemoryMb = ClampMemory(_settings.MemoryMb);
         ServerUrl = _settings.ServerUrl; // la del launcher.properties de la comunidad, lista para marcar la casilla
         DeleteUnauthorized = true;
         OpenCommon();
@@ -142,6 +162,8 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Name = instance.Name;
         NameError = null;
         SyncWithServer = instance.SyncWithServer; // antes que la versión: con sincronización no se consultan cargadores
+        CustomMemory = instance.MemoryMb is not null;
+        MemoryMb = ClampMemory(instance.MemoryMb ?? _settings.MemoryMb);
         MinecraftVersion = instance.MinecraftVersion;
         // En una instancia sincronizada se marca (bloqueado) el cargador que publica el servidor.
         Loader = instance.SyncWithServer ? instance.Display.Loader : instance.Loader;
@@ -387,6 +409,65 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     partial void OnNameChanged(string value) => NameError = null;
 
+    // ══════════════════════════════════════════════════════════════════
+    // MEMORIA
+    // ══════════════════════════════════════════════════════════════════
+
+    private bool _formattingMemory;
+
+    partial void OnCustomMemoryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsMemoryHigh));
+        OnPropertyChanged(nameof(DefaultMemoryText));
+    }
+
+    /// <summary>El deslizador cambió: la casilla muestra la cantidad.</summary>
+    partial void OnMemoryMbChanged(double value)
+    {
+        _formattingMemory = true;
+        MemoryText = FormatMemory((int)value);
+        _formattingMemory = false;
+        OnPropertyChanged(nameof(IsMemoryHigh));
+    }
+
+    /// <summary>Se escribió en la casilla: se interpreta, se ajusta al rango y mueve el deslizador.</summary>
+    partial void OnMemoryTextChanged(string value)
+    {
+        if (_formattingMemory)
+            return;
+        if (ParseMemory(value) is { } mb)
+            MemoryMb = ClampMemory(mb);
+        // Valor no válido o fuera de rango: la casilla vuelve a mostrar el del deslizador.
+        _formattingMemory = true;
+        MemoryText = FormatMemory((int)MemoryMb);
+        _formattingMemory = false;
+    }
+
+    private static double ClampMemory(double mb) => SystemMemory.Clamp(mb);
+
+    public static string FormatMemory(int mb) => SystemMemory.Format(mb);
+
+    private static int? ParseMemory(string? text) => SystemMemory.Parse(text);
+
+    // ══════════════════════════════════════════════════════════════════
+    // ELIMINAR
+    // ══════════════════════════════════════════════════════════════════
+
+    /// <summary>Solo al editar una instancia que ya existe y sin una descarga en curso.</summary>
+    [RelayCommand]
+    private void RequestDelete()
+    {
+        if (!IsNew && !IsSyncing && _editing is not null)
+            DeleteRequested?.Invoke(this, _editing);
+    }
+
+    /// <summary>Cierra el editor sin guardar (por ejemplo, tras eliminar la instancia).</summary>
+    public void Close()
+    {
+        _loaderLoad?.Cancel();
+        IsOpen = false;
+    }
+
     partial void OnSyncWithServerChanged(bool value)
     {
         // Con la sincronización activada, versión y cargador los decide el servidor.
@@ -476,6 +557,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
                           || (!SyncWithServer && (instance.MinecraftVersion != MinecraftVersion.Trim() || instance.Loader != Loader
                                                   || instance.LoaderVersion != loaderVersion));
         instance.Name = name;
+        instance.MemoryMb = CustomMemory ? (int)ClampMemory(MemoryMb) : null;
         instance.SyncWithServer = SyncWithServer;
         instance.ServerUrl = url;
         instance.DeleteUnauthorized = DeleteUnauthorized;

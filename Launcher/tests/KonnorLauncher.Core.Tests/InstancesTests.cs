@@ -156,6 +156,45 @@ public sealed class InstancesTests
         instance.Summary.ShouldBe("1.21.1 · Fabric 0.19.3");
     }
 
+    // ── Memoria por instancia ────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("6", 6144)]
+    [InlineData("6 GB", 6144)]
+    [InlineData("6,5", 6656)]
+    [InlineData("6.5g", 6656)]
+    [InlineData("6144", 6144)]
+    [InlineData("6144 MB", 6144)]
+    [InlineData("512m", 512)]
+    [InlineData("abc", null)]
+    [InlineData("", null)]
+    [InlineData("-2", null)]
+    public void Memory_text_is_understood(string text, int? expected) =>
+        SystemMemory.Parse(text).ShouldBe(expected);
+
+    [Fact]
+    public void Memory_is_formatted_and_clamped()
+    {
+        SystemMemory.Format(4096).ShouldBe("4 GB");
+        SystemMemory.Format(6656).ShouldBe("6,5 GB");
+        SystemMemory.Clamp(100).ShouldBe(SystemMemory.MinMb);
+        SystemMemory.Clamp(6700).ShouldBe(6656); // al paso de 512 MB
+        SystemMemory.Clamp(10_000_000).ShouldBe(SystemMemory.MaxMb);
+    }
+
+    [Fact]
+    public void Instance_memory_is_saved_and_null_means_the_global_setting()
+    {
+        using var dir = new TempDir();
+        var store = new InstanceStore(dir.Path);
+        var custom = store.Create(new GameInstance { Name = "Con RAM", MinecraftVersion = "1.21.1", MemoryMb = 6144 });
+        store.Create(new GameInstance { Name = "Sin RAM", MinecraftVersion = "1.21.1" });
+
+        var loaded = store.LoadAll();
+        loaded.Single(i => i.Id == custom.Id).MemoryMb.ShouldBe(6144);
+        loaded.Single(i => i.Id != custom.Id).MemoryMb.ShouldBeNull();
+    }
+
     // ── InstanceLayout ───────────────────────────────────────────────────
 
     [Fact]

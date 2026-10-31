@@ -57,6 +57,7 @@ public sealed partial class MainViewModel : ObservableObject
         Confirm = confirm;
         Options.Saved += (_, _) => RefreshPlayer();
         Editor.Saved += (_, instance) => ReloadInstances(instance.Id);
+        Editor.DeleteRequested += async (_, instance) => await DeleteInstanceAsync(instance);
 
         // La versión se toma del ensamblado para no tener que cambiarla a mano.
         var version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -131,13 +132,16 @@ public sealed partial class MainViewModel : ObservableObject
             Editor.OpenForEdit(selected.Model);
     }
 
-    [RelayCommand]
-    private async Task DeleteInstanceAsync()
+    /// <summary>
+    /// "Eliminar instancia" (desde el editor): confirma, borra la carpeta y cierra el editor.
+    /// Si se cancela, el editor sigue abierto.
+    /// </summary>
+    private async Task DeleteInstanceAsync(GameInstance instance)
     {
-        if (SelectedInstance is not { } selected || IsPlaying)
+        if (IsPlaying)
             return;
         var confirmed = await Confirm.ShowAsync(
-            $"Eliminar «{selected.Name}»",
+            $"Eliminar «{instance.Name}»",
             "Se borra la carpeta de la instancia con todo su contenido: mods, configuración, mundos y capturas. " +
             "Las versiones y librerías compartidas se conservan para las demás instancias. No se puede deshacer.",
             "Eliminar instancia", isDanger: true);
@@ -145,14 +149,16 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         try
         {
-            _store.Delete(selected.Id);
+            _store.Delete(instance.Id);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _logger.LogError(ex, "No se pudo eliminar la instancia {Id}", selected.Id);
+            _logger.LogError(ex, "No se pudo eliminar la instancia {Id}", instance.Id);
             _dialogs.ShowWarning("Error", $"No se pudo eliminar la instancia:\n{ex.Message}");
+            return;
         }
 
+        Editor.Close();
         ReloadInstances(null);
     }
 

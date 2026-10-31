@@ -35,6 +35,29 @@ public partial class InstanceEditorOverlay : UserControl
         }
     }
 
+    // ── Casilla de memoria: al pulsarla se selecciona todo para escribir directamente ──
+
+    private void OnMemoryBoxFocused(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) => MemoryBox.SelectAll();
+
+    /// <summary>El primer clic da el foco y selecciona el texto (sin colocar el cursor en medio).</summary>
+    private void OnMemoryBoxMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (MemoryBox.IsKeyboardFocusWithin)
+            return;
+        e.Handled = true;
+        MemoryBox.Focus();
+    }
+
+    /// <summary>Intro aplica lo escrito y mueve el deslizador (también se aplica al salir de la casilla).</summary>
+    private void OnMemoryBoxKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter)
+            return;
+        MemoryBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        MemoryBox.SelectAll();
+        e.Handled = true;
+    }
+
     /// <summary>Al abrir, el foco va al nombre.</summary>
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

@@ -111,7 +111,7 @@ public sealed class PlayWorkflow
             Layout = layout,
             VersionId = instance.MinecraftVersion,
             Username = _settings.PlayerUsername.Trim(),
-            MemoryMb = _settings.MemoryMb,
+            MemoryMb = instance.MemoryMb ?? _settings.MemoryMb, // la de la instancia, si la personalizó
             JavaPathSetting = _settings.JavaPath,
             Uuid = _settings.PlayerUuid,
             AccessToken = _settings.PlayerAccessToken,

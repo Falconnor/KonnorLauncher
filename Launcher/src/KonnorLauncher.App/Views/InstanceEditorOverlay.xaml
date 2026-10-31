@@ -192,7 +192,40 @@
                             <TextBlock Text="{Binding LoaderStatus}" Style="{StaticResource Hint}" Margin="0,10,0,0" FontSize="13" />
                         </StackPanel>
 
-                        <!-- 4. Servidor -->
+                        <!-- 4. Memoria de esta instancia -->
+                        <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,0">
+                            <StackPanel>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding CustomMemory}"
+                                          AutomationProperties.Name="Personalizar memoria">
+                                    <StackPanel>
+                                        <TextBlock Text="Personalizar memoria" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding DefaultMemoryText}" Style="{StaticResource Hint}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </CheckBox>
+                                <StackPanel Margin="0,16,0,0" Visibility="{Binding CustomMemory, Converter={StaticResource BoolToVisibility}}">
+                                    <DockPanel>
+                                        <!-- Casilla con la cantidad: al pulsarla se puede escribir -->
+                                        <TextBox x:Name="MemoryBox" DockPanel.Dock="Right" Width="96" Margin="16,0,0,0"
+                                                 Style="{StaticResource GlassTextBox}" HorizontalContentAlignment="Center"
+                                                 FontWeight="SemiBold" AutomationProperties.Name="Memoria en GB"
+                                                 Text="{Binding MemoryText, UpdateSourceTrigger=LostFocus}"
+                                                 GotKeyboardFocus="OnMemoryBoxFocused" PreviewMouseLeftButtonDown="OnMemoryBoxMouseDown"
+                                                 KeyDown="OnMemoryBoxKeyDown" />
+                                        <Slider Style="{StaticResource GlassSlider}" VerticalAlignment="Center"
+                                                Minimum="{Binding MemoryMinMb}" Maximum="{Binding MemoryMaxMb}" Value="{Binding MemoryMb}"
+                                                TickFrequency="{Binding MemoryStepMb}" IsSnapToTickEnabled="True"
+                                                SmallChange="{Binding MemoryStepMb}" LargeChange="1024"
+                                                AutomationProperties.Name="Memoria para esta instancia" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding MemoryRangeText}" Style="{StaticResource Hint}" Margin="0,8,0,0" />
+                                    <TextBlock Text="Es más del 75 % de la memoria del equipo: Windows y otros programas pueden ir lentos."
+                                               Foreground="{StaticResource Warn}" FontSize="12.5" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Visibility="{Binding IsMemoryHigh, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 5. Servidor -->
                         <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,4">
                             <StackPanel>
                                 <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}" AutomationProperties.Name="Sincronizar con el servidor">
@@ -215,6 +248,25 @@
                                     </CheckBox>
                                 </StackPanel>
                             </StackPanel>
+                        </Border>
+
+                        <!-- 6. Eliminar (solo al editar una instancia existente) -->
+                        <Border Background="#12FF6B6B" CornerRadius="14" Padding="16" Margin="0,24,0,4"
+                                Visibility="{Binding IsNew, Converter={StaticResource InverseBoolToVisibility}}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" Margin="16,0,0,0" VerticalAlignment="Center"
+                                        Command="{Binding RequestDeleteCommand}" AutomationProperties.Name="Eliminar instancia">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{StaticResource IconDelete}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
+                                        <TextBlock Text="Eliminar" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel>
+                                    <TextBlock Text="Eliminar instancia" FontWeight="SemiBold" />
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                                               Text="Borra su carpeta con los mods, la configuración y los mundos. Pide confirmación." />
+                                </StackPanel>
+                            </DockPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

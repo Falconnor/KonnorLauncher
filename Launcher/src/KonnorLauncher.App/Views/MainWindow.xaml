@@ -25,6 +25,7 @@
     <Window.Resources>
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
+        <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
     </Window.Resources>
 
     <Grid>
@@ -147,64 +148,61 @@
                 <c:GlassPanel Grid.Row="1" Padding="32,30,32,28" Margin="0,0,0,12"
                               Visibility="{Binding HasInstances, Converter={StaticResource BoolToVisibility}}">
                     <DockPanel DataContext="{Binding SelectedInstance}">
-                        <!-- Acciones -->
-                        <DockPanel DockPanel.Dock="Bottom" Margin="0,24,0,0">
-                            <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" AutomationProperties.Name="Eliminar instancia"
-                                    Command="{Binding DataContext.DeleteInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <!-- Acciones (editar va en la tuerca; eliminar, dentro del editor) -->
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,24,0,0">
+                            <Button Style="{StaticResource GlassButton}" AutomationProperties.Name="Abrir carpeta de la instancia"
+                                    Command="{Binding DataContext.OpenInstanceFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{StaticResource IconDelete}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
-                                    <TextBlock Text="Eliminar" VerticalAlignment="Center" />
+                                    <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
+                                    <TextBlock Text="Abrir carpeta" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <StackPanel Orientation="Horizontal">
-                                <Button Style="{StaticResource GlassButton}" Margin="0,0,10,0" AutomationProperties.Name="Editar instancia"
-                                        Command="{Binding DataContext.EditInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconEdit}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
-                                        <TextBlock Text="Editar" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Style="{StaticResource GlassButton}" AutomationProperties.Name="Abrir carpeta de la instancia"
-                                        Command="{Binding DataContext.OpenInstanceFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Abrir carpeta" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </DockPanel>
+                        </StackPanel>
 
-                        <!-- Cabecera: icono, nombre y etiquetas -->
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                        <!-- Cabecera: icono, nombre y, en la línea de las versiones, la tuerca de editar -->
+                        <Grid DockPanel.Dock="Top">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Border Width="84" Height="84" CornerRadius="20" Background="{StaticResource Surface}"
                                     BorderBrush="#1FFFFFFF" BorderThickness="1">
                                 <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Bold"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
-                            <StackPanel Margin="22,2,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource H1}" MaxWidth="760" />
-                                <WrapPanel Margin="0,10,0,0">
-                                    <Border Style="{StaticResource Chip}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ink2}" />
-                                            <TextBlock Text="{Binding MinecraftVersion, StringFormat=Minecraft {0}}" FontSize="13" FontWeight="SemiBold" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Style="{StaticResource Chip}">
-                                        <TextBlock Text="{Binding LoaderText}" FontSize="13" FontWeight="SemiBold" />
-                                    </Border>
-                                    <Border Style="{StaticResource Chip}" Background="#1F4FD18B"
-                                            Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ok}" />
-                                            <TextBlock Text="{Binding SyncText}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Ok}" />
-                                        </StackPanel>
-                                    </Border>
-                                </WrapPanel>
+                            <StackPanel Grid.Column="1" Margin="22,2,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource H1}" />
+                                <DockPanel Margin="0,8,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconSettings}"
+                                            FontSize="16" VerticalAlignment="Center" ToolTip="Editar instancia"
+                                            AutomationProperties.Name="Editar instancia"
+                                            Command="{Binding DataContext.EditInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                    <WrapPanel VerticalAlignment="Center">
+                                        <Border Style="{StaticResource Chip}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ink2}" />
+                                                <TextBlock Text="{Binding MinecraftVersion, StringFormat=Minecraft {0}}" FontSize="13.5" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Chip}">
+                                            <TextBlock Text="{Binding LoaderText}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
+                                        </Border>
+                                        <Border Style="{StaticResource Chip}"
+                                                Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ok}" />
+                                                <TextBlock Text="{Binding SyncText}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Ok}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Chip}"
+                                                Visibility="{Binding MemoryText, Converter={StaticResource TextToVisibility}}">
+                                            <TextBlock Text="{Binding MemoryText}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Ink2}" />
+                                        </Border>
+                                    </WrapPanel>
+                                </DockPanel>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
 
                         <!-- Contenido de la instancia -->
                         <StackPanel DockPanel.Dock="Top" Margin="0,24,0,0">

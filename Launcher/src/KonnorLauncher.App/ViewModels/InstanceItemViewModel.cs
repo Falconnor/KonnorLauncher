@@ -30,6 +30,7 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     [ObservableProperty] private bool _isSynced;
     [ObservableProperty] private string _syncText = string.Empty;
     [ObservableProperty] private string _lastPlayedText = string.Empty;
+    [ObservableProperty] private string _memoryText = string.Empty;
     [ObservableProperty] private int _modCount;
     [ObservableProperty] private int _worldCount;
     [ObservableProperty] private int _resourcePackCount;
@@ -53,6 +54,7 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         IsSynced = model.SyncWithServer;
         SyncText = model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor";
         LastPlayedText = FormatLastPlayed(model.LastPlayed);
+        MemoryText = model.MemoryMb is { } mb ? $"{InstanceEditorViewModel.FormatMemory(mb)} de RAM" : string.Empty;
         ModCount = Count("mods", "*.jar", files: true);
         ModFiles.Clear();
         foreach (var file in ListMods())

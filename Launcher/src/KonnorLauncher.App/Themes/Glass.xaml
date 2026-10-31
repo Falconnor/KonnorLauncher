@@ -588,11 +588,88 @@
         </Setter>
     </Style>
 
-    <!-- Etiqueta pequeña (versión, cargador, sincronizado) -->
+    <!-- Dato de la cabecera (versión, cargador, servidor, memoria): solo texto e icono, sin fondo -->
     <Style x:Key="Chip" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource Surface}" />
-        <Setter Property="CornerRadius" Value="999" />
-        <Setter Property="Padding" Value="12,5" />
-        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="Margin" Value="0,0,20,0" />
+    </Style>
+
+    <!-- ═══ Deslizador (memoria): pista fina, relleno verde y tirador blanco ═══ -->
+    <Style x:Key="SliderFill" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Grid Background="Transparent">
+                        <Border Height="6" CornerRadius="3" Background="{StaticResource Accent}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="SliderEmpty" TargetType="RepeatButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Grid Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="SliderThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Ellipse x:Name="Knob" Width="20" Height="20" Fill="White" Stroke="{StaticResource Accent}" StrokeThickness="3"
+                             RenderTransformOrigin="0.5,0.5" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Knob" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.15" ScaleY="1.15" /></Setter.Value></Setter>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Knob" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1.15" ScaleY="1.15" /></Setter.Value></Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="GlassSlider" TargetType="Slider">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid VerticalAlignment="Center">
+                        <Border x:Name="Rail" Height="6" CornerRadius="3" Background="#1FFFFFFF" BorderThickness="1" BorderBrush="Transparent" />
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource SliderFill}" Command="Slider.DecreaseLarge" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource SliderEmpty}" Command="Slider.IncreaseLarge" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource SliderThumb}" />
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Rail" Property="BorderBrush" Value="{StaticResource AccentHover}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>
