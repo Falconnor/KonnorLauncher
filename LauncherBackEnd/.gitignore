@@ -3,6 +3,7 @@ tests/
 
 # Generados por el backend
 client_manifest.json
+backend_config.json
 .cache/
 *.tmp
 

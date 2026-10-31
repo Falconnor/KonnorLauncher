@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Konnor Launcher Backend · Panel</title>
+  <link rel="icon" href="/static/mark.png">
+  <link rel="stylesheet" href="/static/panel.css">
+</head>
+<body>
+  <!-- Fondo: la misma imagen que el launcher, detrás de los paneles de cristal. -->
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <!-- ── Barra superior: identidad, estado y encendido ─────────────────── -->
+  <header class="topbar glass">
+    <div class="brand">
+      <img src="/static/mark.png" alt="" width="40" height="40">
+      <div>
+        <h1>Konnor Launcher Backend</h1>
+        <p>Panel de control del servidor de actualización</p>
+      </div>
+    </div>
+    <div class="topbar-status" id="statusChip" data-status="unknown">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="statusText">Conectando con el panel…</span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn" id="btnRestart" disabled>Reiniciar</button>
+      <button type="button" class="btn btn-primary btn-power" id="btnPower" disabled>Iniciar servidor</button>
+    </div>
+  </header>
+
+  <!-- Aviso de configuración pendiente de aplicar. -->
+  <div class="banner glass" id="restartBanner" role="status" hidden>
+    <p>La configuración cambió después de arrancar el servidor. Reinícialo para aplicarla.</p>
+    <button type="button" class="btn btn-small" id="btnRestartBanner">Reiniciar ahora</button>
+  </div>
+
+  <main class="layout">
+    <!-- ── Servidor: estado, direcciones y actividad ──────────────────── -->
+    <section class="zone zone-server glass" aria-labelledby="h-server">
+      <header class="zone-head">
+        <h2 id="h-server">Servidor</h2>
+        <span class="zone-meta" id="serverUptime"></span>
+      </header>
+
+      <div class="server-state">
+        <p class="big-state" id="bigState">—</p>
+        <p class="state-detail" id="stateDetail"></p>
+      </div>
+
+      <div class="address">
+        <p class="label" id="launcherLineLabel">Línea para <span class="file">launcher.properties</span> de los jugadores</p>
+        <div class="copy-row">
+          <output class="copy-value" id="launcherLine" aria-labelledby="launcherLineLabel">—</output>
+          <button type="button" class="btn btn-small" data-copy="launcherLine">Copiar</button>
+        </div>
+        <ul class="url-list" id="urlList"></ul>
+      </div>
+
+      <dl class="facts">
+        <div><dt>Escucha en</dt><dd id="factHost">—</dd></div>
+        <div><dt>Puerto</dt><dd id="factPort">—</dd></div>
+        <div><dt>PID</dt><dd id="factPid">—</dd></div>
+        <div><dt>Iniciado</dt><dd id="factStarted">—</dd></div>
+      </dl>
+
+      <h3 class="subhead">Actividad de los launchers desde el arranque</h3>
+      <dl class="stats stats-activity">
+        <div><dt>Verificaciones</dt><dd id="actVerifications">0</dd></div>
+        <div><dt>Archivos servidos</dt><dd id="actDownloads">0</dd></div>
+        <div><dt>Equipos</dt><dd id="actClients">0</dd></div>
+        <div><dt>Respuestas con error</dt><dd id="actErrors">0</dd></div>
+      </dl>
+      <p class="muted" id="actLast">Sin peticiones todavía.</p>
+    </section>
+
+    <!-- ── Manifest: versión publicada, contenido y regeneración ──────── -->
+    <section class="zone zone-manifest glass" aria-labelledby="h-manifest">
+      <header class="zone-head">
+        <h2 id="h-manifest">Manifest</h2>
+        <span class="pill" id="genPill" data-tone="idle">—</span>
+      </header>
+
+      <form class="version-form" id="versionForm">
+        <label for="versionInput" class="label">Versión del cliente que se anuncia</label>
+        <div class="version-row">
+          <input id="versionInput" class="version-input" autocomplete="off" spellcheck="false" maxlength="64" required>
+          <button type="submit" class="btn" id="btnVersion" disabled>Publicar versión</button>
+        </div>
+        <p class="muted" id="mfPublished">—</p>
+      </form>
+
+      <dl class="stats stats-manifest">
+        <div><dt>Archivos sueltos</dt><dd id="mfFiles">—</dd><dd class="sub" id="mfFilesSize"></dd></div>
+        <div><dt>Bloques de assets</dt><dd id="mfBlocks">—</dd><dd class="sub" id="mfBlocksSize"></dd></div>
+        <div><dt>Assets en bloques</dt><dd id="mfAssets">—</dd><dd class="sub" id="mfTotal"></dd></div>
+      </dl>
+
+      <div class="folders" id="mfFolders" aria-label="Archivos sueltos por carpeta"></div>
+
+      <p class="result-line" id="mfResult"></p>
+
+      <div class="btn-row">
+        <button type="button" class="btn" id="btnRegen">Regenerar ahora</button>
+        <button type="button" class="btn btn-quiet" id="btnForce">Rehacer todos los bloques</button>
+      </div>
+    </section>
+
+    <!-- ── Configuración: backend_config.json ─────────────────────────── -->
+    <section class="zone zone-config glass" aria-labelledby="h-config">
+      <header class="zone-head">
+        <h2 id="h-config">Configuración</h2>
+        <span class="zone-meta">backend_config.json</span>
+      </header>
+
+      <form id="configForm" novalidate>
+        <div class="groups">
+          <fieldset class="group">
+            <legend>Red</legend>
+            <div class="field">
+              <label for="cfg-host">Interfaz</label>
+              <select id="cfg-host" name="host" aria-describedby="hint-host">
+                <option value="0.0.0.0">Todas las interfaces (0.0.0.0)</option>
+                <option value="127.0.0.1">Solo este equipo (127.0.0.1)</option>
+              </select>
+              <p class="hint" id="hint-host">Todas: accesible desde la red local e Internet. Solo este equipo: para pruebas.</p>
+            </div>
+            <div class="field">
+              <label for="cfg-port">Puerto</label>
+              <input id="cfg-port" name="port" type="number" min="1" max="65535" inputmode="numeric" required>
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Cliente</legend>
+            <div class="field">
+              <label for="cfg-client_dir">Carpeta del cliente</label>
+              <div class="joined">
+                <input id="cfg-client_dir" name="client_dir" spellcheck="false" required aria-describedby="hint-client">
+                <button type="button" class="btn" id="btnOpenClient">Abrir</button>
+              </div>
+              <p class="hint" id="hint-client">Ruta absoluta o relativa a la carpeta del backend. Debe contener mods, versions, libraries y assets.</p>
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Actualización automática</legend>
+            <label class="switch-row">
+              <span>
+                <span class="switch-title">Regenerar al arrancar</span>
+                <span class="hint">Revisa la carpeta del cliente cada vez que se inicia el servidor.</span>
+              </span>
+              <input type="checkbox" role="switch" class="switch" name="auto_update" id="cfg-auto_update">
+            </label>
+            <label class="switch-row">
+              <span>
+                <span class="switch-title">Vigilar la carpeta</span>
+                <span class="hint">Publica los cambios del cliente sin reiniciar.</span>
+              </span>
+              <input type="checkbox" role="switch" class="switch" name="watch" id="cfg-watch">
+            </label>
+            <div class="field">
+              <label for="cfg-watch_quiet_ms">Espera sin cambios antes de regenerar</label>
+              <div class="suffix">
+                <input id="cfg-watch_quiet_ms" name="watch_quiet_ms" type="number" min="500" max="600000" step="500" inputmode="numeric" required aria-describedby="hint-quiet">
+                <span>ms</span>
+              </div>
+              <p class="hint" id="hint-quiet">Entre 500 y 600000. Evita regenerar a mitad de una copia grande.</p>
+            </div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>Rutas avanzadas</legend>
+            <div class="field">
+              <label for="cfg-manifest">Manifest generado</label>
+              <input id="cfg-manifest" name="manifest" spellcheck="false" required>
+            </div>
+            <div class="field">
+              <label for="cfg-version_file">Archivo de versión</label>
+              <input id="cfg-version_file" name="version_file" spellcheck="false" required>
+            </div>
+            <div class="field">
+              <label for="cfg-cache_dir">Caché de hashes</label>
+              <input id="cfg-cache_dir" name="cache_dir" spellcheck="false" required>
+            </div>
+          </fieldset>
+        </div>
+
+        <p class="env-note" id="envNote" hidden></p>
+
+        <footer class="form-foot">
+          <p class="form-msg" id="configMsg" role="status"></p>
+          <button type="button" class="btn btn-quiet" id="btnDefaults">Valores por defecto</button>
+          <button type="button" class="btn" id="btnDiscard" disabled>Descartar</button>
+          <button type="submit" class="btn btn-primary" id="btnSave" disabled>Guardar cambios</button>
+        </footer>
+      </form>
+    </section>
+
+    <!-- ── Registro en vivo ───────────────────────────────────────────── -->
+    <section class="zone zone-log glass glass-dense" aria-labelledby="h-log">
+      <header class="zone-head">
+        <h2 id="h-log">Registro</h2>
+        <div class="segmented" role="radiogroup" aria-label="Filtrar registro">
+          <button type="button" role="radio" aria-checked="true" data-filter="all">Todo</button>
+          <button type="button" role="radio" aria-checked="false" data-filter="warn">Avisos</button>
+          <button type="button" role="radio" aria-checked="false" data-filter="error">Errores</button>
+        </div>
+      </header>
+      <div class="log" id="log" role="log" aria-live="polite" tabindex="0" data-filter="all"></div>
+      <footer class="log-foot">
+        <label class="check"><input type="checkbox" id="autoscroll" checked> Seguir el final</label>
+        <span class="muted" id="logCount"></span>
+        <button type="button" class="btn btn-small btn-quiet" id="btnClearLog">Limpiar</button>
+      </footer>
+    </section>
+  </main>
+
+  <div class="toast glass" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/static/panel.js"></script>
+</body>
+</html>

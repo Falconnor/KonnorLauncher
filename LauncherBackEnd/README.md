@@ -12,8 +12,13 @@ un bloque mientras extrae el anterior, en lugar de hacer una petición por cada 
 
 ```
 main.py                        ← servidor FastAPI (uvicorn)
+Panel/                         ← panel de control (interfaz web local, 127.0.0.1:59380)
+  app.py                       ← API del panel
+  supervisor.py                ← arranque y parada del servidor, registro y actividad
+  static/                      ← interfaz (HTML, CSS, JS)
 Services/
-  settings.py                  ← configuración (variables de entorno)
+  settings.py                  ← configuración (backend_config.json y variables de entorno)
+  serve.py                     ← arranca uvicorn con el host y el puerto configurados
   generate_manifest.py         ← genera client_manifest.json
   generate_asset_blocks.py     ← bloques ZIP de assets (incrementales)
   auto_update.py               ← actualización automática al arrancar y al cambiar el cliente
@@ -22,7 +27,8 @@ Services/
 tests/Client/                  ← archivos de prueba del cliente (no está en git)
   mods/  versions/  libraries/  assets/
   packages/                    ← bloques generados
-iniciar_servidor.bat           ← producción: 0.0.0.0:59381
+iniciar_panel.bat              ← panel de control (recomendado)
+iniciar_servidor.bat           ← producción sin panel: escucha donde diga la configuración
 iniciar_desarrollo.bat         ← desarrollo: 127.0.0.1:8000, recarga el código al editarlo
 actualizar_manifest.bat        ← regeneración manual (normalmente no hace falta)
 preparar_entorno.bat           ← crea .venv e instala requirements.txt (lo usan los demás)
@@ -31,10 +37,26 @@ preparar_entorno.bat           ← crea .venv e instala requirements.txt (lo usa
 ## Puesta en marcha
 
 ```powershell
-iniciar_servidor.bat
+iniciar_panel.bat
 ```
 
-La primera vez crea el entorno `.venv` e instala las dependencias. Después:
+La primera vez crea el entorno `.venv` e instala las dependencias. Después abre el panel de
+control en una ventana propia (Edge o Chrome en modo aplicación; si no hay ninguno, el navegador
+predeterminado). Desde el panel:
+
+- **Servidor**: iniciar, detener y reiniciar; estado, PID, tiempo activo, la línea `server.url=`
+  lista para copiar en el `launcher.properties` de los jugadores y la actividad desde el arranque
+  (verificaciones, archivos servidos, equipos distintos y respuestas con error).
+- **Manifest**: versión publicada (editable), archivos, bloques y assets, estado de la
+  actualización automática y regeneración manual. Con el servidor detenido, la regeneración se
+  hace desde el propio panel.
+- **Configuración**: red, carpeta del cliente, actualización automática y rutas. Se guarda en
+  `backend_config.json`; si el servidor está en marcha, el panel avisa de que hay que reiniciarlo.
+- **Registro**: salida del servidor en vivo, con filtro de avisos y errores.
+
+El panel solo escucha en `127.0.0.1`. Cerrar su consola detiene también el servidor que arrancó.
+Sin panel, `iniciar_servidor.bat` arranca el servidor con la misma configuración. Al arrancar,
+el servidor:
 
 1. Revisa la carpeta del cliente y actualiza el manifest en segundo plano. El servidor responde
    desde el primer momento: mientras tanto se sirve el manifest anterior.
@@ -64,13 +86,20 @@ El launcher depende de estas rutas exactas:
 | `GET /client_manifest.json` | Manifest (sin caché; 503 mientras se genera por primera vez, 404 si no existe) |
 | `GET /client/{ruta}` | Archivos de la carpeta del cliente |
 | `GET /client/packages/{bloque}` | Bloques ZIP de assets |
+| `POST /admin/regenerate` | Regeneración bajo demanda; solo desde el propio equipo (la usa el panel) |
 
 Las descargas admiten `Range` (reanudación), `ETag` y `Last-Modified`.
 
 ## Configuración
 
+Se edita desde el panel y se guarda en `backend_config.json` (no está en git). Cada valor se puede
+forzar con una variable de entorno, que tiene prioridad al usar los `.bat`; el servidor que arranca
+el panel usa siempre los valores del panel.
+
 | Variable | Por defecto | Uso |
 |---|---|---|
+| `KONNOR_HOST` | `0.0.0.0` | Interfaz en la que escucha el servidor |
+| `KONNOR_PORT` | `59381` | Puerto del servidor |
 | `KONNOR_CLIENT_DIR` | `tests/Client` | Carpeta con los archivos del cliente |
 | `KONNOR_MANIFEST` | `client_manifest.json` | Manifest generado |
 | `KONNOR_CLIENT_VERSION_FILE` | `Services/client_version.txt` | Versión anunciada |
@@ -78,6 +107,7 @@ Las descargas admiten `Range` (reanudación), `ETag` y `Last-Modified`.
 | `KONNOR_AUTO_UPDATE` | `1` | Actualizar el manifest al arrancar |
 | `KONNOR_WATCH` | `1` | Vigilar la carpeta del cliente |
 | `KONNOR_WATCH_QUIET_MS` | `3000` | Milisegundos sin cambios antes de regenerar |
+| `KONNOR_PANEL_PORT` | `59380` | Puerto del panel de control (solo 127.0.0.1) |
 
 Ejemplo para producción con otra carpeta: `set KONNOR_CLIENT_DIR=D:\KonnorClient` antes de
 `iniciar_servidor.bat`.

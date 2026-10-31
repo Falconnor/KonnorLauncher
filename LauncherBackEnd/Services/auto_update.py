@@ -65,13 +65,14 @@ class AutoUpdater:
             task.cancel()
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
-    async def regenerate(self, reason: str) -> GenerationResult:
-        """Genera el manifest en un hilo, de uno en uno."""
+    async def regenerate(self, reason: str, force_blocks: bool = False) -> GenerationResult:
+        """Genera el manifest en un hilo, de uno en uno. ``force_blocks`` rehace todos los ZIP."""
         async with self._lock:
             self.state = "generating"
             logger.info("Actualizando manifest (%s)...", reason)
             try:
-                result = await asyncio.to_thread(generate_manifest, self.settings, log=logger.info)
+                result = await asyncio.to_thread(generate_manifest, self.settings, force_blocks,
+                                                 log=logger.info)
             except Exception as error:  # nunca debe tumbar el servidor
                 logger.exception("Error generando el manifest")
                 result = GenerationResult(ok=False, error=str(error))

@@ -6,16 +6,19 @@ Endpoints (el launcher depende de estas rutas exactas):
 - ``GET /client_manifest.json``     manifest (se regenera solo al arrancar y al cambiar el cliente)
 - ``GET /client/{ruta}``            archivos de la carpeta del cliente (mods, versions, libraries...)
 - ``GET /client/packages/{bloque}`` bloques ZIP de assets
+- ``POST /admin/regenerate``        regeneración bajo demanda, solo desde el propio equipo (panel)
 
-La configuración (carpeta del cliente, actualización automática...) está en ``Services/settings.py``
-y se cambia con variables de entorno. Arranque: ``iniciar_servidor.bat`` o ``iniciar_desarrollo.bat``.
+La configuración (carpeta del cliente, puerto, actualización automática...) se describe en
+``Services/settings.py``: ``backend_config.json`` (lo edita el panel) o variables de entorno.
+Arranque: ``iniciar_panel.bat``, ``iniciar_servidor.bat`` o ``iniciar_desarrollo.bat``.
 """
 
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -48,6 +51,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Konnor Launcher Backend", lifespan=lifespan)
+_background_tasks: set[asyncio.Task] = set()
 
 
 @app.get("/")
@@ -65,6 +69,22 @@ def root():
         "client_version": client_version,
         "auto_update": app.state.updater.status(),
     }
+
+
+@app.post("/admin/regenerate", status_code=202)
+async def admin_regenerate(request: Request, forzar_bloques: bool = False):
+    """Pide una regeneración del manifest (la usa el panel de control).
+
+    Solo se acepta desde el propio equipo: el servidor escucha en todas las interfaces y nadie
+    de fuera debe poder lanzar una regeneración. Responde enseguida; el progreso se ve en ``/``.
+    """
+    if request.client is None or request.client.host not in ("127.0.0.1", "::1"):
+        raise HTTPException(status_code=403, detail="Solo disponible desde el propio equipo")
+    reason = "panel de control, rehaciendo todos los bloques" if forzar_bloques else "panel de control"
+    task = asyncio.create_task(app.state.updater.regenerate(reason, forzar_bloques))
+    _background_tasks.add(task)  # referencia fuerte: si no, la tarea podría recolectarse a medias
+    task.add_done_callback(_background_tasks.discard)
+    return {"detail": "Regeneración en cola"}
 
 
 @app.get("/client_manifest.json")
