@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Nombre del exe: "Konnor Launcher.exe" (el instalador elimina el antiguo "Fkonnor Launcher.exe") -->
+    <AssemblyName>Konnor Launcher</AssemblyName>
+    <RootNamespace>KonnorLauncher.App</RootNamespace>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
+    <!-- LibraryImport (P/Invoke generado) requiere código unsafe -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Assets del launcher, incrustados como recursos WPF -->
+    <Resource Include="Assets\background.png" />
+    <Resource Include="Assets\icon.png" />
+    <Resource Include="Assets\icon.ico" />
+    <Resource Include="Assets\steve.png" />
+    <Resource Include="Assets\Boring Time.otf" />
+    <None Include="Assets\arrow_down.svg" />
+    <!-- Configuración por defecto que se distribuye junto al exe (fuera del single-file) -->
+    <Content Include="launcher.properties" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KonnorLauncher.Core\KonnorLauncher.Core.csproj" />
+  </ItemGroup>
+
+</Project>

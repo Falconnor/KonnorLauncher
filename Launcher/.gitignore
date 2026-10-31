@@ -1,0 +1,8 @@
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+TestResults/
+docs/

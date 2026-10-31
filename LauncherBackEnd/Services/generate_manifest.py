@@ -1,0 +1,194 @@
+"""Genera ``client_manifest.json`` a partir de la carpeta del cliente.
+
+Formato (el que espera Konnor Launcher)::
+
+    {
+      "client_version": "1.0.1",                          ← de Services/client_version.txt
+      "files": { "mods/x.jar": {"sha256": ..., "size": ...}, ... },
+      "asset_blocks": { "assets_block_0-<hash>.zip": {"sha256", "size", "files": {...}}, ... }
+    }
+
+- ``files``: todo lo que hay en la carpeta del cliente excepto ``assets/`` (va en los bloques),
+  ``packages/`` (los propios bloques) y archivos basura o temporales.
+- ``asset_blocks``: ver ``generate_asset_blocks.py``.
+
+El servidor lo ejecuta solo al arrancar y cada vez que cambia la carpeta del cliente. También se
+puede lanzar a mano::
+
+    python -m Services.generate_manifest                  # actualiza el manifest
+    python -m Services.generate_manifest --forzar-bloques # además rehace todos los ZIP
+    python -m Services.generate_manifest --salida otro.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+from Services.generate_asset_blocks import build_blocks, clean_old_blocks
+from Services.hash_cache import HashCache
+from Services.settings import Settings, load_settings
+
+
+# Carpetas de primer nivel del cliente que no van en "files".
+EXCLUDED_TOP_LEVEL = {"assets", "packages"}
+# Archivos que nunca se publican (basura del sistema o temporales).
+EXCLUDED_NAMES = {"Thumbs.db", "desktop.ini", ".DS_Store"}
+EXCLUDED_SUFFIXES = (".tmp", ".part")
+
+# Mismas reglas de ruta que aplica el launcher: si una sola ruta las incumple, el launcher
+# rechaza el manifest entero, así que se detectan aquí antes de publicarlo.
+_FORBIDDEN = re.compile(r'[<>:"|?*\x00-\x1f]')
+
+
+@dataclass
+class GenerationResult:
+    ok: bool
+    changed: bool = False
+    files: int = 0
+    blocks: int = 0
+    assets: int = 0
+    version: str = ""
+    seconds: float = 0.0
+    error: str = ""
+
+
+def invalid_path_reason(relative: str) -> str | None:
+    """Motivo por el que el launcher rechazaría la ruta, o None si es válida."""
+    for part in relative.split("/"):
+        if part in ("", ".", ".."):
+            return "segmento vacío, '.' o '..'"
+        if _FORBIDDEN.search(part):
+            return 'carácter no permitido (<>:"|?* o de control)'
+        if part.endswith((".", " ")):
+            return "segmento que termina en punto o espacio"
+    return None
+
+
+def read_client_version(settings: Settings) -> str:
+    """Versión del cliente desde el archivo de versión (vacía si no existe)."""
+    try:
+        return settings.version_file.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return ""
+
+
+def load_manifest(path: Path) -> dict:
+    """Manifest existente, o un diccionario vacío si no existe o está dañado."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def collect_files(client_dir: Path, cache: HashCache) -> tuple[dict[str, dict], list[str]]:
+    """Archivos sueltos para la sección ``files`` y la lista de rutas inválidas."""
+    files: dict[str, dict] = {}
+    invalid: list[str] = []
+    for path in sorted(client_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(client_dir).as_posix()
+        if relative.split("/")[0] in EXCLUDED_TOP_LEVEL:
+            continue
+        if path.name in EXCLUDED_NAMES or path.name.endswith(EXCLUDED_SUFFIXES):
+            continue
+        if reason := invalid_path_reason(relative):
+            invalid.append(f"{relative}  ({reason})")
+            continue
+        files[relative] = {"sha256": cache.sha256(path), "size": path.stat().st_size}
+    return files, invalid
+
+
+def write_atomic(path: Path, data: dict) -> None:
+    """Escribe el JSON en un temporal y lo reemplaza: el servidor nunca sirve un archivo a medias."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="utf-8", newline="\n") as file:
+        json.dump(data, file, indent=4, ensure_ascii=False)
+        file.write("\n")
+    os.replace(tmp, path)
+
+
+def generate_manifest(settings: Settings | None = None, force_blocks: bool = False,
+                      output: Path | None = None, log=print) -> GenerationResult:
+    """Genera el manifest completo. Solo reescribe el archivo si el contenido cambió."""
+    settings = settings or load_settings()
+    output = output or settings.manifest_file
+    started = time.perf_counter()
+    client_dir = settings.client_dir
+
+    if not client_dir.is_dir():
+        return GenerationResult(ok=False, error=f"No existe la carpeta del cliente: {client_dir}")
+
+    previous = load_manifest(settings.manifest_file)
+    previous_blocks = previous.get("asset_blocks") if isinstance(previous.get("asset_blocks"), dict) else {}
+    cache = HashCache(settings.hash_cache_file)
+
+    # 1. Bloques de assets (solo se reconstruyen los que cambiaron).
+    asset_blocks = build_blocks(client_dir, cache, previous_blocks, force=force_blocks, log=log)
+    invalid = [
+        f"{rel}  ({reason})"
+        for block in asset_blocks.values()
+        for rel in block["files"]
+        if (reason := invalid_path_reason(rel))
+    ]
+
+    # 2. Archivos sueltos.
+    files, invalid_files = collect_files(client_dir, cache)
+    invalid = invalid_files + invalid
+    cache.save()
+
+    if invalid:
+        log("[ERROR] Estas rutas harían que el launcher rechace el manifest. Renómbralas:")
+        for entry in invalid:
+            log(f"   {entry}")
+        return GenerationResult(ok=False, error=f"{len(invalid)} rutas no válidas; el manifest no se modificó")
+
+    # 3. Manifest final (solo se escribe si cambió).
+    version = read_client_version(settings)
+    manifest: dict = {"client_version": version} if version else {}
+    manifest |= {"files": files, "asset_blocks": asset_blocks}
+
+    changed = load_manifest(output) != manifest
+    if changed:
+        write_atomic(output, manifest)
+
+    # 4. Bloques que ya no usa nadie (se conservan los del manifest anterior).
+    if output == settings.manifest_file:
+        clean_old_blocks(client_dir, keep=set(asset_blocks) | set(previous_blocks), log=log)
+
+    result = GenerationResult(
+        ok=True, changed=changed, files=len(files), blocks=len(asset_blocks),
+        assets=sum(len(b["files"]) for b in asset_blocks.values()), version=version,
+        seconds=time.perf_counter() - started,
+    )
+    log(f"Manifest {'actualizado' if changed else 'sin cambios'}: versión {version or '-'}, "
+        f"{result.files} archivos, {result.blocks} bloques ({result.assets} assets), "
+        f"{result.seconds:.1f} s (hashes en caché: {cache.hits}, calculados: {cache.misses})")
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Genera client_manifest.json para Konnor Launcher")
+    parser.add_argument("--forzar-bloques", action="store_true",
+                        help="rehace todos los ZIP de assets aunque no hayan cambiado")
+    parser.add_argument("--salida", type=Path, default=None,
+                        help="ruta del manifest generado (por defecto, la configurada)")
+    args = parser.parse_args()
+    result = generate_manifest(force_blocks=args.forzar_bloques,
+                               output=args.salida.resolve() if args.salida else None)
+    if not result.ok:
+        print(f"[ERROR] {result.error}")
+    return 0 if result.ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

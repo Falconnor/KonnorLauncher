@@ -1,8 +1,16 @@
-bin/
-obj/
-publish/
-artifacts/
-*.user
+# Reglas comunes del monorepo. Launcher/ y LauncherBackEnd/ tienen además su propio .gitignore.
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editores y sistema
 .vs/
-TestResults/
-docs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini
+
+# Accesos directos de Windows (guardan rutas de cada PC)
+*.lnk

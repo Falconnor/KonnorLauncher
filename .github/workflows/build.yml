@@ -1,4 +1,6 @@
-# CI de Fkonnor Launcher: pruebas, publicación e instalador en cada push/PR a main y en etiquetas v*.
+# CI de Konnor Launcher (monorepo).
+# - launcher: pruebas, publicación e instalador en cada push/PR a main y en etiquetas v*.
+# - backend: comprueba que el backend se instala y que su código compila.
 name: build
 
 on:
@@ -8,11 +10,12 @@ on:
   pull_request:
 
 jobs:
-  build:
+  launcher:
     runs-on: windows-latest
     defaults:
       run:
         shell: pwsh
+        working-directory: Launcher
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
@@ -21,7 +24,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          global-json-file: global.json
+          global-json-file: Launcher/global.json
 
       - name: Instalar Inno Setup
         run: |
@@ -39,4 +42,22 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: KonnorLauncher-Setup
-          path: artifacts/*.exe
+          path: Launcher/artifacts/*.exe
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LauncherBackEnd
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Dependencias y compilación
+        run: |
+          python -m pip install -r requirements.txt
+          python -m compileall -q main.py Services
+          python -c "import main"

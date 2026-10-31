@@ -1,0 +1,12 @@
+# Archivos de prueba del cliente (varios GB): no van en git.
+tests/
+
+# Generados por el backend
+client_manifest.json
+.cache/
+*.tmp
+
+# Python
+.venv/
+__pycache__/
+*.pyc
