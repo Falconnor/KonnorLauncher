@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <conv:EnumEqualsConverter x:Key="EnumEquals" />
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
     </UserControl.Resources>
 
     <!-- Velo modal: oscurece la ventana y captura los clics -->
@@ -27,20 +28,40 @@
 
                 <!-- Pie -->
                 <DockPanel DockPanel.Dock="Bottom" Margin="28,12,28,22">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Command="{Binding CancelCommand}" Margin="0,0,8,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButton}">
+                                    <Setter Property="Content" Value="Cancelar" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSyncing}" Value="True">
+                                            <Setter Property="Content" Value="Cancelar descarga" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <Button Style="{StaticResource AccentButton}" Content="{Binding SaveText}" Command="{Binding SaveCommand}" Padding="22,0" />
                     </StackPanel>
-                    <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" FontSize="13" TextWrapping="Wrap"
-                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Grid Margin="0,0,16,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" FontSize="13" TextWrapping="Wrap"
+                                   Visibility="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibility}}" />
+                        <!-- Descarga del contenido del servidor -->
+                        <StackPanel Visibility="{Binding IsSyncing, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding SyncStatus}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <ProgressBar Style="{StaticResource GlassProgressBar}" Margin="0,8,0,0" Value="{Binding SyncProgress}"
+                                         IsIndeterminate="False"
+                                         Visibility="{Binding IsSyncProgressKnown, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </Grid>
                 </DockPanel>
 
                 <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="28,0,14,0">
-                    <StackPanel Margin="0,4,14,8">
+                    <StackPanel Margin="0,4,14,8" IsEnabled="{Binding IsNotSyncing}">
 
                         <!-- 1. Nombre -->
                         <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" />
-                        <TextBox x:Name="NameBox" Style="{StaticResource GlassTextBox}" MaxLength="40" Tag="Por ejemplo: Survival con amigos"
+                        <TextBox x:Name="NameBox" Style="{StaticResource GlassTextBox}" MaxLength="40" AutomationProperties.Name="Nombre de la instancia" Tag="Por ejemplo: Survival con amigos"
                                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Text="{Binding NameError}" Foreground="{StaticResource Danger}" FontSize="12.5" Margin="0,6,0,0"
                                    Visibility="{Binding NameError, Converter={StaticResource TextToVisibility}}" />
@@ -48,6 +69,7 @@
                         <!-- 2. Versión de Minecraft: barra horizontal que despliega la lista -->
                         <TextBlock Text="Versión de Minecraft" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
                         <ToggleButton Style="{StaticResource DropdownBar}" IsChecked="{Binding IsVersionListOpen}"
+                                      IsEnabled="{Binding IsSelectionUnlocked}"
                                       AutomationProperties.Name="Elegir versión de Minecraft">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,10,0" Foreground="{StaticResource Ink2}" />
@@ -95,9 +117,19 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Con sincronización: lo decide el servidor -->
+                        <Border Background="#1F4FD18B" CornerRadius="10" Padding="12,9" Margin="0,8,0,0"
+                                Visibility="{Binding SyncWithServer, Converter={StaticResource BoolToVisibility}}">
+                            <DockPanel>
+                                <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource Ok}" Margin="0,0,10,0" />
+                                <TextBlock Text="La versión y el cargador los decide el servidor: se detectan al descargar su contenido."
+                                           FontSize="13" Foreground="{StaticResource Ink}" TextWrapping="Wrap" />
+                            </DockPanel>
+                        </Border>
+
                         <!-- 3. Cargador de mods: botones en una zona horizontal -->
                         <TextBlock Text="Cargador de mods" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
-                        <UniformGrid Rows="1" Columns="5">
+                        <UniformGrid Rows="1" Columns="5" IsEnabled="{Binding IsSelectionUnlocked}">
                             <RadioButton Style="{StaticResource SegmentButton}" GroupName="Loader" Content="Vanilla" Margin="0,0,6,0"
                                          IsChecked="{Binding Loader, Converter={StaticResource EnumEquals}, ConverterParameter=Vanilla}" />
                             <RadioButton Style="{StaticResource SegmentButton}" GroupName="Loader" Content="Fabric" Margin="0,0,6,0"
@@ -111,7 +143,7 @@
                         </UniformGrid>
 
                         <!-- 3.1 Versión del cargador: Estable · Última · Otra (solo con un cargador) -->
-                        <StackPanel Visibility="{Binding IsModded, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Visibility="{Binding ShowLoaderVersion, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="Versión del cargador" Style="{StaticResource FieldLabel}" Margin="0,18,0,8" />
                             <UniformGrid Rows="1" Columns="3" IsEnabled="{Binding IsLoaderAvailable}">
                                 <RadioButton Style="{StaticResource SegmentButton}" GroupName="Channel" Content="Estable" Margin="0,0,6,0"
@@ -163,7 +195,7 @@
                         <!-- 4. Servidor -->
                         <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,4">
                             <StackPanel>
-                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}">
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}" AutomationProperties.Name="Sincronizar con el servidor">
                                     <StackPanel>
                                         <TextBlock Text="Sincronizar con el servidor" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
@@ -172,9 +204,9 @@
                                 </CheckBox>
                                 <StackPanel Margin="0,14,0,0" Visibility="{Binding SyncWithServer, Converter={StaticResource BoolToVisibility}}">
                                     <TextBlock Text="Dirección del servidor" Style="{StaticResource FieldLabel}" />
-                                    <TextBox Style="{StaticResource GlassTextBox}" Tag="http://servidor:59381"
+                                    <TextBox Style="{StaticResource GlassTextBox}" Tag="http://servidor:59381" AutomationProperties.Name="Dirección del servidor"
                                              Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                    <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding DeleteUnauthorized}">
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding DeleteUnauthorized}" AutomationProperties.Name="Borrar lo que no esté en el servidor">
                                         <StackPanel>
                                             <TextBlock Text="Borrar lo que no esté en el servidor" FontWeight="SemiBold" />
                                             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"

@@ -128,6 +128,7 @@ public partial class App : Application
 
         // Core. Las instancias viven en %APPDATA%\KonnorLauncher\instances.
         services.AddSingleton(sp => new InstanceStore(LauncherPaths.InstancesDir, sp.GetRequiredService<ILogger<InstanceStore>>()));
+        services.AddSingleton<InstanceSync>();
         services.AddSingleton<VersionService>();
         services.AddSingleton<LoaderVersionService>();
         services.AddSingleton<LoaderInstaller>();

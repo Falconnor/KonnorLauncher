@@ -6,6 +6,7 @@ using KonnorLauncher.Core.Configuration;
 using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Loaders;
 using KonnorLauncher.Core.Paths;
+using KonnorLauncher.Core.Progress;
 using KonnorLauncher.Core.Versions;
 using Microsoft.Extensions.Logging;
 
@@ -22,10 +23,16 @@ public sealed record LoaderOption(string Version, string Label, bool IsSelected)
 /// (botones), canal del cargador (Estable · Última · Otra, con su lista) y sincronización con el
 /// servidor. Al guardar resuelve la versión concreta del cargador; las carpetas y dependencias se
 /// crean e instalan solas al jugar.
+/// <para>
+/// Con la sincronización activada, la versión y el cargador los decide el servidor: el selector se
+/// bloquea y, al crear la instancia, se descargan sus archivos antes de darla por creada. Si la
+/// descarga falla o se cancela, la instancia no se crea.
+/// </para>
 /// </summary>
 public sealed partial class InstanceEditorViewModel : ObservableObject
 {
     private readonly InstanceStore _store;
+    private readonly InstanceSync _sync;
     private readonly VersionService _versions;
     private readonly LoaderVersionService _loaders;
     private readonly LauncherSettings _settings;
@@ -34,12 +41,14 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     private GameInstance? _editing;
     private IReadOnlyList<LoaderVersionInfo> _loaderVersions = [];
     private CancellationTokenSource? _loaderLoad;
+    private CancellationTokenSource? _syncRun;
     private bool _loaderLoadFailed;
 
-    public InstanceEditorViewModel(InstanceStore store, VersionService versions, LoaderVersionService loaders,
+    public InstanceEditorViewModel(InstanceStore store, InstanceSync sync, VersionService versions, LoaderVersionService loaders,
         LauncherSettings settings, ILogger<InstanceEditorViewModel> logger)
     {
         _store = store;
+        _sync = sync;
         _versions = versions;
         _loaders = loaders;
         _settings = settings;
@@ -73,13 +82,36 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     [ObservableProperty] private string _serverUrl = string.Empty;
     [ObservableProperty] private bool _deleteUnauthorized = true;
     [ObservableProperty] private string? _error;
+    [ObservableProperty] private bool _isSyncing;
+    [ObservableProperty] private string _syncStatus = string.Empty;
+    [ObservableProperty] private double _syncProgress;
+    [ObservableProperty] private bool _isSyncProgressKnown;
 
     /// <summary>"Otra": se muestra la barra con la lista de versiones del cargador.</summary>
     public bool IsSpecificChannel => Channel == LoaderChannel.Specific;
 
-    public string SaveText => IsNew ? "Crear instancia" : "Guardar cambios";
+    public string SaveText => IsNew ? (SyncWithServer ? "Crear y descargar" : "Crear instancia") : "Guardar cambios";
 
-    public string MinecraftVersionLabel => string.IsNullOrWhiteSpace(MinecraftVersion) ? "Elige una versión de Minecraft" : $"Minecraft {MinecraftVersion}";
+    /// <summary>Versión y cargador se pueden elegir: no con la sincronización activada ni durante la descarga.</summary>
+    public bool IsSelectionUnlocked => !SyncWithServer && !IsSyncing;
+
+    /// <summary>La fila Estable · Última · Otra solo tiene sentido con un cargador elegido a mano.</summary>
+    public bool ShowLoaderVersion => IsModded && !SyncWithServer;
+
+    public bool IsNotSyncing => !IsSyncing;
+
+    public string MinecraftVersionLabel => SyncWithServer
+        ? (string.IsNullOrWhiteSpace(MinecraftVersion) || IsNew ? "La decide el servidor" : $"{ServerVersionText(MinecraftVersion)}  ·  del servidor")
+        : string.IsNullOrWhiteSpace(MinecraftVersion) ? "Elige una versión de Minecraft" : $"Minecraft {MinecraftVersion}";
+
+    /// <summary>"fabric-loader-0.19.3-1.21.1" → "Minecraft 1.21.1 · Fabric 0.19.3".</summary>
+    private static string ServerVersionText(string id)
+    {
+        var (minecraft, loader, version) = GameInstance.ParseVersionId(id);
+        return loader == ModLoader.Vanilla
+            ? $"Minecraft {minecraft}"
+            : $"Minecraft {minecraft} · {GameInstance.LoaderDisplayName(loader)} {version}".TrimEnd();
+    }
 
     // ══════════════════════════════════════════════════════════════════
     // ABRIR
@@ -109,11 +141,12 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Title = "Editar instancia";
         Name = instance.Name;
         NameError = null;
+        SyncWithServer = instance.SyncWithServer; // antes que la versión: con sincronización no se consultan cargadores
         MinecraftVersion = instance.MinecraftVersion;
-        Loader = instance.Loader;
+        // En una instancia sincronizada se marca (bloqueado) el cargador que publica el servidor.
+        Loader = instance.SyncWithServer ? instance.Display.Loader : instance.Loader;
         Channel = instance.LoaderChannel;
         SpecificLoaderVersion = instance.LoaderChannel == LoaderChannel.Specific ? instance.LoaderVersion : null;
-        SyncWithServer = instance.SyncWithServer;
         ServerUrl = instance.ServerUrl;
         DeleteUnauthorized = instance.DeleteUnauthorized;
         OpenCommon();
@@ -122,6 +155,8 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     private void OpenCommon()
     {
         Error = null;
+        IsSyncing = false;
+        SyncStatus = string.Empty;
         VersionFilter = string.Empty;
         IsVersionListOpen = false;
         IsLoaderListOpen = false;
@@ -218,6 +253,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     partial void OnLoaderChanged(ModLoader value)
     {
         IsModded = value != ModLoader.Vanilla;
+        OnPropertyChanged(nameof(ShowLoaderVersion));
         SpecificLoaderVersion = null;
         if (Channel == LoaderChannel.Specific)
             Channel = LoaderChannel.Stable;
@@ -225,7 +261,11 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         _ = RefreshLoaderVersionsAsync();
     }
 
-    partial void OnIsNewChanged(bool value) => OnPropertyChanged(nameof(SaveText));
+    partial void OnIsNewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SaveText));
+        OnPropertyChanged(nameof(MinecraftVersionLabel));
+    }
 
     partial void OnChannelChanged(LoaderChannel value)
     {
@@ -255,7 +295,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         _loaderVersions = [];
         _loaderLoadFailed = false;
         RebuildLoaderOptions();
-        if (Loader == ModLoader.Vanilla || string.IsNullOrWhiteSpace(MinecraftVersion))
+        if (Loader == ModLoader.Vanilla || SyncWithServer || string.IsNullOrWhiteSpace(MinecraftVersion))
         {
             IsLoadingLoaders = false;
             UpdateLoaderStatus();
@@ -349,12 +389,37 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     partial void OnSyncWithServerChanged(bool value)
     {
-        if (IsVersionListOpen)
-            RebuildVersionOptions();
+        // Con la sincronización activada, versión y cargador los decide el servidor.
+        if (value)
+        {
+            IsVersionListOpen = false;
+            IsLoaderListOpen = false;
+        }
+        else if (GameInstance.ParseVersionId(MinecraftVersion) is { Loader: not ModLoader.Vanilla } parsed)
+        {
+            // Al desactivarla, el id del servidor (fabric-loader-0.19.3-1.21.1) pasa a versión + cargador.
+            MinecraftVersion = parsed.Minecraft;
+            Loader = parsed.Loader;
+        }
+        else
+        {
+            _ = RefreshLoaderVersionsAsync();
+        }
+
+        OnPropertyChanged(nameof(IsSelectionUnlocked));
+        OnPropertyChanged(nameof(ShowLoaderVersion));
+        OnPropertyChanged(nameof(MinecraftVersionLabel));
+        OnPropertyChanged(nameof(SaveText));
+    }
+
+    partial void OnIsSyncingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsSelectionUnlocked));
+        OnPropertyChanged(nameof(IsNotSyncing));
     }
 
     [RelayCommand]
-    private void Save()
+    private async Task SaveAsync()
     {
         Error = null;
         string name;
@@ -368,57 +433,94 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(MinecraftVersion))
-        {
-            Error = "Elige una versión de Minecraft.";
-            return;
-        }
-
-        string? loaderVersion = null;
-        if (IsModded)
-        {
-            if (IsLoadingLoaders)
-            {
-                Error = "Espera a que terminen de cargar las versiones del cargador.";
-                return;
-            }
-
-            loaderVersion = ResolvedLoaderVersion;
-            if (loaderVersion is null)
-            {
-                Error = LoaderStatus;
-                return;
-            }
-        }
-
         var url = ServerUrl.Trim();
-        if (SyncWithServer && !(Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"))
+        string? loaderVersion = null;
+        if (SyncWithServer)
         {
-            Error = "Escribe la dirección del servidor (por ejemplo http://192.168.1.10:59381).";
-            return;
+            if (!(Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"))
+            {
+                Error = "Escribe la dirección del servidor (por ejemplo http://192.168.1.10:59381).";
+                return;
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(MinecraftVersion))
+            {
+                Error = "Elige una versión de Minecraft.";
+                return;
+            }
+
+            if (IsModded)
+            {
+                if (IsLoadingLoaders)
+                {
+                    Error = "Espera a que terminen de cargar las versiones del cargador.";
+                    return;
+                }
+
+                loaderVersion = ResolvedLoaderVersion;
+                if (loaderVersion is null)
+                {
+                    Error = LoaderStatus;
+                    return;
+                }
+            }
         }
 
         var instance = _editing ?? new GameInstance();
-        var changedGame = instance.MinecraftVersion != MinecraftVersion.Trim() || instance.Loader != Loader
-                          || instance.LoaderVersion != loaderVersion || instance.SyncWithServer != SyncWithServer;
+        // Hay que descargar del servidor al crear, al activar la sincronización o al cambiar de servidor.
+        var needsSync = SyncWithServer && (IsNew || !instance.SyncWithServer || instance.ServerUrl != url
+                                           || string.IsNullOrWhiteSpace(instance.MinecraftVersion));
+        var changedGame = SyncWithServer != instance.SyncWithServer
+                          || (!SyncWithServer && (instance.MinecraftVersion != MinecraftVersion.Trim() || instance.Loader != Loader
+                                                  || instance.LoaderVersion != loaderVersion));
         instance.Name = name;
-        instance.MinecraftVersion = MinecraftVersion.Trim();
-        instance.Loader = Loader;
-        instance.LoaderChannel = IsModded ? Channel : LoaderChannel.Stable;
-        instance.LoaderVersion = loaderVersion;
         instance.SyncWithServer = SyncWithServer;
         instance.ServerUrl = url;
         instance.DeleteUnauthorized = DeleteUnauthorized;
+        if (SyncWithServer)
+        {
+            // La versión la decide el servidor (se detecta al sincronizar); el id ya incluye el cargador.
+            instance.Loader = ModLoader.Vanilla;
+            instance.LoaderChannel = LoaderChannel.Stable;
+            instance.LoaderVersion = null;
+        }
+        else
+        {
+            instance.MinecraftVersion = MinecraftVersion.Trim();
+            instance.Loader = Loader;
+            instance.LoaderChannel = IsModded ? Channel : LoaderChannel.Stable;
+            instance.LoaderVersion = loaderVersion;
+        }
+
         if (changedGame)
             instance.InstalledVersionId = null; // se volverá a resolver al jugar
 
+        var created = false;
         try
         {
-            instance = IsNew ? _store.Create(instance) : SaveExisting(instance);
+            if (IsNew)
+            {
+                instance = _store.Create(instance);
+                created = true;
+            }
+
+            if (needsSync && !await DownloadFromServerAsync(instance))
+            {
+                // La creación no se da por concluida: no queda una instancia a medias.
+                if (created)
+                    TryDelete(instance.Id);
+                return;
+            }
+
+            _store.Save(instance);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
             _logger.LogError(ex, "No se pudo guardar la instancia");
+            if (created)
+                TryDelete(instance.Id);
             Error = $"No se pudo guardar: {ex.Message}";
             return;
         }
@@ -428,15 +530,82 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Saved?.Invoke(this, instance);
     }
 
-    private GameInstance SaveExisting(GameInstance instance)
+    /// <summary>
+    /// Descarga el contenido del servidor en la carpeta de la instancia y adopta la versión que publica.
+    /// Devuelve false (con el motivo en <see cref="Error"/>) si falla o se cancela.
+    /// </summary>
+    private async Task<bool> DownloadFromServerAsync(GameInstance instance)
     {
-        _store.Save(instance);
-        return instance;
+        var cts = _syncRun = new CancellationTokenSource();
+        IsSyncing = true;
+        IsSyncProgressKnown = false;
+        SyncStatus = "Conectando con el servidor…";
+        var progress = new ThrottledProgress(new Progress<LauncherProgress>(p =>
+        {
+            if (!IsSyncing)
+                return;
+            if (!string.IsNullOrWhiteSpace(p.Message) && p.Message != KonnorLauncher.Core.Verification.VerificationResult.SuccessStatus)
+                SyncStatus = char.ToUpperInvariant(p.Message[0]) + p.Message[1..];
+            IsSyncProgressKnown = p.Percent is not null;
+            if (p.Percent is { } percent)
+                SyncProgress = percent;
+        }));
+
+        InstanceSyncResult result;
+        try
+        {
+            result = await Task.Run(() => _sync.SyncAsync(instance, _store.InstancesDir, progress, cts.Token), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            result = InstanceSyncResult.Fail(IsNew ? "Descarga cancelada: la instancia no se creó." : "Descarga cancelada.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sincronizando la instancia {Id}", instance.Id);
+            result = InstanceSyncResult.Fail($"No se pudo descargar el contenido del servidor: {ex.Message}");
+        }
+        finally
+        {
+            IsSyncing = false;
+            _syncRun = null;
+        }
+
+        if (!result.Success)
+        {
+            Error = result.Message;
+            return false;
+        }
+
+        instance.MinecraftVersion = result.VersionId!;
+        instance.InstalledVersionId = null;
+        MinecraftVersion = result.VersionId!;
+        _logger.LogInformation("Instancia {Id} lista con la versión del servidor {Version}", instance.Id, result.VersionId);
+        return true;
     }
 
+    private void TryDelete(string id)
+    {
+        try
+        {
+            _store.Delete(id);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _logger.LogWarning(ex, "No se pudo borrar la instancia a medio crear {Id}", id);
+        }
+    }
+
+    /// <summary>Durante la descarga, Cancelar la detiene (la instancia no se crea); si no, cierra.</summary>
     [RelayCommand]
     private void Cancel()
     {
+        if (IsSyncing)
+        {
+            _syncRun?.Cancel();
+            return;
+        }
+
         _loaderLoad?.Cancel();
         IsOpen = false;
     }

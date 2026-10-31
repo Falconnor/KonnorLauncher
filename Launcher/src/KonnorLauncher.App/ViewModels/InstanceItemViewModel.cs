@@ -44,10 +44,11 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         Name = model.Name;
         Initials = MakeInitials(model.Name);
         Summary = model.Summary;
-        MinecraftVersion = string.IsNullOrWhiteSpace(model.MinecraftVersion) ? "Sin versión" : model.MinecraftVersion;
-        IsModded = model.Loader != ModLoader.Vanilla;
+        var (minecraft, loader, loaderVersion) = model.Display; // interpreta el id que publica el servidor
+        MinecraftVersion = string.IsNullOrWhiteSpace(minecraft) ? "Sin versión" : minecraft;
+        IsModded = loader != ModLoader.Vanilla;
         LoaderText = IsModded
-            ? $"{GameInstance.LoaderDisplayName(model.Loader)} {model.LoaderVersion}".Trim()
+            ? $"{GameInstance.LoaderDisplayName(loader)} {loaderVersion}".Trim()
             : "Vanilla";
         IsSynced = model.SyncWithServer;
         SyncText = model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor";

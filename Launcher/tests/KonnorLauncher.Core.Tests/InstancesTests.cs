@@ -135,6 +135,27 @@ public sealed class InstancesTests
         store.MigrateLegacy(new LauncherSettings(new LauncherProperties(props))).ShouldBeNull();
     }
 
+    // ── Ids de versión de los cargadores ─────────────────────────────────
+
+    [Theory]
+    [InlineData("fabric-loader-0.19.3-1.21.1", "1.21.1", ModLoader.Fabric, "0.19.3")]
+    [InlineData("quilt-loader-0.20.0-beta.9-1.20.1", "1.20.1", ModLoader.Quilt, "0.20.0-beta.9")]
+    [InlineData("1.20.1-forge-47.3.0", "1.20.1", ModLoader.Forge, "47.3.0")]
+    [InlineData("1.12.2-forge1.12.2-14.23.5.2859", "1.12.2", ModLoader.Forge, "14.23.5.2859")]
+    [InlineData("neoforge-21.1.77", "1.21.1", ModLoader.NeoForge, "21.1.77")]
+    [InlineData("neoforge-20.4.237", "1.20.4", ModLoader.NeoForge, "20.4.237")]
+    [InlineData("1.21.1", "1.21.1", ModLoader.Vanilla, null)]
+    [InlineData("26.3", "26.3", ModLoader.Vanilla, null)]
+    public void Loader_version_ids_are_understood(string id, string minecraft, ModLoader loader, string? version) =>
+        GameInstance.ParseVersionId(id).ShouldBe((minecraft, loader, version));
+
+    [Fact]
+    public void Synced_instance_summary_shows_the_server_loader()
+    {
+        var instance = new GameInstance { MinecraftVersion = "fabric-loader-0.19.3-1.21.1", SyncWithServer = true };
+        instance.Summary.ShouldBe("1.21.1 · Fabric 0.19.3");
+    }
+
     // ── InstanceLayout ───────────────────────────────────────────────────
 
     [Fact]
@@ -153,6 +174,52 @@ public sealed class InstancesTests
         synced.LibrariesDir.ShouldBe(@"C:\d\instances\s\libraries");
         synced.AssetsDir.ShouldBe(@"C:\d\instances\s\assets");
         synced.RuntimeDir.ShouldBe(@"C:\d\meta\runtime"); // el Java sí se comparte
+    }
+
+    // ── InstanceSync: versión que publica el servidor ────────────────────
+
+    private static void WriteVersion(TempDir dir, string id, string json) =>
+        dir.Write($"versions/{id}/{id}.json", json);
+
+    [Fact]
+    public void Server_version_prefers_the_loader_over_vanilla()
+    {
+        using var dir = new TempDir();
+        WriteVersion(dir, "1.20.1", """{ "id": "1.20.1", "releaseTime": "2023-06-12T00:00:00+00:00" }""");
+        WriteVersion(dir, "1.20.1-forge-47.3.0", """{ "id": "1.20.1-forge-47.3.0", "inheritsFrom": "1.20.1" }""");
+
+        InstanceSync.DetectVersion(dir.Combine("versions")).ShouldBe("1.20.1-forge-47.3.0");
+    }
+
+    [Fact]
+    public void Standalone_loader_json_is_detected_by_its_main_class()
+    {
+        // JSON completo de Fabric (sin inheritsFrom), como el del cliente de pruebas del servidor.
+        using var dir = new TempDir();
+        WriteVersion(dir, "1.21.1", """{ "id": "1.21.1", "mainClass": "net.minecraft.client.main.Main", "releaseTime": "2024-08-08T12:24:45+00:00" }""");
+        WriteVersion(dir, "fabric-loader-0.19.3-1.21.1", """{ "id": "fabric-loader-0.19.3-1.21.1", "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient", "releaseTime": "2024-08-08T12:24:45-04:00" }""");
+
+        InstanceSync.DetectVersion(dir.Combine("versions")).ShouldBe("fabric-loader-0.19.3-1.21.1");
+    }
+
+    [Fact]
+    public void Server_version_without_loader_is_the_newest_vanilla()
+    {
+        using var dir = new TempDir();
+        WriteVersion(dir, "1.20.1", """{ "id": "1.20.1", "releaseTime": "2023-06-12T00:00:00+00:00" }""");
+        WriteVersion(dir, "1.21.1", """{ "id": "1.21.1", "releaseTime": "2024-08-08T00:00:00+00:00" }""");
+        dir.Write("versions/vacia/otro.txt", "sin json"); // carpetas sin <id>.json no cuentan
+
+        InstanceSync.DetectVersion(dir.Combine("versions")).ShouldBe("1.21.1");
+    }
+
+    [Fact]
+    public void Server_without_versions_has_no_version()
+    {
+        using var dir = new TempDir();
+        InstanceSync.DetectVersion(dir.Combine("versions")).ShouldBeNull();
+        WriteVersion(dir, "rota", "{ no es json");
+        InstanceSync.DetectVersion(dir.Combine("versions")).ShouldBeNull();
     }
 
     // ── LoaderVersionService ─────────────────────────────────────────────

@@ -30,7 +30,7 @@ public sealed record PlayResult(bool Success, string Message)
 public sealed class PlayWorkflow
 {
     /// <summary>Nombre del HttpClient del servidor propio.</summary>
-    public const string ServerHttpClientName = "server";
+    public const string ServerHttpClientName = InstanceSync.HttpClientName;
 
     // Textos que ve el jugador.
     public const string VerifyFailedText = "Error de conexión / Verificación fallida";
@@ -38,18 +38,18 @@ public sealed class PlayWorkflow
     public const string NoVersionText = "Error al iniciar el juego: la instancia no tiene versión de Minecraft";
 
     private readonly LauncherSettings _settings;
-    private readonly IHttpClientFactory _httpFactory;
+    private readonly InstanceSync _sync;
     private readonly GameLauncher _gameLauncher;
     private readonly LoaderInstaller _loaderInstaller;
     private readonly InstanceStore _instances;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
 
-    public PlayWorkflow(LauncherSettings settings, IHttpClientFactory httpFactory, GameLauncher gameLauncher,
+    public PlayWorkflow(LauncherSettings settings, InstanceSync sync, GameLauncher gameLauncher,
         LoaderInstaller loaderInstaller, InstanceStore instances, ILoggerFactory? loggerFactory = null)
     {
         _settings = settings;
-        _httpFactory = httpFactory;
+        _sync = sync;
         _gameLauncher = gameLauncher;
         _loaderInstaller = loaderInstaller;
         _instances = instances;
@@ -66,7 +66,8 @@ public sealed class PlayWorkflow
         // launcher.properties (nombre, RAM, Java) se relee en cada partida por si se editó a mano.
         _settings.Properties.Reload();
 
-        if (string.IsNullOrWhiteSpace(instance.MinecraftVersion))
+        // En una instancia sincronizada la versión la decide el servidor (se comprueba tras sincronizar).
+        if (!instance.SyncWithServer && string.IsNullOrWhiteSpace(instance.MinecraftVersion))
             return PlayResult.Fail(NoVersionText);
         if (!UsernameRules.IsValid(_settings.PlayerUsername))
             return PlayResult.Fail("Error al iniciar el juego: nombre de jugador no válido");
@@ -80,20 +81,18 @@ public sealed class PlayWorkflow
             progress?.Report(new LauncherProgress(LauncherPhase.Verifying, string.Empty));
             try
             {
-                var verifier = new ClientVerifier(_httpFactory.CreateClient(ServerHttpClientName), _loggerFactory.CreateLogger<ClientVerifier>())
-                {
-                    ClientVersionReceived = v => instance.ServerClientVersion = v,
-                };
-                var result = await verifier.VerifyAsync(new VerifierOptions
-                {
-                    GameDir = layout.GameDir,
-                    ServerUrl = instance.ServerUrl,
-                    EnableVerify = true,
-                    DeleteUnauthorized = instance.DeleteUnauthorized,
-                }, progress, ct).ConfigureAwait(false);
-
+                var result = await _sync.SyncAsync(instance, _instances.InstancesDir, progress, ct).ConfigureAwait(false);
                 if (!result.Success)
-                    return PlayResult.Fail(VerifyFailedText);
+                    return PlayResult.Fail(result.Message == InstanceSync.NoVersionText ? result.Message : VerifyFailedText);
+
+                // Si el servidor cambió de versión, la instancia la adopta.
+                if (result.VersionId != instance.MinecraftVersion || instance.Loader != ModLoader.Vanilla)
+                {
+                    _logger.LogInformation("La versión del servidor cambió: {Old} → {New}", instance.Summary, result.VersionId);
+                    instance.MinecraftVersion = result.VersionId!;
+                    instance.Loader = ModLoader.Vanilla; // el id ya incluye el cargador (p. ej. 1.20.1-forge-47.3.0)
+                    instance.LoaderVersion = null;
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
