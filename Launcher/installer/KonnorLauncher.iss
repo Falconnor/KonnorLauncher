@@ -1,4 +1,4 @@
-; ═══════════════════════════════════════════════════════════════════════════
+﻿; ═══════════════════════════════════════════════════════════════════════════
 ; Instalador de Konnor Launcher (Inno Setup 6.7 o superior).
 ; Se compila con:  ISCC.exe installer\KonnorLauncher.iss   (o con build.ps1, que antes publica)
 ;
@@ -7,8 +7,8 @@
 ;  - Copia "Konnor Launcher.exe" e icon.ico; launcher.properties SOLO si no existe,
 ;    así cada jugador conserva su configuración al reinstalar o actualizar.
 ;  - Crea el acceso directo en el escritorio (directorio de trabajo = instalación).
-;  - Trae desinstalador, que nunca borra la carpeta del juego (.minecraft o game.path)
-;    ni launcher.properties.
+;  - Trae desinstalador, que nunca borra las instancias (instances\), los archivos del juego
+;    compartidos (meta\) ni launcher.properties: los mundos de los jugadores se conservan.
 ; ═══════════════════════════════════════════════════════════════════════════
 
 #define AppName "Konnor Launcher"
@@ -77,5 +77,5 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Solo se borran los logs del launcher. La carpeta del juego nunca se toca.
+; Solo se borran los logs del launcher. Las instancias (con sus mundos) y meta\ nunca se tocan.
 Type: filesandordirs; Name: "{app}\logs"
