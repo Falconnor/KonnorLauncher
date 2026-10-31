@@ -18,6 +18,7 @@ puede lanzar a mano::
     python -m Services.generate_manifest                  # actualiza el manifest
     python -m Services.generate_manifest --forzar-bloques # además rehace todos los ZIP
     python -m Services.generate_manifest --salida otro.json
+    python -m Services.generate_manifest --backend <id>   # otro backend (por defecto, el seleccionado)
 """
 
 from __future__ import annotations
@@ -133,7 +134,8 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     cache = HashCache(settings.hash_cache_file)
 
     # 1. Bloques de assets (solo se reconstruyen los que cambiaron).
-    asset_blocks = build_blocks(client_dir, cache, previous_blocks, force=force_blocks, log=log)
+    asset_blocks = build_blocks(client_dir, cache, previous_blocks, force=force_blocks, log=log,
+                                block_count=settings.block_count)
     invalid = [
         f"{rel}  ({reason})"
         for block in asset_blocks.values()
@@ -182,8 +184,12 @@ def main() -> int:
                         help="rehace todos los ZIP de assets aunque no hayan cambiado")
     parser.add_argument("--salida", type=Path, default=None,
                         help="ruta del manifest generado (por defecto, la configurada)")
+    parser.add_argument("--backend", default=None,
+                        help="id del backend (por defecto, KONNOR_PROFILE o el seleccionado en el panel)")
     args = parser.parse_args()
-    result = generate_manifest(force_blocks=args.forzar_bloques,
+    settings = load_settings(args.backend)
+    print(f"Backend: {settings.backend_name} ({settings.backend_id})")
+    result = generate_manifest(settings, force_blocks=args.forzar_bloques,
                                output=args.salida.resolve() if args.salida else None)
     if not result.ok:
         print(f"[ERROR] {result.error}")

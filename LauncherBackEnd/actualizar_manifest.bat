@@ -2,6 +2,7 @@
 rem Regenera el manifest a mano (normalmente no hace falta: el servidor lo hace solo).
 rem   actualizar_manifest.bat                    solo rehace lo que cambio
 rem   actualizar_manifest.bat --forzar-bloques   rehace tambien todos los ZIP de assets
+rem   actualizar_manifest.bat --backend <id>     otro backend (por defecto, el seleccionado en el panel)
 chcp 65001 >nul
 set PYTHONUTF8=1
 title Actualizar manifest - Konnor Launcher Backend

@@ -1,4 +1,5 @@
-// Panel de control del backend: consulta el estado cada 2 s y el registro cada segundo.
+// Panel de control del backend.
+// Consulta cada 2 s la lista de backends y el estado del seleccionado, y cada segundo su registro.
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -22,6 +23,9 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 
+/** Ruta de la API del backend seleccionado. */
+const bk = (path) => `/api/backends/${encodeURIComponent(selectedId)}/${path}`;
+
 const number = new Intl.NumberFormat("es-ES");
 const clock = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const dateTime = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -43,10 +47,10 @@ function duration(seconds) {
   return `${s} s`;
 }
 
-function ago(timestamp, now) {
-  const seconds = now - timestamp;
-  if (seconds < 10) return "ahora mismo";
-  return `hace ${duration(seconds)}`;
+const ago = (timestamp, now) => (now - timestamp < 10 ? "ahora mismo" : `hace ${duration(now - timestamp)}`);
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
 let toastTimer;
@@ -69,34 +73,116 @@ async function withButton(button, action) {
   } finally {
     button.disabled = false;
     refreshState();
+    refreshBackends();
   }
 }
 
-// ── Estado ───────────────────────────────────────────────────────────────
+// ── Textos de estado ─────────────────────────────────────────────────────
 
 const STATUS = {
-  running: { chip: "En línea", big: "En línea", power: "Detener servidor" },
-  starting: { chip: "Iniciando…", big: "Iniciando", power: "Iniciando…" },
-  stopping: { chip: "Deteniendo…", big: "Deteniendo", power: "Deteniendo…" },
-  stopped: { chip: "Detenido", big: "Detenido", power: "Iniciar servidor" },
-  crashed: { chip: "Se cerró con error", big: "Caído", power: "Iniciar servidor" },
-  external: { chip: "En línea fuera del panel", big: "En línea", power: "Iniciar servidor" },
-  offline: { chip: "El panel no responde", big: "Sin conexión", power: "Iniciar servidor" },
+  running: { chip: "En línea", big: "En línea", power: "Detener servidor", short: "En línea" },
+  starting: { chip: "Iniciando…", big: "Iniciando", power: "Iniciando…", short: "Iniciando" },
+  stopping: { chip: "Deteniendo…", big: "Deteniendo", power: "Deteniendo…", short: "Deteniendo" },
+  stopped: { chip: "Detenido", big: "Detenido", power: "Iniciar servidor", short: "Detenido" },
+  crashed: { chip: "Se cerró con error", big: "Caído", power: "Iniciar servidor", short: "Caído" },
+  external: { chip: "En línea fuera del panel", big: "En línea", power: "Iniciar servidor", short: "Externo" },
+  offline: { chip: "El panel no responde", big: "Sin conexión", power: "Iniciar servidor", short: "—" },
 };
+
+// ── Backends ─────────────────────────────────────────────────────────────
+
+let selectedId = null;
+let backendList = [];
+
+async function refreshBackends() {
+  try {
+    const data = await api("/api/backends");
+    backendList = data.backends;
+    if (!selectedId || !backendList.some((b) => b.id === selectedId)) await switchBackend(data.selected, { remember: false });
+    renderBackends();
+  } catch {
+    /* el estado ya muestra que el panel no responde */
+  }
+}
+
+function renderBackends() {
+  const html = backendList.map((b) => `
+    <li>
+      <button type="button" class="backend-item" data-id="${escapeHtml(b.id)}" data-status="${b.status}" aria-current="${b.id === selectedId}">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="backend-name">${escapeHtml(b.name)}</span>
+        <span class="backend-sub">${STATUS[b.status].short} · puerto ${b.port}</span>
+      </button>
+    </li>`).join("");
+  const list = $("backendList");
+  if (list.dataset.html !== html) {
+    list.dataset.html = html;
+    list.innerHTML = html;
+  }
+}
+
+$("backendList").addEventListener("click", (event) => {
+  const item = event.target.closest(".backend-item");
+  if (item && item.dataset.id !== selectedId) switchBackend(item.dataset.id);
+});
+
+/** Cambia el backend que se muestra (y lo recuerda como seleccionado en backends.json). */
+async function switchBackend(id, { remember = true } = {}) {
+  if (configDirty() && !confirm("Hay cambios sin guardar en la configuración. ¿Descartarlos?")) return;
+  selectedId = id;
+  current = null;
+  versionDirty = false;
+  resetLog();
+  renderBackends();
+  if (remember) api("/api/backends/selected", { method: "PUT", body: { id } }).catch(() => {});
+  await Promise.all([loadConfig(), refreshState(), refreshLogs()]);
+}
+
+$("newBackendForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = $("newBackendName");
+  if (!input.value.trim()) { input.focus(); return; }
+  withButton($("btnCreate"), async () => {
+    const backend = await api("/api/backends", { method: "POST", body: { name: input.value } });
+    input.value = "";
+    await refreshBackends();
+    await switchBackend(backend.id, { remember: false });
+    toast(`Backend «${backend.name}» creado en el puerto ${backend.port}. Revisa su carpeta del cliente.`);
+    $("cfg-client_dir").focus();
+  });
+});
+
+$("btnDelete").addEventListener("click", () => {
+  const name = savedConfig?.name || selectedId;
+  if (!confirm(`¿Quitar el backend «${name}» del panel? Sus archivos se quedan en el disco.`)) return;
+  withButton($("btnDelete"), async () => {
+    await api(`/api/backends/${encodeURIComponent(selectedId)}`, { method: "DELETE" });
+    selectedId = null;
+    savedConfig = null;
+    await refreshBackends();
+    toast(`Backend «${name}» quitado.`);
+  });
+});
+
+// ── Estado del backend seleccionado ──────────────────────────────────────
 
 let current = null;
 
 async function refreshState() {
+  if (!selectedId) return;
+  const id = selectedId;
   try {
-    current = await api("/api/state");
-    renderState(current);
+    const state = await api(bk("state"));
+    if (id !== selectedId) return; // llegó tarde, de un backend que ya no se muestra
+    current = state;
+    renderState(state);
   } catch {
     renderOffline();
   }
 }
 
 function setStatus(status) {
-  for (const el of [document.body, $("statusChip")]) el.dataset.status = status;
+  for (const el of [$("serverZone"), $("statusChip")]) el.dataset.status = status;
 }
 
 function renderOffline() {
@@ -114,7 +200,9 @@ function renderState(s) {
   const labels = STATUS[status];
   setStatus(status);
 
-  // Barra superior y botón de encendido.
+  // Barra superior: nombre del backend, estado y encendido.
+  $("backendTitle").textContent = s.backend.name;
+  document.title = `${s.backend.name} · Konnor Launcher Backend`;
   $("statusText").textContent = labels.chip;
   const power = $("btnPower");
   power.textContent = labels.power;
@@ -123,15 +211,18 @@ function renderState(s) {
   power.disabled = ["starting", "stopping", "external"].includes(status) || s.local_generation.running;
   power.dataset.action = status === "running" ? "stop" : "start";
   $("btnRestart").disabled = status !== "running";
-  $("restartBanner").hidden = !server.restart_required;
+  $("btnDelete").disabled = !["stopped", "crashed"].includes(status) || backendList.length <= 1;
+  $("deleteHint").textContent = backendList.length <= 1
+    ? "Es el único backend: tiene que quedar al menos uno."
+    : ["stopped", "crashed"].includes(status)
+      ? "Se quita de la lista del panel. Sus archivos (cliente, manifest y bloques) se quedan en el disco."
+      : "Detén su servidor antes de quitarlo.";
 
   // Servidor.
   $("bigState").textContent = labels.big;
   $("stateDetail").textContent = stateDetail(s);
-  const uptime = server.started_at ? `Activo desde hace ${duration(s.now - server.started_at)}` : "";
-  $("serverUptime").textContent = uptime;
-  const lanUrl = server.lan_urls[0] || server.local_url;
-  $("launcherLine").textContent = `server.url=${lanUrl}`;
+  $("serverUptime").textContent = server.started_at ? `Activo desde hace ${duration(s.now - server.started_at)}` : "";
+  $("launcherLine").textContent = `server.url=${server.lan_urls[0] || server.local_url}`;
   renderUrls(server);
   $("factHost").textContent = server.host === "0.0.0.0" ? "Todas las interfaces" : server.host;
   $("factPort").textContent = server.port;
@@ -149,7 +240,9 @@ function renderState(s) {
     ? `Última petición de un launcher ${ago(a.last_request, s.now)}.`
     : "Sin peticiones de launchers desde el arranque.";
 
-  renderManifest(s);
+  const generation = renderManifest(s);
+  renderAlerts(s, generation);
+  renderBlockHint();
 }
 
 function stateDetail(s) {
@@ -168,25 +261,84 @@ function stateDetail(s) {
 }
 
 function renderUrls(server) {
-  const list = $("urlList");
   const urls = [{ label: "Este equipo", url: server.local_url }, ...server.lan_urls.map((url) => ({ label: "Red local", url }))];
   const html = urls.map(({ label, url }) => `<li>${label}: <a href="${url}/" target="_blank" rel="noopener">${url}</a></li>`).join("");
-  if (list.innerHTML !== html) list.innerHTML = html;
+  if ($("urlList").innerHTML !== html) $("urlList").innerHTML = html;
+}
+
+// ── Avisos: lo que requiere atención, de más a menos grave ───────────────
+
+function renderAlerts(s, generation) {
+  const alerts = [];
+  const m = s.manifest;
+  if (s.server.status === "crashed")
+    alerts.push({ tone: "error", text: `El servidor se cerró inesperadamente (código ${s.server.exit_code}).`, action: "Ver errores", run: showErrors });
+  if (!s.client.exists)
+    alerts.push({ tone: "error", text: `No existe la carpeta del cliente: ${s.client.dir}`, action: "Cambiar carpeta", run: () => focusField("cfg-client_dir") });
+  if (generation.last && !generation.last.ok)
+    alerts.push({ tone: "error", text: `La última generación del manifest falló: ${generation.last.error}`, action: "Ver errores", run: showErrors });
+  if (s.server.restart_required)
+    alerts.push({ tone: "warn", text: "La configuración cambió después de arrancar el servidor.", action: "Reiniciar ahora", run: (b) => restart(b) });
+  if (!m.exists && !generation.busy && s.client.exists)
+    alerts.push({ tone: "warn", text: "Todavía no hay manifest: los launchers no pueden verificar.", action: "Regenerar", run: () => regenerate(false) });
+  else if (m.exists && !m.error && s.client.version && m.client_version !== s.client.version && !generation.busy)
+    alerts.push({ tone: "warn", text: `El manifest anuncia ${m.client_version || "sin versión"}, pero la versión configurada es ${s.client.version}.`, action: "Regenerar", run: () => regenerate(false) });
+  if (s.activity.errors > 0)
+    alerts.push({ tone: "warn", text: `${number.format(s.activity.errors)} respuestas con error a los launchers desde el arranque.`, action: "Ver errores", run: showErrors });
+  if (s.server.status === "external")
+    alerts.push({ tone: "info", text: "Este backend lo arrancó otro proceso: el panel no puede detenerlo ni ver su registro." });
+
+  const key = JSON.stringify(alerts.map((a) => [a.tone, a.text]));
+  const list = $("alertList");
+  $("alerts").hidden = alerts.length === 0;
+  if (list.dataset.key === key) return;
+  list.dataset.key = key;
+  list.replaceChildren(...alerts.map((alert) => {
+    const li = document.createElement("li");
+    li.className = "alert";
+    li.dataset.tone = alert.tone;
+    const p = document.createElement("p");
+    p.textContent = alert.text;
+    li.append(p);
+    if (alert.action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-small";
+      button.textContent = alert.action;
+      button.addEventListener("click", () => alert.run(button));
+      li.append(button);
+    }
+    return li;
+  }));
+}
+
+function showErrors() {
+  setLogFilter("error");
+  $("log").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function focusField(id) {
+  $(id).scrollIntoView({ behavior: "smooth", block: "center" });
+  $(id).focus({ preventScroll: true });
 }
 
 // ── Manifest ─────────────────────────────────────────────────────────────
 
 let versionDirty = false;
 
+/** Pinta la zona del manifest y devuelve el estado de la generación (para los avisos). */
 function renderManifest(s) {
   const m = s.manifest;
   const versionInput = $("versionInput");
   if (!versionDirty && document.activeElement !== versionInput) versionInput.value = s.client.version || "";
 
   if (m.exists && !m.error) {
-    $("mfPublished").textContent = m.client_version === s.client.version
-      ? `Publicada en el manifest · actualizado ${ago(m.modified, s.now)} (${dateTime.format(m.modified * 1000)})`
-      : `El manifest todavía anuncia ${m.client_version || "sin versión"}; se actualizará al regenerar.`;
+    const updated = `actualizado ${ago(m.modified, s.now)} (${dateTime.format(m.modified * 1000)})`;
+    $("mfPublished").textContent = (m.client_version || "") !== (s.client.version || "")
+      ? `El manifest todavía anuncia ${m.client_version || "sin versión"}; se actualizará al regenerar.`
+      : s.client.version
+        ? `Publicada en el manifest · ${updated}`
+        : `Sin versión: el manifest no anuncia ninguna. Escribe una y publícala · ${updated}`;
     $("mfFiles").textContent = number.format(m.files);
     $("mfFilesSize").textContent = bytes(m.files_size);
     $("mfBlocks").textContent = number.format(m.blocks);
@@ -201,13 +353,10 @@ function renderManifest(s) {
     renderFolders({}, 0);
   }
 
-  // Estado de la generación: del servidor si está en línea; si no, la del panel.
-  const pill = $("genPill");
-  const result = $("mfResult");
+  // Estado de la generación: la del servidor si está en línea; si no, la del panel.
   const au = s.auto_update;
   const local = s.local_generation;
   let tone = "idle", text = "Servidor detenido", last = null, lastTime = null;
-
   if (local.running || au?.state === "generating") {
     tone = "busy"; text = "Generando…";
   } else if (au) {
@@ -219,9 +368,10 @@ function renderManifest(s) {
     text = local.result.ok ? "Generado desde el panel" : "Error al generar";
   }
   if (!last && local.result) { last = local.result; lastTime = local.finished; }
-  pill.dataset.tone = tone;
-  pill.textContent = text;
+  $("genPill").dataset.tone = tone;
+  $("genPill").textContent = text;
 
+  const result = $("mfResult");
   result.classList.toggle("error", !!last && !last.ok);
   if (!last) result.textContent = "";
   else if (!last.ok) result.textContent = `Última generación fallida: ${last.error}`;
@@ -230,6 +380,7 @@ function renderManifest(s) {
   const busy = tone === "busy" || ["starting", "stopping"].includes(s.server.status);
   $("btnRegen").disabled = busy;
   $("btnForce").disabled = busy;
+  return { busy: tone === "busy", last };
 }
 
 function renderFolders(folders, total) {
@@ -246,10 +397,6 @@ function renderFolders(folders, total) {
     </div>`).join("");
 }
 
-function escapeHtml(text) {
-  return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-}
-
 $("versionInput").addEventListener("input", () => {
   versionDirty = $("versionInput").value.trim() !== (current?.client.version || "");
   $("btnVersion").disabled = !versionDirty;
@@ -258,7 +405,7 @@ $("versionInput").addEventListener("input", () => {
 $("versionForm").addEventListener("submit", (event) => {
   event.preventDefault();
   withButton($("btnVersion"), async () => {
-    const result = await api("/api/client-version", { method: "PUT", body: { version: $("versionInput").value } });
+    const result = await api(bk("client-version"), { method: "PUT", body: { version: $("versionInput").value } });
     versionDirty = false;
     toast(result.regenerating
       ? `Versión ${result.version} guardada; el servidor está regenerando el manifest.`
@@ -268,9 +415,9 @@ $("versionForm").addEventListener("submit", (event) => {
 
 function regenerate(forceBlocks) {
   const button = forceBlocks ? $("btnForce") : $("btnRegen");
-  if (forceBlocks && !confirm("Se rehacen los ZIP de todos los bloques de assets. Puede tardar varios minutos y los launchers volverán a descargarlos. ¿Continuar?")) return;
+  if (forceBlocks && !confirm("Se rehacen los ZIP de todos los bloques de assets. Puede tardar varios minutos. ¿Continuar?")) return;
   withButton(button, async () => {
-    const result = await api("/api/manifest/regenerate", { method: "POST", body: { force_blocks: forceBlocks } });
+    const result = await api(bk("manifest/regenerate"), { method: "POST", body: { force_blocks: forceBlocks } });
     toast(result.where === "server" ? "Regeneración en marcha en el servidor." : "Regenerando desde el panel (servidor detenido).");
   });
 }
@@ -282,19 +429,18 @@ $("btnForce").addEventListener("click", () => regenerate(true));
 $("btnPower").addEventListener("click", () => {
   const action = $("btnPower").dataset.action || "start";
   withButton($("btnPower"), async () => {
-    await api(`/api/server/${action}`, { method: "POST" });
+    await api(bk(`server/${action}`), { method: "POST" });
     toast(action === "stop" ? "Servidor detenido." : "Servidor iniciado.");
   });
 });
 
 function restart(button) {
   withButton(button, async () => {
-    await api("/api/server/restart", { method: "POST" });
+    await api(bk("server/restart"), { method: "POST" });
     toast("Servidor reiniciado con la configuración actual.");
   });
 }
 $("btnRestart").addEventListener("click", () => restart($("btnRestart")));
-$("btnRestartBanner").addEventListener("click", () => restart($("btnRestartBanner")));
 
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-copy]");
@@ -312,33 +458,43 @@ document.addEventListener("click", async (event) => {
 const form = $("configForm");
 let savedConfig = null;
 let defaults = null;
+const CONFIG_KEYS = ["name", "host", "port", "client_dir", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
 
 function fillForm(values) {
   const host = form.elements.host;
-  if (![...host.options].some((o) => o.value === values.host)) host.add(new Option(`${values.host} (personalizada)`, values.host));
-  for (const [key, value] of Object.entries(values)) {
+  for (const option of [...host.options]) if (option.dataset.custom) option.remove();
+  if (![...host.options].some((o) => o.value === values.host)) {
+    const option = new Option(`${values.host} (personalizada)`, values.host);
+    option.dataset.custom = "1";
+    host.add(option);
+  }
+  for (const key of CONFIG_KEYS) {
     const field = form.elements[key];
-    if (!field) continue;
-    if (field.type === "checkbox") field.checked = !!value;
-    else field.value = value;
+    if (field.type === "checkbox") field.checked = !!values[key];
+    else field.value = values[key];
     field.removeAttribute("aria-invalid");
   }
   updateDirty();
+  renderBlockHint();
 }
 
 function readForm() {
   const values = {};
-  for (const key of Object.keys(savedConfig)) {
+  for (const key of CONFIG_KEYS) {
     const field = form.elements[key];
-    if (!field) continue;
     values[key] = field.type === "checkbox" ? field.checked : field.type === "number" ? Number(field.value) : field.value.trim();
   }
   return values;
 }
 
+function configDirty() {
+  if (!savedConfig) return false;
+  const saved = Object.fromEntries(CONFIG_KEYS.map((k) => [k, savedConfig[k]]));
+  return JSON.stringify(readForm()) !== JSON.stringify(saved);
+}
+
 function updateDirty() {
-  if (!savedConfig) return;
-  const dirty = JSON.stringify(readForm()) !== JSON.stringify(savedConfig);
+  const dirty = configDirty();
   $("btnSave").disabled = !dirty;
   $("btnDiscard").disabled = !dirty;
   const msg = $("configMsg");
@@ -346,27 +502,45 @@ function updateDirty() {
   msg.textContent = dirty ? "Cambios sin guardar" : "";
 }
 
+/** Muestra lo que produce el número de bloques: tamaño aproximado de cada ZIP con los assets actuales. */
+function renderBlockHint() {
+  const n = Number(form.elements.block_count.value);
+  const hint = $("hint-blocks");
+  if (!Number.isInteger(n) || n < 1 || n > 256) { hint.textContent = "Entre 1 y 256."; return; }
+  const m = current?.manifest;
+  const size = m?.exists && m.blocks_size ? `unos ${bytes(m.blocks_size / n)} por bloque con los assets actuales. ` : "";
+  const changed = savedConfig && n !== savedConfig.block_count
+    ? "Al guardar, los bloques se rehacen en la siguiente generación; los jugadores que ya tienen los assets no los vuelven a descargar."
+    : "Más bloques: descargas más pequeñas y más paralelas. Menos: menos peticiones.";
+  hint.textContent = `${n} ${n === 1 ? "bloque" : "bloques"}: ${size}${changed}`;
+}
+
 async function loadConfig() {
-  const config = await api("/api/config");
+  const id = selectedId;
+  const config = await api(bk("config"));
+  if (id !== selectedId) return;
   savedConfig = config.values;
   defaults = config.defaults;
+  $("backendIdMeta").textContent = `id: ${config.values.id}`;
   fillForm(savedConfig);
   const overrides = Object.values(config.env_overrides);
   $("envNote").hidden = overrides.length === 0;
-  $("envNote").textContent = `Variables de entorno activas (${overrides.join(", ")}): tienen prioridad al usar los .bat; el servidor que arranca este panel usa los valores de aquí.`;
+  $("envNote").textContent = `Variables de entorno activas (${overrides.join(", ")}): tienen prioridad al usar los .bat; los servidores que arranca este panel usan los valores de aquí.`;
 }
 
-form.addEventListener("input", updateDirty);
+form.addEventListener("input", () => { updateDirty(); renderBlockHint(); });
 form.addEventListener("change", updateDirty);
 $("btnDiscard").addEventListener("click", () => fillForm(savedConfig));
-$("btnDefaults").addEventListener("click", () => { fillForm({ ...savedConfig, ...defaults }); updateDirty(); });
+$("btnDefaults").addEventListener("click", () => fillForm({ ...savedConfig, ...defaults, name: readForm().name }));
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   // Validación del navegador primero: marca el campo y lo enfoca.
-  const invalid = [...form.elements].find((el) => el.willValidate && !el.checkValidity());
-  for (const el of form.elements) if (el.willValidate) el.setAttribute("aria-invalid", String(!el.checkValidity()));
+  const fields = [...form.elements].filter((el) => el.willValidate);
+  for (const el of fields) el.setAttribute("aria-invalid", String(!el.checkValidity()));
+  const invalid = fields.find((el) => !el.checkValidity());
   if (invalid) {
+    invalid.closest("details")?.setAttribute("open", "");
     invalid.focus();
     $("configMsg").className = "form-msg error";
     $("configMsg").textContent = `${form.querySelector(`label[for="${invalid.id}"]`)?.textContent || invalid.name}: ${invalid.validationMessage}`;
@@ -374,7 +548,7 @@ form.addEventListener("submit", (event) => {
   }
   withButton($("btnSave"), async () => {
     try {
-      const result = await api("/api/config", { method: "PUT", body: { values: readForm() } });
+      const result = await api(bk("config"), { method: "PUT", body: { values: readForm() } });
       savedConfig = result.values;
       fillForm(savedConfig);
       toast(result.restart_required ? "Configuración guardada. Reinicia el servidor para aplicarla." : "Configuración guardada.");
@@ -387,7 +561,7 @@ form.addEventListener("submit", (event) => {
 });
 
 $("btnOpenClient").addEventListener("click", () =>
-  withButton($("btnOpenClient"), () => api("/api/open", { method: "POST", body: { target: "client" } })));
+  withButton($("btnOpenClient"), () => api(bk("open"), { method: "POST" })));
 
 // ── Registro ─────────────────────────────────────────────────────────────
 
@@ -400,12 +574,20 @@ function lineText(text) {
   return text.replace(/^(INFO|WARNING|ERROR|DEBUG):\s+/, "").replace(/^\d{2}:\d{2}:\d{2}\s+/, "");
 }
 
+function resetLog() {
+  lastSeq = 0;
+  log.replaceChildren();
+  $("logCount").textContent = "";
+}
+
 async function refreshLogs() {
+  if (!selectedId) return;
+  const id = selectedId;
   try {
-    const { lines, last } = await api(`/api/logs?after=${lastSeq}`);
-    if (last < lastSeq) { log.innerHTML = ""; lastSeq = 0; return; } // el panel se reinició
+    const { lines, last } = await api(bk(`logs?after=${lastSeq}`));
+    if (id !== selectedId) return;
+    if (last < lastSeq) { resetLog(); return; } // el panel se reinició
     if (!lines.length) { renderLogEmpty(); return; }
-    const follow = $("autoscroll").checked;
     const fragment = document.createDocumentFragment();
     for (const line of lines) {
       const row = document.createElement("div");
@@ -420,7 +602,7 @@ async function refreshLogs() {
     log.append(fragment);
     while (log.childElementCount > MAX_LOG_LINES) log.firstElementChild.remove();
     lastSeq = last;
-    if (follow) log.scrollTop = log.scrollHeight;
+    if ($("autoscroll").checked) log.scrollTop = log.scrollHeight;
     $("logCount").textContent = `${number.format(log.childElementCount)} líneas`;
   } catch {
     /* el estado ya muestra que el panel no responde */
@@ -436,25 +618,24 @@ log.addEventListener("scroll", () => {
   $("autoscroll").checked = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
 });
 
-for (const button of document.querySelectorAll(".segmented button")) {
-  button.addEventListener("click", () => {
-    for (const other of document.querySelectorAll(".segmented button")) other.setAttribute("aria-checked", String(other === button));
-    log.dataset.filter = button.dataset.filter;
-  });
+function setLogFilter(filter) {
+  for (const button of document.querySelectorAll(".segmented button"))
+    button.setAttribute("aria-checked", String(button.dataset.filter === filter));
+  log.dataset.filter = filter;
 }
+for (const button of document.querySelectorAll(".segmented button"))
+  button.addEventListener("click", () => setLogFilter(button.dataset.filter));
 
 $("btnClearLog").addEventListener("click", () =>
   withButton($("btnClearLog"), async () => {
-    await api("/api/logs/clear", { method: "POST" });
-    log.innerHTML = "";
-    $("logCount").textContent = "";
+    await api(bk("logs/clear"), { method: "POST" });
+    resetLog();
     renderLogEmpty();
   }));
 
 // ── Arranque ─────────────────────────────────────────────────────────────
 
-loadConfig().catch((error) => toast(error.message, "error"));
-refreshState();
-refreshLogs();
+refreshBackends();
+setInterval(refreshBackends, STATE_INTERVAL);
 setInterval(refreshState, STATE_INTERVAL);
 setInterval(refreshLogs, LOG_INTERVAL);

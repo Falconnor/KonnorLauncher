@@ -8,8 +8,9 @@ Endpoints (el launcher depende de estas rutas exactas):
 - ``GET /client/packages/{bloque}`` bloques ZIP de assets
 - ``POST /admin/regenerate``        regeneración bajo demanda, solo desde el propio equipo (panel)
 
-La configuración (carpeta del cliente, puerto, actualización automática...) se describe en
-``Services/settings.py``: ``backend_config.json`` (lo edita el panel) o variables de entorno.
+La configuración (carpeta del cliente, puerto, bloques, actualización automática...) se describe en
+``Services/settings.py``: ``backends.json`` (lo edita el panel) o variables de entorno. Cada proceso
+sirve un solo backend: el de ``KONNOR_PROFILE`` o, si no está, el seleccionado en el panel.
 Arranque: ``iniciar_panel.bat``, ``iniciar_servidor.bat`` o ``iniciar_desarrollo.bat``.
 """
 
@@ -40,7 +41,7 @@ if not logger.handlers:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Al arrancar: actualización automática del manifest. Al cerrar: detiene el vigilante."""
-    logger.info("Carpeta del cliente: %s", settings.client_dir)
+    logger.info("Backend «%s»: carpeta del cliente %s", settings.backend_name, settings.client_dir)
     if not settings.client_dir.is_dir():
         logger.warning("La carpeta del cliente no existe; /client devolverá 404")
     updater = AutoUpdater(settings)
@@ -65,6 +66,7 @@ def root():
     return {
         "status": "online",
         "server": "Konnor Launcher Backend",
+        "backend": {"id": settings.backend_id, "name": settings.backend_name},
         "manifest": settings.manifest_file.is_file(),
         "client_version": client_version,
         "auto_update": app.state.updater.status(),

@@ -1,9 +1,14 @@
 """Bloques ZIP de assets para distribuir los miles de archivos pequeños de ``assets/``.
 
 Descargar ~9.000 archivos sueltos sería lento (una petición por archivo). Por eso se agrupan en
-16 bloques ZIP: los de ``assets/objects/XX/`` según el primer carácter hex de ``XX``
-(00-0f → bloque 0, 10-1f → bloque 1...), y ``assets/indexes/``, ``assets/log_configs/`` y el resto
-en el bloque 0. El launcher descarga un bloque mientras extrae el anterior.
+N bloques ZIP (``block_count`` en la configuración, 16 por defecto). Minecraft guarda cada asset en
+``assets/objects/XX/`` donde ``XX`` son los dos primeros caracteres de su hash (00-ff, repartidos
+de forma uniforme); los 256 prefijos se dividen en N tramos consecutivos del mismo tamaño. Con 16
+bloques: 00-0f → bloque 0, 10-1f → bloque 1... ``assets/indexes/``, ``assets/log_configs/`` y el
+resto van en el bloque 0. El launcher descarga un bloque mientras extrae el anterior.
+
+Cambiar N reparte los archivos de otra forma, así que en la siguiente generación se rehacen los
+bloques afectados. El launcher no necesita saber N: descarga los bloques que liste el manifest.
 
 Dentro de cada ZIP, el nombre de cada entrada es su ruta relativa a la carpeta del cliente
 (con ``/``): el launcher usa ese nombre para extraerla y para compararla con el manifest.
@@ -27,8 +32,9 @@ from pathlib import Path
 from Services.hash_cache import HashCache, sha256_file
 
 
-BLOCK_COUNT = 16
-_BLOCK_NAME = re.compile(r"^assets_block_([0-9a-f])(?:-[0-9a-f]+)?\.zip$")
+DEFAULT_BLOCK_COUNT = 16
+PREFIXES = 256  # prefijos posibles de assets/objects/XX/ (00-ff)
+_BLOCK_NAME = re.compile(r"^assets_block_([0-9a-f]{1,2})(?:-[0-9a-f]+)?\.zip$")
 
 
 def block_id_of(name: str) -> int | None:
@@ -37,29 +43,29 @@ def block_id_of(name: str) -> int | None:
     return int(match.group(1), 16) if match else None
 
 
-def assign_block(relative_posix: str) -> int:
-    """Bloque (0-15) de un archivo de assets según su ruta relativa a la carpeta del cliente."""
+def assign_block(relative_posix: str, block_count: int = DEFAULT_BLOCK_COUNT) -> int:
+    """Bloque (0 a N-1) de un archivo de assets según su ruta relativa a la carpeta del cliente."""
     parts = relative_posix.split("/")
-    # assets/objects/XX/archivo → primer carácter hex de XX
-    if len(parts) >= 3 and parts[1] == "objects" and parts[2]:
+    # assets/objects/XX/archivo → tramo en el que cae el prefijo XX (00-ff)
+    if len(parts) >= 3 and parts[1] == "objects" and len(parts[2]) >= 2:
         try:
-            return int(parts[2][0], 16)
+            return int(parts[2][:2], 16) * block_count // PREFIXES
         except ValueError:
             return 0
     # indexes, log_configs o cualquier otro → bloque 0
     return 0
 
 
-def collect_assets(client_dir: Path) -> dict[int, list[tuple[str, Path]]]:
+def collect_assets(client_dir: Path, block_count: int = DEFAULT_BLOCK_COUNT) -> dict[int, list[tuple[str, Path]]]:
     """Archivos de ``assets/`` agrupados por bloque, en orden estable."""
-    blocks: dict[int, list[tuple[str, Path]]] = {i: [] for i in range(BLOCK_COUNT)}
+    blocks: dict[int, list[tuple[str, Path]]] = {i: [] for i in range(block_count)}
     assets_dir = client_dir / "assets"
     if not assets_dir.is_dir():
         return blocks
     for path in sorted(assets_dir.rglob("*")):
         if path.is_file() and not path.name.endswith((".tmp", ".part")):
             relative = path.relative_to(client_dir).as_posix()
-            blocks[assign_block(relative)].append((relative, path))
+            blocks[assign_block(relative, block_count)].append((relative, path))
     return blocks
 
 
@@ -80,7 +86,7 @@ def _build_zip(packages_dir: Path, block_id: int, files: list[tuple[str, Path]])
 
 
 def build_blocks(client_dir: Path, cache: HashCache, previous: dict | None, force: bool = False,
-                 log=print) -> dict:
+                 log=print, block_count: int = DEFAULT_BLOCK_COUNT) -> dict:
     """Devuelve la sección ``asset_blocks`` del manifest, reconstruyendo solo lo necesario.
 
     Un bloque se reutiliza si en el manifest anterior hay un bloque con el mismo número, los
@@ -98,7 +104,7 @@ def build_blocks(client_dir: Path, cache: HashCache, previous: dict | None, forc
 
     result: dict[str, dict] = {}
     rebuilt = 0
-    for block_id, files in collect_assets(client_dir).items():
+    for block_id, files in collect_assets(client_dir, block_count).items():
         if not files:
             continue
 

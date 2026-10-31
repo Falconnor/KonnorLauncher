@@ -5,8 +5,12 @@ Servidor de actualización de Konnor Launcher. Cuando el launcher tiene activada
 archivos del jugador y descarga lo que falte o haya cambiado. Así todos los jugadores tienen
 exactamente los mismos mods, versiones, librerías y assets.
 
-Los miles de archivos pequeños de `assets/` se empaquetan en 16 bloques ZIP: el launcher descarga
-un bloque mientras extrae el anterior, en lugar de hacer una petición por cada archivo.
+Los miles de archivos pequeños de `assets/` se empaquetan en bloques ZIP (16 por defecto,
+configurable): el launcher descarga un bloque mientras extrae el anterior, en lugar de hacer una
+petición por cada archivo.
+
+Se pueden tener varios **backends** con nombre (por ejemplo, uno por modpack o uno de pruebas),
+cada uno con su puerto, su carpeta del cliente y su manifest, y tenerlos en marcha a la vez.
 
 ## Estructura
 
@@ -14,11 +18,11 @@ un bloque mientras extrae el anterior, en lugar de hacer una petición por cada 
 main.py                        ← servidor FastAPI (uvicorn)
 Panel/                         ← panel de control (interfaz web local, 127.0.0.1:59380)
   app.py                       ← API del panel
-  supervisor.py                ← arranque y parada del servidor, registro y actividad
+  supervisor.py                ← arranque y parada de cada servidor, registro y actividad
   static/                      ← interfaz (HTML, CSS, JS)
 Services/
-  settings.py                  ← configuración (backend_config.json y variables de entorno)
-  serve.py                     ← arranca uvicorn con el host y el puerto configurados
+  settings.py                  ← backends y su configuración (backends.json y variables de entorno)
+  serve.py                     ← arranca uvicorn para un backend, con su host y su puerto
   generate_manifest.py         ← genera client_manifest.json
   generate_asset_blocks.py     ← bloques ZIP de assets (incrementales)
   auto_update.py               ← actualización automática al arrancar y al cambiar el cliente
@@ -27,8 +31,10 @@ Services/
 tests/Client/                  ← archivos de prueba del cliente (no está en git)
   mods/  versions/  libraries/  assets/
   packages/                    ← bloques generados
+perfiles/<id>/                 ← archivos de los backends creados desde el panel (no está en git)
+backends.json                  ← backends y su configuración (no está en git)
 iniciar_panel.bat              ← panel de control (recomendado)
-iniciar_servidor.bat           ← producción sin panel: escucha donde diga la configuración
+iniciar_servidor.bat [id]      ← producción sin panel: un backend, donde diga su configuración
 iniciar_desarrollo.bat         ← desarrollo: 127.0.0.1:8000, recarga el código al editarlo
 actualizar_manifest.bat        ← regeneración manual (normalmente no hace falta)
 preparar_entorno.bat           ← crea .venv e instala requirements.txt (lo usan los demás)
@@ -42,21 +48,29 @@ iniciar_panel.bat
 
 La primera vez crea el entorno `.venv` e instala las dependencias. Después abre el panel de
 control en una ventana propia (Edge o Chrome en modo aplicación; si no hay ninguno, el navegador
-predeterminado). Desde el panel:
+predeterminado). El panel está ordenado por importancia:
 
+- **Backends** (columna izquierda): lista con el estado de cada uno; se elige cuál ver y se crean
+  nuevos con un nombre. Cada backend nuevo usa su propia carpeta en `perfiles/<id>/` y el
+  siguiente puerto libre. Varios pueden estar en marcha a la vez.
+- **Avisos**: lo que requiere atención, de más a menos grave (servidor caído, carpeta del cliente
+  inexistente, generación fallida, reinicio pendiente, manifest desactualizado, errores servidos),
+  cada uno con su acción.
 - **Servidor**: iniciar, detener y reiniciar; estado, PID, tiempo activo, la línea `server.url=`
   lista para copiar en el `launcher.properties` de los jugadores y la actividad desde el arranque
   (verificaciones, archivos servidos, equipos distintos y respuestas con error).
 - **Manifest**: versión publicada (editable), archivos, bloques y assets, estado de la
   actualización automática y regeneración manual. Con el servidor detenido, la regeneración se
   hace desde el propio panel.
-- **Configuración**: red, carpeta del cliente, actualización automática y rutas. Se guarda en
-  `backend_config.json`; si el servidor está en marcha, el panel avisa de que hay que reiniciarlo.
 - **Registro**: salida del servidor en vivo, con filtro de avisos y errores.
+- **Configuración**: nombre, red, carpeta del cliente, número de bloques, actualización automática
+  y rutas avanzadas. Se guarda en `backends.json`; si el servidor está en marcha, el panel avisa
+  de que hay que reiniciarlo. Al final, la opción de quitar el backend de la lista (sus archivos
+  se quedan en el disco).
 
-El panel solo escucha en `127.0.0.1`. Cerrar su consola detiene también el servidor que arrancó.
-Sin panel, `iniciar_servidor.bat` arranca el servidor con la misma configuración. Al arrancar,
-el servidor:
+El panel solo escucha en `127.0.0.1`. Cerrar su consola detiene también los servidores que arrancó.
+Sin panel, `iniciar_servidor.bat` arranca el backend seleccionado en el panel, o el indicado
+(`iniciar_servidor.bat principal`). Al arrancar, el servidor:
 
 1. Revisa la carpeta del cliente y actualiza el manifest en segundo plano. El servidor responde
    desde el primer momento: mientras tanto se sirve el manifest anterior.
@@ -92,15 +106,21 @@ Las descargas admiten `Range` (reanudación), `ETag` y `Last-Modified`.
 
 ## Configuración
 
-Se edita desde el panel y se guarda en `backend_config.json` (no está en git). Cada valor se puede
-forzar con una variable de entorno, que tiene prioridad al usar los `.bat`; el servidor que arranca
-el panel usa siempre los valores del panel.
+Se edita desde el panel y se guarda en `backends.json` (no está en git). La primera vez, si existe
+el `backend_config.json` de versiones anteriores, se importa como el backend "Principal".
+
+Dos backends no pueden compartir puerto, carpeta del cliente ni manifest. Cada valor se puede
+forzar con una variable de entorno, que tiene prioridad al usar los `.bat`; los servidores que
+arranca el panel usan siempre los valores del panel. Los valores por defecto son los del backend
+principal.
 
 | Variable | Por defecto | Uso |
 |---|---|---|
+| `KONNOR_PROFILE` | el seleccionado en el panel | Backend que sirve el proceso (id de `backends.json`) |
 | `KONNOR_HOST` | `0.0.0.0` | Interfaz en la que escucha el servidor |
 | `KONNOR_PORT` | `59381` | Puerto del servidor |
 | `KONNOR_CLIENT_DIR` | `tests/Client` | Carpeta con los archivos del cliente |
+| `KONNOR_BLOCK_COUNT` | `16` | Bloques ZIP de assets (1 a 256) |
 | `KONNOR_MANIFEST` | `client_manifest.json` | Manifest generado |
 | `KONNOR_CLIENT_VERSION_FILE` | `Services/client_version.txt` | Versión anunciada |
 | `KONNOR_CACHE_DIR` | `.cache` | Caché de hashes |
@@ -111,6 +131,18 @@ el panel usa siempre los valores del panel.
 
 Ejemplo para producción con otra carpeta: `set KONNOR_CLIENT_DIR=D:\KonnorClient` antes de
 `iniciar_servidor.bat`.
+
+## Bloques de assets
+
+Minecraft guarda cada asset en `assets/objects/XX/`, donde `XX` son los dos primeros caracteres de
+su hash (00 a ff, repartidos de forma uniforme). Los 256 prefijos se dividen en N tramos
+consecutivos, uno por bloque; `assets/indexes/` y el resto de `assets/` van en el bloque 0. Con 16
+bloques: 00-0f → bloque 0, 10-1f → bloque 1...
+
+- Más bloques: ZIP más pequeños, más descargas en paralelo y menos que repetir si una se corta.
+- Menos bloques: menos peticiones al servidor.
+- Cambiar el número rehace los bloques en la siguiente generación. Los jugadores que ya tienen los
+  assets no los vuelven a descargar: el launcher compara los archivos, no los ZIP.
 
 ## Notas
 

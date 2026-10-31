@@ -3,7 +3,9 @@ tests/
 
 # Generados por el backend
 client_manifest.json
+backends.json
 backend_config.json
+perfiles/
 .cache/
 *.tmp
 
