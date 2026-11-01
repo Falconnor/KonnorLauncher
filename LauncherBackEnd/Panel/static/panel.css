@@ -316,7 +316,6 @@ body.sidebar-collapsed .server-add { display: grid; }
 [data-status="starting"] .big-state,
 [data-status="stopping"] .big-state { color: var(--warn); }
 [data-status="external"] .big-state { color: var(--info); }
-.state-detail { margin-top: 10px; color: var(--ink-2); max-width: 60ch; }
 
 .copy-row {
   display: flex;
@@ -384,15 +383,8 @@ body.sidebar-collapsed .server-add { display: grid; }
 .pill[data-tone="error"] { color: var(--danger); background: rgba(255, 107, 107, 0.12); }
 
 .version-row { display: flex; gap: 10px; }
-.version-input {
-  flex: 1;
-  min-width: 0;
-  height: 56px;
-  padding: 0 16px;
-  font: 700 30px/1 var(--font-display);
-  letter-spacing: -0.02em;
-}
-.version-row .btn { height: 56px; }
+.version-input { flex: 1; min-width: 0; }
+.version-row .btn { height: 40px; }
 .version-form .muted { margin-top: 8px; }
 
 .folders { display: grid; gap: 8px; }

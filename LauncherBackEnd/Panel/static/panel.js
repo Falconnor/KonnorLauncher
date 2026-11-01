@@ -299,7 +299,6 @@ function renderOffline() {
   setStatus("offline");
   $("statusText").textContent = STATUS.offline.chip;
   $("bigState").textContent = STATUS.offline.big;
-  $("stateDetail").textContent = "Comprueba que la ventana de iniciar_panel.bat sigue abierta.";
   $("btnPower").disabled = true;
   $("btnRestart").disabled = true;
 }
@@ -330,7 +329,6 @@ function renderState(s) {
 
   // Servidor.
   $("bigState").textContent = labels.big;
-  $("stateDetail").textContent = stateDetail(s);
   $("serverUptime").textContent = server.started_at ? `Activo desde hace ${duration(s.now - server.started_at)}` : "";
   $("launcherLine").textContent = server.public_url || server.lan_urls[0] || server.local_url;
   $("launcherLineHint").textContent = server.public_url
@@ -360,24 +358,8 @@ function renderState(s) {
   renderBlockHint();
 }
 
-function stateDetail(s) {
-  const server = s.server;
-  switch (server.status) {
-    case "running":
-      return s.client.exists
-        ? "Publicando el manifest y los archivos del cliente a los launchers."
-        : "En marcha, pero la carpeta del cliente no existe: los launchers recibirán errores 404.";
-    case "starting": return "Arrancando el servidor y revisando la carpeta del cliente.";
-    case "stopping": return "Cerrando las conexiones y el vigilante de la carpeta.";
-    case "crashed": return `El proceso terminó con el código ${server.exit_code}. El registro muestra el motivo.`;
-    case "external": return "Lo arrancó otro proceso (por ejemplo iniciar_servidor.bat). Ciérralo desde su ventana para controlarlo aquí.";
-    default: return "Los launchers con VERIFICAR ARCHIVOS activado mostrarán “servidor no responde”.";
-  }
-}
-
 function renderUrls(server) {
   const urls = [{ label: "Este equipo", url: server.local_url }, ...server.lan_urls.map((url) => ({ label: "Red local", url }))];
-  if (server.public_url) urls.push({ label: "Internet", url: server.public_url });
   const html = urls.map(({ label, url }) => `<li>${label}: <a href="${url}/" target="_blank" rel="noopener">${url}</a></li>`).join("");
   if ($("urlList").innerHTML !== html) $("urlList").innerHTML = html;
 }
@@ -832,7 +814,7 @@ async function checkApiVersion() {
   } catch {
     return; // sin conexión: ya lo indica el estado
   }
-  toast("El panel se actualizó mientras estaba abierto. Cierra su consola y vuelve a abrir iniciar_panel.bat.", "error");
+  toast("El panel se actualizó mientras estaba abierto. Cierra su consola y vuelve a abrir el panel.", "error");
   clearTimeout(toastTimer); // este aviso se queda fijo
 }
 
