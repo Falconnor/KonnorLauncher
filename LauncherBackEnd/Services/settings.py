@@ -31,6 +31,11 @@ Las rutas relativas se resuelven respecto a la carpeta LauncherBackEnd.
 | ``auto_update``    | ``KONNOR_AUTO_UPDATE``         | ``true``                        | Regenerar el manifest al arrancar el servidor  |
 | ``watch``          | ``KONNOR_WATCH``               | ``true``                        | Vigilar la carpeta y regenerar al cambiar      |
 | ``watch_quiet_ms`` | ``KONNOR_WATCH_QUIET_MS``      | ``3000``                        | Silencio necesario antes de regenerar          |
+| ``delete_unauthorized`` | ``KONNOR_DELETE_UNAUTHORIZED`` | ``true``                   | Los launchers borran lo que no esté en el manifest |
+| ``always_online``  | ``KONNOR_ALWAYS_ONLINE``       | ``true``                        | Sin respuesta del servidor, el launcher no abre el juego |
+
+Además, ``released`` (no configurable): el servidor liberó sus instancias y los jugadores pueden
+desactivar la sincronización. Se activa con :func:`release_profile` y no se puede deshacer.
 
 Los valores por defecto de la tabla son los del primer servidor. Los que se crean después
 guardan sus archivos en ``profiles/<id>/`` para no pisarse con los demás.
@@ -67,6 +72,8 @@ DEFAULTS: dict[str, object] = {
     "auto_update": True,
     "watch": True,
     "watch_quiet_ms": 3000,
+    "delete_unauthorized": True,
+    "always_online": True,
 }
 ENV_VARS: dict[str, str] = {
     "host": "KONNOR_HOST",
@@ -79,10 +86,12 @@ ENV_VARS: dict[str, str] = {
     "auto_update": "KONNOR_AUTO_UPDATE",
     "watch": "KONNOR_WATCH",
     "watch_quiet_ms": "KONNOR_WATCH_QUIET_MS",
+    "delete_unauthorized": "KONNOR_DELETE_UNAUTHORIZED",
+    "always_online": "KONNOR_ALWAYS_ONLINE",
 }
 PROFILE_ENV = "KONNOR_PROFILE"
 PATH_KEYS = ("client_dir", "manifest", "version_file", "cache_dir")
-FLAG_KEYS = ("auto_update", "watch")
+FLAG_KEYS = ("auto_update", "watch", "delete_unauthorized", "always_online")
 
 _lock = threading.RLock()
 
@@ -101,6 +110,14 @@ class Settings:
     auto_update: bool
     watch: bool
     watch_quiet_ms: int
+    # Se publica en el manifest: los launchers sincronizados borran de mods, versions, libraries y
+    # assets lo que no esté en él. La decisión es del servidor, no de cada jugador.
+    delete_unauthorized: bool
+    # Se publica en el manifest: con true, sin respuesta del servidor el launcher no abre el juego;
+    # con false, juega con los archivos que ya tiene.
+    always_online: bool
+    # Instancias liberadas: los jugadores pueden desactivar la sincronización. Irreversible.
+    released: bool
 
     @property
     def packages_dir(self) -> Path:
@@ -282,9 +299,32 @@ def update_profile(profile_id: str, values: dict) -> dict:
         name = _clean_name(merged.get("name"))
         _check_conflicts(profile_id, clean, store["servers"])
         saved = {"id": profile_id, "name": name, **clean}
+        if current.get("released") is True:
+            saved["released"] = True  # irreversible: la configuración no puede deshacerla
         store["servers"] = [saved if b["id"] == profile_id else b for b in store["servers"]]
         write_store(store)
         return saved
+
+
+def release_profile(profile_id: str) -> dict:
+    """Libera las instancias de un servidor: los launchers podrán desactivar la sincronización.
+    No hay función inversa: una vez liberado, queda liberado."""
+    with _lock:
+        store = read_store()
+        current = next((b for b in store["servers"] if b["id"] == profile_id), None)
+        if current is None:
+            raise KeyError(profile_id)
+        current["released"] = True
+        write_store(store)
+        return current
+
+
+def is_released(profile_id: str) -> bool:
+    """Se lee del archivo cada vez: un servidor en marcha publica la liberación sin reiniciarse."""
+    try:
+        return get_profile(profile_id).get("released") is True
+    except KeyError:
+        return False
 
 
 def create_profile(name: str) -> dict:
@@ -386,4 +426,7 @@ def load_settings(profile_id: str | None = None, use_env: bool = True) -> Settin
         auto_update=_flag(values["auto_update"]),
         watch=_flag(values["watch"]),
         watch_quiet_ms=int(values["watch_quiet_ms"]),  # type: ignore[arg-type]
+        delete_unauthorized=_flag(values["delete_unauthorized"]),
+        always_online=_flag(values["always_online"]),
+        released=values.get("released") is True,
     )

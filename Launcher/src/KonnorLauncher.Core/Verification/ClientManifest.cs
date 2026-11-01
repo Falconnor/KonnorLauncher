@@ -21,8 +21,14 @@ public sealed record ManifestFile(string RelativePath, string UrlPath, string Sh
 /// <summary>Bloque ZIP de assets con sus archivos internos.</summary>
 public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnlyList<ManifestFile> Files);
 
-/// <summary>Manifest completo: <c>client_version</c> (opcional), <c>files</c> y <c>asset_blocks</c>.</summary>
-public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks);
+/// <summary>
+/// Manifest completo: <c>client_version</c> (opcional), <c>files</c> y <c>asset_blocks</c>.
+/// Política del servidor (opcional; null si un servidor anterior no la publica):
+/// <c>delete_unauthorized</c> (limpieza), <c>always_online</c> (sin respuesta del servidor no se juega)
+/// y <c>released</c> (instancias liberadas: el jugador puede desactivar la sincronización).
+/// </summary>
+public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks,
+    bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null);
 
 /// <summary>Resultado de una verificación.</summary>
 /// <param name="Success">true = el juego puede iniciarse.</param>

@@ -575,7 +575,7 @@ document.addEventListener("click", async (event) => {
 const form = $("configForm");
 let savedConfig = null;
 let defaults = null;
-const CONFIG_KEYS = ["name", "host", "port", "client_dir", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
+const CONFIG_KEYS = ["name", "host", "port", "client_dir", "delete_unauthorized", "always_online", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
 
 function fillForm(values) {
   const host = form.elements.host;
@@ -632,12 +632,46 @@ function renderBlockHint() {
   hint.textContent = `${n} ${n === 1 ? "bloque" : "bloques"}${size}. ${changed}`;
 }
 
+/** Estado de la liberación (no forma parte del formulario: se activa con su botón y es irreversible). */
+let isReleased = false;
+
+function renderRelease(released) {
+  isReleased = released;
+  const pill = $("releasePill");
+  pill.textContent = released ? "Liberadas" : "No liberadas";
+  pill.dataset.tone = released ? "ok" : "idle";
+  $("btnRelease").disabled = released;
+  $("btnRelease").textContent = released ? "Liberadas" : "Liberar";
+  $("releaseHint").textContent = released
+    ? "Los jugadores pueden activar o desactivar la sincronización de sus instancias. No se puede deshacer."
+    : "Las instancias creadas con este servidor quedan vinculadas: los jugadores no pueden desactivar la sincronización. Al liberarlas podrán hacerlo. No se puede deshacer.";
+}
+
+$("btnRelease").addEventListener("click", async () => {
+  const name = savedConfig?.name || selectedId;
+  const { confirmed } = await openDialog({
+    title: `Liberar las instancias de «${name}»`,
+    text: "Los jugadores podrán desactivar la sincronización de las instancias de este servidor y modificarlas libremente. Esta acción no se puede deshacer.",
+    confirmLabel: "Liberar instancias",
+    danger: true,
+  });
+  if (!confirmed) return;
+  withButton($("btnRelease"), async () => {
+    const result = await api(bk("release"), { method: "POST" });
+    renderRelease(true);
+    toast(result.where === "pendiente"
+      ? "Instancias liberadas. Se publicará en la siguiente regeneración del manifest."
+      : "Instancias liberadas y publicadas en el manifest.");
+  }).then(() => renderRelease(isReleased)); // withButton reactiva el botón: se vuelve a aplicar el estado real
+});
+
 async function loadConfig() {
   const id = selectedId;
   const config = await api(bk("config"));
   if (id !== selectedId) return;
   savedConfig = config.values;
   defaults = config.defaults;
+  renderRelease(config.values.released === true);
   $("serverIdMeta").textContent = `id: ${config.values.id}`;
   fillForm(savedConfig);
   const overrides = Object.values(config.env_overrides);

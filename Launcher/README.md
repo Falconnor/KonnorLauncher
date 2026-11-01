@@ -81,7 +81,8 @@ meta/                  ← compartido entre instancias (como en Modrinth)
   y después CmlLib descarga la versión de Minecraft, librerías, assets y el Java adecuado. Lo que
   ya está en `meta/` no se vuelve a descargar.
 - **Sincronizar con el servidor** (casilla por instancia): antes de jugar se verifican los archivos
-  con LauncherBackEnd. Una instancia sincronizada guarda sus propios `versions`, `libraries` y
+  con LauncherBackEnd. La versión, el cargador y si se borra lo que no está en el manifest los
+  decide el servidor (`delete_unauthorized` en el manifest; si un servidor antiguo no lo publica, se borra). Una instancia sincronizada guarda sus propios `versions`, `libraries` y
   `assets` dentro de su carpeta, porque la verificación borra lo que no está en el manifest y nunca
   debe tocar los archivos compartidos de las demás.
 - **Sin conexión**: si el cargador ya se instaló, la instancia se puede jugar sin internet.

@@ -179,10 +179,6 @@
                 </div>
               </div>
               <p class="hint" id="hint-host">Todas: accesible desde la red local e Internet. Solo este equipo: para pruebas.</p>
-            </fieldset>
-
-            <fieldset class="group">
-              <legend>Cliente y bloques</legend>
               <div class="field">
                 <label for="cfg-client_dir">Carpeta del cliente</label>
                 <div class="joined">
@@ -191,10 +187,31 @@
                 </div>
                 <p class="hint" id="hint-client">Absoluta o relativa a la carpeta LauncherBackEnd. Con mods, versions, libraries y assets.</p>
               </div>
-              <div class="field">
-                <label for="cfg-block_count">Bloques de assets</label>
-                <input id="cfg-block_count" name="block_count" type="number" min="1" max="256" inputmode="numeric" required aria-describedby="hint-blocks">
-                <p class="hint" id="hint-blocks">Entre 1 y 256.</p>
+            </fieldset>
+
+            <fieldset class="group">
+              <legend>Seguridad</legend>
+              <label class="switch-row">
+                <span>
+                  <span class="switch-title">Borrar archivos que no estén en el servidor</span>
+                  <span class="hint">Los launchers sincronizados borran de mods, versions, libraries y assets todo lo que no publique este servidor: nadie juega con mods añadidos por su cuenta. Los mundos y la configuración nunca se tocan.</span>
+                </span>
+                <input type="checkbox" role="switch" class="switch" name="delete_unauthorized" id="cfg-delete_unauthorized">
+              </label>
+              <label class="switch-row">
+                <span>
+                  <span class="switch-title">Siempre en línea</span>
+                  <span class="hint">El juego solo se abre si el launcher puede conectar con este servidor. Desactivado: si no responde, los jugadores juegan con los archivos que ya tienen y el servidor no hace falta encendido.</span>
+                </span>
+                <input type="checkbox" role="switch" class="switch" name="always_online" id="cfg-always_online">
+              </label>
+              <div class="release-row">
+                <div>
+                  <span class="switch-title">Liberar instancias</span>
+                  <span class="pill" id="releasePill" data-tone="idle">No liberadas</span>
+                  <span class="hint" id="releaseHint">Las instancias creadas con este servidor quedan vinculadas: los jugadores no pueden desactivar la sincronización. Al liberarlas podrán hacerlo. No se puede deshacer.</span>
+                </div>
+                <button type="button" class="btn btn-danger" id="btnRelease">Liberar</button>
               </div>
             </fieldset>
 
@@ -225,7 +242,12 @@
             </fieldset>
 
             <details class="group group-details">
-              <summary>Rutas avanzadas</summary>
+              <summary>Configuración avanzada</summary>
+              <div class="field">
+                <label for="cfg-block_count">Bloques de assets</label>
+                <input id="cfg-block_count" name="block_count" type="number" min="1" max="256" inputmode="numeric" required aria-describedby="hint-blocks">
+                <p class="hint" id="hint-blocks">Entre 1 y 256.</p>
+              </div>
               <div class="field">
                 <label for="cfg-manifest">Manifest generado</label>
                 <input id="cfg-manifest" name="manifest" spellcheck="false" required>

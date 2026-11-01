@@ -228,24 +228,27 @@
                         <!-- 5. Servidor -->
                         <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,4">
                             <StackPanel>
-                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}" AutomationProperties.Name="Sincronizar con el servidor">
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}" AutomationProperties.Name="Sincronizar con el servidor"
+                                          IsEnabled="{Binding IsSyncSwitchEnabled}">
                                     <StackPanel>
                                         <TextBlock Text="Sincronizar con el servidor" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
                                                    Text="Antes de jugar se comprueban y descargan los archivos del servidor de actualización. La instancia guarda su propia copia del juego." />
                                     </StackPanel>
                                 </CheckBox>
+                                <!-- Vinculada o liberada por el servidor -->
+                                <Border Background="#1F4FD18B" CornerRadius="10" Padding="12,9" Margin="0,14,0,0"
+                                        Visibility="{Binding SyncLockText, Converter={StaticResource TextToVisibility}}">
+                                    <DockPanel>
+                                        <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource Ok}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding SyncLockText}" FontSize="13" Foreground="{StaticResource Ink}" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                </Border>
                                 <StackPanel Margin="0,14,0,0" Visibility="{Binding SyncWithServer, Converter={StaticResource BoolToVisibility}}">
                                     <TextBlock Text="Dirección del servidor" Style="{StaticResource FieldLabel}" />
                                     <TextBox Style="{StaticResource GlassTextBox}" Tag="http://servidor:59381" AutomationProperties.Name="Dirección del servidor"
+                                             IsEnabled="{Binding IsSyncSwitchEnabled}"
                                              Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                    <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding DeleteUnauthorized}" AutomationProperties.Name="Borrar lo que no esté en el servidor">
-                                        <StackPanel>
-                                            <TextBlock Text="Borrar lo que no esté en el servidor" FontWeight="SemiBold" />
-                                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
-                                                       Text="Solo en mods, versions, libraries y assets de esta instancia. Los mundos y la configuración no se tocan." />
-                                        </StackPanel>
-                                    </CheckBox>
                                 </StackPanel>
                             </StackPanel>
                         </Border>

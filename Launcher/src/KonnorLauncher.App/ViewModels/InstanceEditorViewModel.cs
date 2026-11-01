@@ -83,7 +83,6 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     [ObservableProperty] private string _loaderListLabel = "Elige una versión";
     [ObservableProperty] private bool _syncWithServer;
     [ObservableProperty] private string _serverUrl = string.Empty;
-    [ObservableProperty] private bool _deleteUnauthorized = true;
     [ObservableProperty] private string? _error;
     [ObservableProperty] private bool _isSyncing;
     [ObservableProperty] private string _syncStatus = string.Empty;
@@ -118,6 +117,18 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     public bool IsNotSyncing => !IsSyncing;
 
+    /// <summary>Instancia vinculada a su servidor y no liberada: sincronización y dirección bloqueadas.</summary>
+    public bool IsSyncLocked => _editing?.IsSyncLocked == true;
+
+    public bool IsSyncSwitchEnabled => !IsSyncing && !IsSyncLocked;
+
+    /// <summary>Explica el bloqueo, o que el servidor ya liberó la instancia.</summary>
+    public string? SyncLockText => IsSyncLocked
+        ? "Instancia vinculada a su servidor: sigue sus instrucciones de seguridad. La sincronización solo se puede desactivar si el servidor la libera."
+        : _editing is { ServerReleased: true }
+            ? "El servidor liberó esta instancia: puedes activar o desactivar la sincronización."
+            : null;
+
     public string MinecraftVersionLabel => SyncWithServer
         ? (string.IsNullOrWhiteSpace(MinecraftVersion) || IsNew ? "La decide el servidor" : $"{ServerVersionText(MinecraftVersion)}  ·  del servidor")
         : string.IsNullOrWhiteSpace(MinecraftVersion) ? "Elige una versión de Minecraft" : $"Minecraft {MinecraftVersion}";
@@ -150,7 +161,6 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         CustomMemory = false;
         MemoryMb = ClampMemory(_settings.MemoryMb);
         ServerUrl = _settings.ServerUrl; // la del launcher.properties de la comunidad, lista para marcar la casilla
-        DeleteUnauthorized = true;
         OpenCommon();
     }
 
@@ -170,12 +180,51 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Channel = instance.LoaderChannel;
         SpecificLoaderVersion = instance.LoaderChannel == LoaderChannel.Specific ? instance.LoaderVersion : null;
         ServerUrl = instance.ServerUrl;
-        DeleteUnauthorized = instance.DeleteUnauthorized;
         OpenCommon();
+        if (instance.IsSyncLocked)
+            _ = RefreshServerPolicyAsync(instance.Id);
+    }
+
+    /// <summary>
+    /// Instancia vinculada: pregunta al servidor si ya la liberó. Si es así, se guarda y el
+    /// interruptor de sincronización se desbloquea en el acto.
+    /// </summary>
+    private async Task RefreshServerPolicyAsync(string id)
+    {
+        var probe = _editing?.Clone();
+        if (probe is null || !await _sync.RefreshPolicyAsync(probe) || _editing?.Id != id || !IsOpen)
+            return;
+        if (probe.ServerReleased && !_editing.ServerReleased)
+        {
+            _editing.ServerReleased = true;
+            _editing.ServerAlwaysOnline = probe.ServerAlwaysOnline;
+            try
+            {
+                // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
+                var stored = _store.LoadAll().FirstOrDefault(i => i.Id == id);
+                if (stored is not null)
+                {
+                    stored.ServerReleased = true;
+                    stored.ServerAlwaysOnline = probe.ServerAlwaysOnline;
+                    _store.Save(stored);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                _logger.LogWarning(ex, "No se pudo guardar la liberación de {Id}", id);
+            }
+
+            OnPropertyChanged(nameof(IsSyncLocked));
+            OnPropertyChanged(nameof(IsSyncSwitchEnabled));
+            OnPropertyChanged(nameof(SyncLockText));
+        }
     }
 
     private void OpenCommon()
     {
+        OnPropertyChanged(nameof(IsSyncLocked));
+        OnPropertyChanged(nameof(IsSyncSwitchEnabled));
+        OnPropertyChanged(nameof(SyncLockText));
         Error = null;
         IsSyncing = false;
         SyncStatus = string.Empty;
@@ -495,6 +544,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     partial void OnIsSyncingChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsSyncSwitchEnabled));
         OnPropertyChanged(nameof(IsSelectionUnlocked));
         OnPropertyChanged(nameof(IsNotSyncing));
     }
@@ -549,6 +599,13 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
             }
         }
 
+        // Defensa: una instancia vinculada no puede dejar de sincronizar ni cambiar de servidor.
+        if (_editing is { IsSyncLocked: true } locked && (!SyncWithServer || locked.ServerUrl != url))
+        {
+            Error = "Esta instancia está vinculada a su servidor: solo el servidor puede liberarla.";
+            return;
+        }
+
         var instance = _editing ?? new GameInstance();
         // Hay que descargar del servidor al crear, al activar la sincronización o al cambiar de servidor.
         var needsSync = SyncWithServer && (IsNew || !instance.SyncWithServer || instance.ServerUrl != url
@@ -560,7 +617,6 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         instance.MemoryMb = CustomMemory ? (int)ClampMemory(MemoryMb) : null;
         instance.SyncWithServer = SyncWithServer;
         instance.ServerUrl = url;
-        instance.DeleteUnauthorized = DeleteUnauthorized;
         if (SyncWithServer)
         {
             // La versión la decide el servidor (se detecta al sincronizar); el id ya incluye el cargador.

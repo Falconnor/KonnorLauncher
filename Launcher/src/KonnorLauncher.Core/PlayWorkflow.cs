@@ -83,10 +83,17 @@ public sealed class PlayWorkflow
             {
                 var result = await _sync.SyncAsync(instance, _instances.InstancesDir, progress, ct).ConfigureAwait(false);
                 if (!result.Success)
-                    return PlayResult.Fail(result.Message == InstanceSync.NoVersionText ? result.Message : VerifyFailedText);
-
+                {
+                    // "Siempre en línea" desactivado en el servidor: si no responde, se juega con lo que hay.
+                    var canPlayOffline = result.ServerUnreachable && !instance.ServerAlwaysOnline
+                                         && !string.IsNullOrWhiteSpace(instance.MinecraftVersion);
+                    if (!canPlayOffline)
+                        return PlayResult.Fail(result.Message == InstanceSync.NoVersionText ? result.Message : VerifyFailedText);
+                    _logger.LogWarning("El servidor no responde y no exige conexión: se juega con los archivos actuales");
+                    progress?.Report(new LauncherProgress(LauncherPhase.Verifying, "El servidor no responde: se juega con los archivos actuales"));
+                }
                 // Si el servidor cambió de versión, la instancia la adopta.
-                if (result.VersionId != instance.MinecraftVersion || instance.Loader != ModLoader.Vanilla)
+                else if (result.VersionId != instance.MinecraftVersion || instance.Loader != ModLoader.Vanilla)
                 {
                     _logger.LogInformation("La versión del servidor cambió: {Old} → {New}", instance.Summary, result.VersionId);
                     instance.MinecraftVersion = result.VersionId!;

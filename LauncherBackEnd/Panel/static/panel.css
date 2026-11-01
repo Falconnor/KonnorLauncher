@@ -424,6 +424,9 @@ body.sidebar-collapsed .server-add { display: grid; }
 .group-details { gap: 0; }
 .group-details[open] { gap: 16px; }
 .group-details summary { font-weight: 650; cursor: pointer; list-style-position: inside; }
+/* <details> no reparte el espacio como el resto de grupos: separación explícita entre campos. */
+.group-details[open] > summary { margin-bottom: 14px; }
+.group-details > .field + .field { margin-top: 16px; }
 .group-details summary::marker { color: var(--ink-3); }
 .group legend { float: left; width: 100%; padding: 0; margin-bottom: 2px; font-weight: 650; font-size: 15px; }
 .group legend + * { clear: both; }
@@ -483,6 +486,13 @@ input[type="number"] { font-variant-numeric: tabular-nums; }
 .switch:checked::after { transform: translateX(18px); }
 
 .env-note { font-size: 13px; color: var(--warn); }
+
+/* Seguridad: liberar instancias */
+.release-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.release-row .switch-title { display: inline-block; margin-right: 8px; }
+.release-row .pill { vertical-align: middle; }
+.release-row .hint { margin-top: 6px; }
+.release-row .btn { flex: none; }
 
 .danger {
   display: flex;

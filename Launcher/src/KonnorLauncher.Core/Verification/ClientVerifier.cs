@@ -26,7 +26,10 @@ public sealed record VerifierOptions
     /// <summary><c>enable.verify</c>: si es false la verificación termina con éxito sin red.</summary>
     public bool EnableVerify { get; init; }
 
-    /// <summary><c>delete_unauthorized</c>: limpieza de archivos no listados.</summary>
+    /// <summary>
+    /// Limpieza de archivos no listados si el manifest no dice nada. Si el servidor publica
+    /// <c>delete_unauthorized</c>, manda el servidor.
+    /// </summary>
     public bool DeleteUnauthorized { get; init; }
 
     /// <summary>Modo simulación (<c>--dry-run</c>): no descarga, no reemplaza, no borra.</summary>
@@ -97,6 +100,9 @@ public sealed partial class ClientVerifier
     /// <summary>Se invoca con <c>client_version</c> cuando el manifest la trae (para <c>cached.client.version</c>).</summary>
     public Action<string>? ClientVersionReceived { get; set; }
 
+    /// <summary>Se invoca con el manifest ya validado (la instancia guarda la política del servidor).</summary>
+    public Action<ClientManifest>? ManifestReceived { get; set; }
+
     // ══════════════════════════════════════════════════════════════════════
     // FLUJO PRINCIPAL
     // ══════════════════════════════════════════════════════════════════════
@@ -136,6 +142,7 @@ public sealed partial class ClientVerifier
             var manifest = await DownloadManifestAsync($"{baseUrl}/client_manifest.json", ct).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(manifest.ClientVersion))
                 ClientVersionReceived?.Invoke(manifest.ClientVersion!);
+            ManifestReceived?.Invoke(manifest);
 
             // 4-5. Qué hay que reparar (existencia + tamaño; el hash solo valida lo descargado).
             var repairBlocks = FindBlocksToRepair(gameDir, manifest.AssetBlocks);
@@ -169,9 +176,10 @@ public sealed partial class ClientVerifier
             // 9. Fase 2: archivos sueltos con paralelismo limitado.
             await RepairFilesAsync(baseUrl, gameDir, downloadsDir, repairFiles, tracker, options.MaxParallelDownloads, ct).ConfigureAwait(false);
 
-            // 10. Limpieza (solo si todo lo anterior tuvo éxito).
+            // 10. Limpieza (solo si todo lo anterior tuvo éxito). La decide el servidor si la publica.
             var removed = 0;
-            if (options.DeleteUnauthorized)
+            var deleteUnauthorized = manifest.DeleteUnauthorized ?? options.DeleteUnauthorized;
+            if (deleteUnauthorized)
             {
                 if (options.SkipCleanupInOfficialDir && LauncherPaths.IsOfficialMinecraftDir(gameDir))
                 {

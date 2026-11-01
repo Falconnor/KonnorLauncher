@@ -4,6 +4,9 @@ Formato (el que espera Konnor Launcher)::
 
     {
       "client_version": "1.0.1",                          ← de Services/client_version.txt
+      "delete_unauthorized": true,                        ← Seguridad: borrar lo que no esté aquí
+      "always_online": true,                              ← Seguridad: sin servidor no se juega
+      "released": false,                                  ← Seguridad: instancias liberadas
       "files": { "mods/x.jar": {"sha256": ..., "size": ...}, ... },
       "asset_blocks": { "assets_block_0-<hash>.zip": {"sha256", "size", "files": {...}}, ... }
     }
@@ -34,7 +37,7 @@ from pathlib import Path
 
 from Services.generate_asset_blocks import build_blocks, clean_old_blocks
 from Services.hash_cache import HashCache
-from Services.settings import Settings, load_settings
+from Services.settings import Settings, is_released, load_settings
 
 
 # Carpetas de primer nivel del cliente que no van en "files".
@@ -157,6 +160,10 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     # 3. Manifest final (solo se escribe si cambió).
     version = read_client_version(settings)
     manifest: dict = {"client_version": version} if version else {}
+    # Los launchers sincronizados aplican esta decisión (los antiguos ignoran el campo).
+    manifest["delete_unauthorized"] = settings.delete_unauthorized
+    manifest["always_online"] = settings.always_online
+    manifest["released"] = is_released(settings.profile_id)  # al día aunque el servidor no se reinicie
     manifest |= {"files": files, "asset_blocks": asset_blocks}
 
     changed = load_manifest(output) != manifest

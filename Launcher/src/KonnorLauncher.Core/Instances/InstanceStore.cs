@@ -148,7 +148,6 @@ public sealed partial class InstanceStore
             Loader = ModLoader.Vanilla, // la versión antigua ya era el id completo (p. ej. con Forge)
             SyncWithServer = settings.EnableVerify,
             ServerUrl = settings.ServerUrl.Trim(),
-            DeleteUnauthorized = settings.DeleteUnauthorized,
             ServerClientVersion = string.IsNullOrWhiteSpace(settings.CachedClientVersion) ? null : settings.CachedClientVersion,
         });
         _logger.LogInformation("Configuración antigua migrada a la instancia {Id}", instance.Id);

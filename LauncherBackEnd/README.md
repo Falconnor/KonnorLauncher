@@ -137,6 +137,8 @@ principal.
 | `KONNOR_AUTO_UPDATE` | `1` | Actualizar el manifest al arrancar |
 | `KONNOR_WATCH` | `1` | Vigilar la carpeta del cliente |
 | `KONNOR_WATCH_QUIET_MS` | `3000` | Milisegundos sin cambios antes de regenerar |
+| `KONNOR_DELETE_UNAUTHORIZED` | `1` | Los launchers sincronizados borran lo que no esté en el manifest (se publica en él) |
+| `KONNOR_ALWAYS_ONLINE` | `1` | Sin respuesta del servidor, el launcher no abre el juego (se publica en el manifest) |
 | `KONNOR_PANEL_PORT` | `59380` | Puerto del panel de control (solo 127.0.0.1) |
 
 Ejemplo para producción con otra carpeta: `set KONNOR_CLIENT_DIR=D:\KonnorClient` antes de
@@ -154,10 +156,22 @@ bloques: 00-0f → bloque 0, 10-1f → bloque 1...
 - Cambiar el número rehace los bloques en la siguiente generación. Los jugadores que ya tienen los
   assets no los vuelven a descargar: el launcher compara los archivos, no los ZIP.
 
+## Seguridad
+
+- **Borrar archivos que no estén en el servidor**: los launchers sincronizados borran de `mods`,
+  `versions`, `libraries` y `assets` lo que no publique el servidor.
+- **Siempre en línea**: el juego solo se abre si el launcher conecta con el servidor. Desactivado,
+  si el servidor no responde se juega con los archivos que ya hay, así que no hace falta tenerlo
+  encendido para mundos que no lo necesitan.
+- **Liberar instancias**: las instancias creadas con un servidor quedan vinculadas a él (el jugador
+  no puede desactivar la sincronización). Al liberarlas, el manifest publica `"released": true` y
+  los launchers dejan cambiarlo. Es irreversible: no hay forma de volver a vincularlas.
+
 ## Notas
 
-- Con `delete_unauthorized=true` en el launcher, todo lo que haya en `mods/`, `versions/`,
-  `libraries/` y `assets/` del jugador y no esté en el manifest se borra. Por eso la carpeta del
+- Con **Seguridad → Borrar archivos que no estén en el servidor** activado (el manifest lleva
+  `"delete_unauthorized": true`), los launchers sincronizados borran todo lo que haya en `mods/`,
+  `versions/`, `libraries/` y `assets/` y no esté en el manifest. La decisión es del servidor. Por eso la carpeta del
   cliente debe contener el cliente completo, incluidas las librerías y la versión base del juego.
 - Los bloques llevan su hash en el nombre (`assets_block_3-1a2b3c4d5e6f.zip`) y no se sobrescriben
   nunca. Se conservan los del manifest actual y los del anterior, para que quien esté descargando

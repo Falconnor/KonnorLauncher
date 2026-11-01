@@ -48,8 +48,15 @@ public static partial class ManifestParser
 
         var files = ParseFiles(filesElement, blockName: null);
         var blocks = ParseAssetBlocks(root);
-        return new ClientManifest(clientVersion, files, blocks);
+        // Política del servidor (solo cuenta un booleano; si falta, null).
+        return new ClientManifest(clientVersion, files, blocks,
+            ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"));
     }
+
+    private static bool? ReadFlag(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var element) && element.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? element.GetBoolean()
+            : null;
 
     /// <summary>
     /// Sección opcional <c>asset_blocks</c>: si falta, está vacía o no es un objeto → lista vacía

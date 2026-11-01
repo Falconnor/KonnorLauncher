@@ -90,9 +90,11 @@ public sealed class VerificationTests : IAsyncLifetime
         _server.Map("/client/packages/" + name, bytes);
     }
 
-    private void PublishManifest(bool includeBlocks = true)
+    private void PublishManifest(bool includeBlocks = true, bool? deleteUnauthorized = null)
     {
         var manifest = new Dictionary<string, object> { ["client_version"] = "1.2.3", ["files"] = _files };
+        if (deleteUnauthorized is { } delete)
+            manifest["delete_unauthorized"] = delete;
         if (includeBlocks)
             manifest["asset_blocks"] = _blocks;
         _server.Map("/client_manifest.json", JsonSerializer.Serialize(manifest));
@@ -271,6 +273,31 @@ public sealed class VerificationTests : IAsyncLifetime
         await CreateVerifier().VerifyAsync(Options(deleteUnauthorized: false), null, TestContext.Current.CancellationToken);
 
         File.Exists(GameFile("mods/intruso.jar")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Case07c_server_decision_overrides_the_launcher()
+    {
+        // El servidor pide limpiar aunque el launcher no lo tenga activado.
+        AddFile("mods/a.jar", "AAAA");
+        PublishManifest(deleteUnauthorized: true);
+        _game.Write("mods/intruso.jar", "x");
+
+        await CreateVerifier().VerifyAsync(Options(deleteUnauthorized: false), null, TestContext.Current.CancellationToken);
+
+        File.Exists(GameFile("mods/intruso.jar")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Case07d_server_can_disable_the_cleanup()
+    {
+        AddFile("mods/a.jar", "AAAA");
+        PublishManifest(deleteUnauthorized: false);
+        _game.Write("mods/propio.jar", "x");
+
+        await CreateVerifier().VerifyAsync(Options(deleteUnauthorized: true), null, TestContext.Current.CancellationToken);
+
+        File.Exists(GameFile("mods/propio.jar")).ShouldBeTrue();
     }
 
     [Fact]

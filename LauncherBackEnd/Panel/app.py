@@ -17,6 +17,7 @@ Un servidor (``/api/servers/{id}/...``):
 - ``PUT  client-version``            versión que anuncia el manifest
 - ``POST manifest/regenerate``       regenera (en su servidor si está en marcha; si no, aquí)
 - ``POST open``                      abre la carpeta del cliente en el Explorador
+- ``POST release``                   libera las instancias (irreversible) y regenera el manifest
 - ``GET  files``                     archivos en disco y si se borrarían al eliminarlo
 """
 
@@ -43,7 +44,7 @@ from pydantic import BaseModel
 from Panel.supervisor import LogBuffer, PanelError, ServerProcess
 from Services.generate_manifest import generate_manifest, read_client_version
 from Services.profile_files import create_client_dir, delete_files, describe_files
-from Services.settings import (BASE_DIR, MAX_BLOCKS, PROFILES_DIR, Settings, create_profile,
+from Services.settings import (release_profile, BASE_DIR, MAX_BLOCKS, PROFILES_DIR, Settings, create_profile,
                                delete_profile, env_overrides, get_profile, list_profiles,
                                load_settings, profile_defaults, raw_config, resolve_path,
                                select_profile, update_profile)
@@ -466,6 +467,19 @@ async def regenerate(profile_id: str, body: RegenerateBody):
     rt.local.update(running=True, result=None)
     threading.Thread(target=_run_local_generation, args=(rt, body.force_blocks), daemon=True).start()
     return {"where": "panel"}
+
+
+@app.post("/api/servers/{profile_id}/release")
+async def release(profile_id: str):
+    """Libera las instancias de este servidor (no se puede deshacer) y publica el cambio."""
+    rt = runtime(profile_id)
+    await asyncio.to_thread(release_profile, profile_id)
+    rt.logs.add("Instancias liberadas: los launchers podrán desactivar la sincronización", source="panel", level="warn")
+    try:
+        where = (await regenerate(profile_id, RegenerateBody()))["where"]
+    except HTTPException:
+        where = "pendiente"  # se publicará en la siguiente regeneración
+    return {"released": True, "where": where}
 
 
 @app.post("/api/servers/{profile_id}/open")

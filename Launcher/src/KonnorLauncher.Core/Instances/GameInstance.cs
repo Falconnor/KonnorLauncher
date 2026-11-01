@@ -65,8 +65,24 @@ public sealed partial class GameInstance
 
     public string ServerUrl { get; set; } = string.Empty;
 
-    /// <summary>Borrar de mods, versions, libraries y assets lo que no esté en el manifest.</summary>
-    public bool DeleteUnauthorized { get; set; } = true;
+    /// <summary>
+    /// La instancia se creó o sincronizó con éxito con su servidor: queda vinculada y el jugador no
+    /// puede desactivar la sincronización ni cambiar de servidor hasta que el servidor la libere.
+    /// </summary>
+    public bool SyncLocked { get; set; }
+
+    /// <summary>El servidor liberó sus instancias (<c>released</c>). Irreversible, también aquí.</summary>
+    public bool ServerReleased { get; set; }
+
+    /// <summary>
+    /// Última política <c>always_online</c> del servidor. Se recuerda porque, justo cuando el servidor
+    /// no responde, no hay manifest que leer. true = sin respuesta no se juega.
+    /// </summary>
+    public bool ServerAlwaysOnline { get; set; } = true;
+
+    /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
+    [JsonIgnore]
+    public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;
 
     /// <summary>Última <c>client_version</c> que anunció el servidor.</summary>
     public string? ServerClientVersion { get; set; }

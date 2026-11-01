@@ -55,7 +55,6 @@ public sealed class InstancesTests
             LoaderVersion = "0.16.10",
             SyncWithServer = true,
             ServerUrl = "http://127.0.0.1:59381",
-            DeleteUnauthorized = false,
         });
         created.LastPlayed = DateTimeOffset.Now;
         created.InstalledVersionId = "fabric-loader-0.16.10-1.21.1";
@@ -67,7 +66,6 @@ public sealed class InstancesTests
         loaded.LoaderChannel.ShouldBe(LoaderChannel.Specific);
         loaded.LoaderVersion.ShouldBe("0.16.10");
         loaded.SyncWithServer.ShouldBeTrue();
-        loaded.DeleteUnauthorized.ShouldBeFalse();
         loaded.InstalledVersionId.ShouldBe("fabric-loader-0.16.10-1.21.1");
         loaded.Summary.ShouldBe("1.21.1 · Fabric 0.16.10");
         File.ReadAllText(Path.Combine(dir.Path, created.Id, InstanceStore.FileName)).ShouldContain("\"loader\": \"Fabric\"");

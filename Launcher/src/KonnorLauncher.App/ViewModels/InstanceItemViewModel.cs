@@ -52,7 +52,8 @@ public sealed partial class InstanceItemViewModel : ObservableObject
             ? $"{GameInstance.LoaderDisplayName(loader)} {loaderVersion}".Trim()
             : "Vanilla";
         IsSynced = model.SyncWithServer;
-        SyncText = model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor";
+        SyncText = (model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor")
+                   + (model.ServerReleased ? " · liberada" : string.Empty);
         LastPlayedText = FormatLastPlayed(model.LastPlayed);
         MemoryText = model.MemoryMb is { } mb ? $"{InstanceEditorViewModel.FormatMemory(mb)} de RAM" : string.Empty;
         ModCount = Count("mods", "*.jar", files: true);
