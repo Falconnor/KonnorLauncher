@@ -267,7 +267,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Eliminar instancia" FontWeight="SemiBold" />
                                     <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
-                                               Text="Borra su carpeta con los mods, la configuración y los mundos. Pide confirmación." />
+                                               Text="Borra su carpeta con los mods, la configuración y los mundos." />
                                 </StackPanel>
                             </DockPanel>
                         </Border>

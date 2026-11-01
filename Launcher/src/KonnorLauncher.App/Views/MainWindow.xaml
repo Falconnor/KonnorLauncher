@@ -316,7 +316,7 @@
                                         <Setter Property="Text" Value="{Binding ActionText}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ActionText}" Value="">
-                                                <Setter Property="Text" Value="{Binding SelectedInstance.Name, StringFormat=Listo para jugar a {0}}" />
+                                                <Setter Property="Text" Value="{Binding SelectedInstance.ReadyText}" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

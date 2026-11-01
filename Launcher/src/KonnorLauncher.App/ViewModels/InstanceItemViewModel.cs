@@ -29,6 +29,7 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     [ObservableProperty] private bool _isModded;
     [ObservableProperty] private bool _isSynced;
     [ObservableProperty] private string _syncText = string.Empty;
+    [ObservableProperty] private string _readyText = string.Empty;
     [ObservableProperty] private string _lastPlayedText = string.Empty;
     [ObservableProperty] private string _memoryText = string.Empty;
     [ObservableProperty] private int _modCount;
@@ -54,6 +55,8 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         IsSynced = model.SyncWithServer;
         SyncText = (model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor")
                    + (model.ServerReleased ? " · liberada" : string.Empty);
+        // Una instancia enlazada aún debe pasar la verificación del servidor antes de estar lista.
+        ReadyText = IsSynced ? $"Jugar a {model.Name}" : $"Listo para jugar a {model.Name}";
         LastPlayedText = FormatLastPlayed(model.LastPlayed);
         MemoryText = model.MemoryMb is { } mb ? $"{InstanceEditorViewModel.FormatMemory(mb)} de RAM" : string.Empty;
         ModCount = Count("mods", "*.jar", files: true);

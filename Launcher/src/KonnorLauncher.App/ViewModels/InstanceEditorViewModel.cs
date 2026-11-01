@@ -134,11 +134,9 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         {
             if (_editing is null || !_editing.SyncWithServer || !(_editing.SyncLocked || _editing.ServerReleased))
                 return null;
-            var sync = IsSyncLocked
-                ? "Instancia vinculada a su servidor: sigue sus instrucciones de seguridad. La sincronización solo se puede desactivar si el servidor la libera."
+            return IsSyncLocked
+                ? "Instancia vinculada a su servidor: sigue sus instrucciones de seguridad."
                 : "El servidor liberó esta instancia: puedes activar o desactivar la sincronización.";
-            var url = IsUrlLocked ? " El servidor no permite cambiar su dirección." : " El servidor permite cambiar su dirección.";
-            return sync + url;
         }
     }
 

@@ -679,6 +679,33 @@ async function loadConfig() {
   $("envNote").textContent = `Variables de entorno activas (${overrides.join(", ")}): tienen prioridad al usar los .bat; los servidores que arranca este panel usan los valores de aquí.`;
 }
 
+/** Los switches de Seguridad se guardan al moverlos, sin tocar el resto de cambios pendientes del formulario. */
+const AUTOSAVE_KEYS = ["delete_unauthorized", "always_online", "lock_server_url"];
+
+for (const key of AUTOSAVE_KEYS) {
+  const field = form.elements[key];
+  field.addEventListener("change", async () => {
+    if (!savedConfig) return;
+    const id = selectedId;
+    const checked = field.checked;
+    const values = { ...Object.fromEntries(CONFIG_KEYS.map((k) => [k, savedConfig[k]])), [key]: checked };
+    field.disabled = true;
+    try {
+      const result = await api(bk("config"), { method: "PUT", body: { values } });
+      if (id !== selectedId) return;
+      savedConfig = result.values;
+      toast("Guardado.");
+      refreshState(); // muestra el aviso de reinicio si hace falta
+    } catch (error) {
+      field.checked = !checked;
+      toast(error.message, "error");
+    } finally {
+      field.disabled = false;
+      updateDirty();
+    }
+  });
+}
+
 form.addEventListener("input", () => { updateDirty(); renderBlockHint(); });
 form.addEventListener("change", updateDirty);
 $("btnDiscard").addEventListener("click", () => fillForm(savedConfig));
