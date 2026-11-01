@@ -60,6 +60,7 @@ public sealed class InstanceSync
             {
                 instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
                 instance.ServerLocksUrl = m.LockServerUrl ?? true;
+                ApplyPacksPolicy(instance, m);
                 if (m.Released == true)
                     instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
             },
@@ -72,6 +73,7 @@ public sealed class InstanceSync
             // Lo decide el servidor (delete_unauthorized en el manifest). Si un servidor antiguo no
             // lo publica, se limpia: una instancia sincronizada debe tener exactamente su contenido.
             DeleteUnauthorized = true,
+            InstallPacks = instance.InstallPacks,
         }, progress, ct).ConfigureAwait(false);
 
         if (!result.Success)
@@ -103,6 +105,7 @@ public sealed class InstanceSync
             var manifest = ManifestParser.Parse(json);
             instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
             instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
+            ApplyPacksPolicy(instance, manifest);
             if (manifest.Released == true)
                 instance.ServerReleased = true;
             return true;
@@ -112,6 +115,17 @@ public sealed class InstanceSync
             _logger.LogInformation("No se pudo consultar la política del servidor de {Id}: {Message}", instance.Id, ex.Message);
             return false;
         }
+    }
+
+    /// <summary>
+    /// <c>protect_packs</c>: si el servidor obliga a instalar sus packs, la casilla queda marcada (y
+    /// sigue marcada si después deja de obligar; el jugador puede desmarcarla entonces).
+    /// </summary>
+    private static void ApplyPacksPolicy(GameInstance instance, ClientManifest manifest)
+    {
+        instance.ServerProtectsPacks = manifest.ProtectPacks == true;
+        if (instance.ServerProtectsPacks)
+            instance.InstallPacks = true;
     }
 
     /// <summary>

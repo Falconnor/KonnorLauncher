@@ -375,6 +375,12 @@ function renderAlerts(s, generation) {
     alerts.push({ tone: "error", text: `No existe la carpeta del cliente: ${s.client.dir}`, action: "Cambiar carpeta", run: () => focusField("cfg-client_dir") });
   if (generation.last && !generation.last.ok)
     alerts.push({ tone: "error", text: `La última generación del manifest falló: ${generation.last.error}`, action: "Ver errores", run: showErrors });
+  for (const source of s.client.sources) {
+    if (source.problem)
+      alerts.push({ tone: "error", text: `El origen de ${source.folder} ${source.problem}: ${source.path}`, action: "Cambiar carpeta", run: () => focusField(`cfg-source_${source.folder}`) });
+    else if (!source.exists)
+      alerts.push({ tone: "warn", text: `No existe el origen de ${source.folder}: ${source.path}. Se publica lo que ya hay en la carpeta del cliente.`, action: "Cambiar carpeta", run: () => focusField(`cfg-source_${source.folder}`) });
+  }
   if (s.server.restart_required)
     alerts.push({ tone: "warn", text: "La configuración cambió después de arrancar el servidor.", action: "Reiniciar ahora", run: (b) => restart(b) });
   if (!m.exists && !generation.busy && s.client.exists)
@@ -416,6 +422,7 @@ function showErrors() {
 }
 
 function focusField(id) {
+  $(id).closest("details")?.setAttribute("open", "");
   $(id).scrollIntoView({ behavior: "smooth", block: "center" });
   $(id).focus({ preventScroll: true });
 }
@@ -473,7 +480,12 @@ function renderManifest(s) {
   result.classList.toggle("error", !!last && !last.ok);
   if (!last) result.textContent = "";
   else if (!last.ok) result.textContent = `Última generación fallida: ${last.error}`;
-  else result.textContent = `Última generación ${ago(lastTime, s.now)}: ${last.changed ? "con cambios" : "sin cambios"}, ${number.format(last.files)} archivos y ${number.format(last.blocks)} bloques en ${last.seconds.toLocaleString("es-ES", { maximumFractionDigits: 1 })} s.`;
+  else {
+    const copied = last.copied || last.deleted
+      ? ` Desde las carpetas de origen: ${number.format(last.copied || 0)} copiados y ${number.format(last.deleted || 0)} borrados.`
+      : "";
+    result.textContent = `Última generación ${ago(lastTime, s.now)}: ${last.changed ? "con cambios" : "sin cambios"}, ${number.format(last.files)} archivos y ${number.format(last.blocks)} bloques en ${last.seconds.toLocaleString("es-ES", { maximumFractionDigits: 1 })} s.${copied}`;
+  }
 
   const busy = tone === "busy" || ["starting", "stopping"].includes(s.server.status);
   $("btnRegen").disabled = busy;
@@ -563,7 +575,10 @@ document.addEventListener("click", async (event) => {
 const form = $("configForm");
 let savedConfig = null;
 let defaults = null;
-const CONFIG_KEYS = ["name", "host", "port", "client_dir", "delete_unauthorized", "always_online", "lock_server_url", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
+// El manifest, el archivo de versión y la caché no se editan aquí (siguen en servidores.json y
+// sus variables de entorno): al guardar, el servidor conserva los valores que ya tenían.
+const SOURCE_KEYS = ["source_mods"];
+const CONFIG_KEYS = ["name", "host", "port", "client_dir", "delete_unauthorized", "always_online", "lock_server_url", "protect_packs", "block_count", "auto_update", "watch", "watch_quiet_ms", ...SOURCE_KEYS];
 
 function fillForm(values) {
   const host = form.elements.host;
@@ -576,7 +591,7 @@ function fillForm(values) {
   for (const key of CONFIG_KEYS) {
     const field = form.elements[key];
     if (field.type === "checkbox") field.checked = !!values[key];
-    else field.value = values[key];
+    else field.value = values[key] ?? "";
     field.removeAttribute("aria-invalid");
   }
   updateDirty();
@@ -668,7 +683,7 @@ async function loadConfig() {
 }
 
 /** Los switches de Seguridad se guardan al moverlos, sin tocar el resto de cambios pendientes del formulario. */
-const AUTOSAVE_KEYS = ["delete_unauthorized", "always_online", "lock_server_url"];
+const AUTOSAVE_KEYS = ["delete_unauthorized", "always_online", "lock_server_url", "protect_packs"];
 
 for (const key of AUTOSAVE_KEYS) {
   const field = form.elements[key];
@@ -728,6 +743,18 @@ form.addEventListener("submit", (event) => {
 
 $("btnOpenClient").addEventListener("click", () =>
   withButton($("btnOpenClient"), () => api(bk("open"), { method: "POST" })));
+
+// Examinar: el diálogo de Windows lo abre el panel (el navegador no puede dar la ruta de una carpeta).
+for (const button of form.querySelectorAll("[data-browse]")) {
+  button.addEventListener("click", () => withButton(button, async () => {
+    const field = form.elements[button.dataset.browse];
+    const label = form.querySelector(`label[for="${field.id}"]`).textContent;
+    const result = await api("/api/browse-folder", { method: "POST", body: { initial: field.value.trim(), title: label } });
+    if (!result.path) return;
+    field.value = result.path;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }));
+}
 
 // ── Registro ─────────────────────────────────────────────────────────────
 
@@ -801,7 +828,7 @@ $("btnClearLog").addEventListener("click", () =>
 
 // ── Arranque ─────────────────────────────────────────────────────────────
 
-const API_VERSION = 3;
+const API_VERSION = 4;
 
 /**
  * La interfaz se lee del disco, pero la API es la del panel que está en marcha. Si ese panel es

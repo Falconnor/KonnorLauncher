@@ -86,6 +86,18 @@ public sealed partial class GameInstance
     /// </summary>
     public bool ServerLocksUrl { get; set; } = true;
 
+    /// <summary>
+    /// "Instalar paquetes de recursos": el jugador quiere los resourcepacks y shaderpacks del servidor.
+    /// Si el servidor no los protege, solo se instalan los que no tenga ya con el mismo nombre.
+    /// </summary>
+    public bool InstallPacks { get; set; }
+
+    /// <summary>
+    /// Última política <c>protect_packs</c> del servidor (reversible): true = los packs se instalan
+    /// siempre y se protegen como el resto; el jugador no puede desmarcar la casilla.
+    /// </summary>
+    public bool ServerProtectsPacks { get; set; }
+
     /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
     [JsonIgnore]
     public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;
@@ -93,6 +105,10 @@ public sealed partial class GameInstance
     /// <summary>Ya se sincronizó con su servidor y este no deja cambiar la dirección.</summary>
     [JsonIgnore]
     public bool IsUrlLocked => SyncWithServer && ServerLocksUrl && (SyncLocked || ServerReleased);
+
+    /// <summary>El servidor obliga a instalar sus packs: la casilla queda marcada y bloqueada.</summary>
+    [JsonIgnore]
+    public bool IsPacksLocked => SyncWithServer && ServerProtectsPacks;
 
     /// <summary>Última <c>client_version</c> que anunció el servidor.</summary>
     public string? ServerClientVersion { get; set; }

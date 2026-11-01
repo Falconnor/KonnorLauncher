@@ -249,6 +249,13 @@
                                     <TextBox Style="{StaticResource GlassTextBox}" Tag="http://servidor:59381" AutomationProperties.Name="Dirección del servidor"
                                              IsEnabled="{Binding IsUrlEditable}"
                                              Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,16,0,0" IsChecked="{Binding InstallPacks}"
+                                              IsEnabled="{Binding IsPacksSwitchEnabled}" AutomationProperties.Name="Instalar paquetes de recursos">
+                                        <StackPanel>
+                                            <TextBlock Text="Instalar paquetes de recursos" FontWeight="SemiBold" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding PacksHint}" />
+                                        </StackPanel>
+                                    </CheckBox>
                                 </StackPanel>
                             </StackPanel>
                         </Border>

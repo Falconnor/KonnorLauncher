@@ -34,6 +34,10 @@ Las rutas relativas se resuelven respecto a la carpeta LauncherBackEnd.
 | ``delete_unauthorized`` | ``KONNOR_DELETE_UNAUTHORIZED`` | ``true``                   | Los launchers borran lo que no esté en el manifest |
 | ``always_online``  | ``KONNOR_ALWAYS_ONLINE``       | ``true``                        | Sin respuesta del servidor, el launcher no abre el juego |
 | ``lock_server_url`` | ``KONNOR_LOCK_SERVER_URL``    | ``true``                        | Los jugadores no pueden cambiar la dirección del servidor |
+| ``protect_packs``  | ``KONNOR_PROTECT_PACKS``       | ``false``                       | Los packs se instalan siempre y se protegen como el resto |
+| ``source_mods``    | ``KONNOR_SOURCE_MODS``         | (vacía)                         | Carpeta de la que se copia ``mods`` (ver ``client_sources``) |
+
+Sin carpeta de origen no se copia nada: se publica lo que haya en la carpeta del cliente.
 
 Además, ``released`` (no configurable): el servidor liberó sus instancias y los jugadores pueden
 desactivar la sincronización. Se activa con :func:`release_profile` y no se puede deshacer.
@@ -76,6 +80,8 @@ DEFAULTS: dict[str, object] = {
     "delete_unauthorized": True,
     "always_online": True,
     "lock_server_url": True,
+    "protect_packs": False,
+    "source_mods": "",
 }
 ENV_VARS: dict[str, str] = {
     "host": "KONNOR_HOST",
@@ -91,10 +97,19 @@ ENV_VARS: dict[str, str] = {
     "delete_unauthorized": "KONNOR_DELETE_UNAUTHORIZED",
     "always_online": "KONNOR_ALWAYS_ONLINE",
     "lock_server_url": "KONNOR_LOCK_SERVER_URL",
+    "protect_packs": "KONNOR_PROTECT_PACKS",
+    "source_mods": "KONNOR_SOURCE_MODS",
 }
 PROFILE_ENV = "KONNOR_PROFILE"
 PATH_KEYS = ("client_dir", "manifest", "version_file", "cache_dir")
-FLAG_KEYS = ("auto_update", "watch", "delete_unauthorized", "always_online", "lock_server_url")
+FLAG_KEYS = ("auto_update", "watch", "delete_unauthorized", "always_online", "lock_server_url", "protect_packs")
+# Carpetas del cliente que se pueden copiar de otra (clave → carpeta dentro del cliente). Solo
+# mods: las versions y libraries de un servidor de Minecraft no sirven para el cliente y los
+# servidores no tienen assets; esas se ponen a mano en la carpeta del cliente. No está en
+# PATH_KEYS a propósito: es de otro programa y el panel nunca debe borrarla.
+SOURCE_KEYS: dict[str, str] = {
+    "source_mods": "mods",
+}
 
 _lock = threading.RLock()
 
@@ -122,8 +137,14 @@ class Settings:
     # Se publica en el manifest: los launchers no dejan cambiar la dirección del servidor en las
     # instancias ya sincronizadas. Reversible (a diferencia de la liberación).
     lock_server_url: bool
+    # Se publica en el manifest: con true, los paquetes de recursos y de shaders (resourcepacks y
+    # shaderpacks) se instalan siempre y se protegen como el resto del cliente; con false, cada
+    # jugador decide si instalarlos y nunca se reemplazan ni se borran los suyos.
+    protect_packs: bool
     # Instancias liberadas: los jugadores pueden desactivar la sincronización. Irreversible.
     released: bool
+    # Carpetas del cliente que se copian de otra carpeta antes de generar: (carpeta, origen).
+    sources: tuple[tuple[str, Path], ...] = ()
 
     @property
     def packages_dir(self) -> Path:
@@ -260,7 +281,24 @@ def validate_config(values: dict[str, object]) -> dict[str, object]:
     for key in FLAG_KEYS:
         clean[key] = bool(values.get(key))
     clean["watch_quiet_ms"] = _int_in_range(values.get("watch_quiet_ms"), "Espera sin cambios", 500, 600_000)
+    for key in SOURCE_KEYS:
+        clean[key] = str(values.get(key) or "").strip()
+    _check_sources(clean)
     return clean
+
+
+def _check_sources(values: dict[str, object]) -> None:
+    """Un origen no puede estar dentro de la carpeta del cliente ni contenerla: cada copia
+    provocaría otra."""
+    client_dir = resolve_path(values["client_dir"])
+    for key, folder in SOURCE_KEYS.items():
+        if not values[key]:
+            continue
+        source = resolve_path(values[key])
+        if source == client_dir or client_dir in source.parents:
+            raise ValueError(f"Origen de {folder}: está dentro de la carpeta del cliente")
+        if source in client_dir.parents:
+            raise ValueError(f"Origen de {folder}: contiene la carpeta del cliente")
 
 
 def _int_in_range(value: object, label: str, low: int, high: int) -> int:
@@ -435,5 +473,11 @@ def load_settings(profile_id: str | None = None, use_env: bool = True) -> Settin
         delete_unauthorized=_flag(values["delete_unauthorized"]),
         always_online=_flag(values["always_online"]),
         lock_server_url=_flag(values["lock_server_url"]),
+        protect_packs=_flag(values["protect_packs"]),
         released=values.get("released") is True,
+        sources=tuple(
+            (folder, resolve_path(str(values[key]).strip()))
+            for key, folder in SOURCE_KEYS.items()
+            if str(values.get(key) or "").strip()
+        ),
     )

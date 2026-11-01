@@ -185,7 +185,7 @@
                   <input id="cfg-client_dir" name="client_dir" spellcheck="false" required aria-describedby="hint-client">
                   <button type="button" class="btn" id="btnOpenClient">Abrir</button>
                 </div>
-                <p class="hint" id="hint-client">Absoluta o relativa a la carpeta LauncherBackEnd. Con mods, versions, libraries y assets.</p>
+                <p class="hint" id="hint-client">Absoluta o relativa a la carpeta LauncherBackEnd. Con mods, versions, libraries, assets, resourcepacks y shaderpacks.</p>
               </div>
             </fieldset>
 
@@ -195,7 +195,7 @@
               <label class="switch-row">
                 <span>
                   <span class="switch-title">Borrar archivos que no estén en el servidor</span>
-                  <span class="hint">Los launchers sincronizados borran de mods, versions, libraries y assets todo lo que no publique este servidor: nadie juega con mods añadidos por su cuenta. Los mundos y la configuración nunca se tocan.</span>
+                  <span class="hint">Los launchers sincronizados borran de mods, versions, libraries y assets (y de resourcepacks y shaderpacks con «Incluir packs») todo lo que no publique este servidor: nadie juega con mods añadidos por su cuenta. Los mundos y la configuración nunca se tocan.</span>
                 </span>
                 <input type="checkbox" role="switch" class="switch" name="delete_unauthorized" id="cfg-delete_unauthorized">
               </label>
@@ -212,6 +212,13 @@
                   <span class="hint">En las instancias ya sincronizadas, los jugadores no pueden cambiar la dirección del servidor desde el launcher.</span>
                 </span>
                 <input type="checkbox" role="switch" class="switch" name="lock_server_url" id="cfg-lock_server_url">
+              </label>
+              <label class="switch-row">
+                <span>
+                  <span class="switch-title">Incluir packs</span>
+                  <span class="hint">Paquetes de recursos y de shaders (resourcepacks y shaderpacks). Activado: se instalan siempre y se protegen como el resto del cliente. Desactivado: se publican igual, pero cada jugador decide si instalarlos; no se instala uno si ya tiene otro con el mismo nombre y nunca se borran ni se reemplazan los suyos.</span>
+                </span>
+                <input type="checkbox" role="switch" class="switch" name="protect_packs" id="cfg-protect_packs">
               </label>
               <div class="release-row">
                 <div>
@@ -236,7 +243,7 @@
               <label class="switch-row">
                 <span>
                   <span class="switch-title">Vigilar la carpeta</span>
-                  <span class="hint">Publica los cambios del cliente sin reiniciar.</span>
+                  <span class="hint">Publica sin reiniciar los cambios de la carpeta del cliente y de su origen de mods.</span>
                 </span>
                 <input type="checkbox" role="switch" class="switch" name="watch" id="cfg-watch">
               </label>
@@ -259,16 +266,12 @@
                 <p class="hint" id="hint-blocks">Entre 1 y 256.</p>
               </div>
               <div class="field">
-                <label for="cfg-manifest">Manifest generado</label>
-                <input id="cfg-manifest" name="manifest" spellcheck="false" required>
-              </div>
-              <div class="field">
-                <label for="cfg-version_file">Archivo de versión</label>
-                <input id="cfg-version_file" name="version_file" spellcheck="false" required>
-              </div>
-              <div class="field">
-                <label for="cfg-cache_dir">Caché de hashes</label>
-                <input id="cfg-cache_dir" name="cache_dir" spellcheck="false" required>
+                <label for="cfg-source_mods">Origen de mods</label>
+                <div class="joined">
+                  <input id="cfg-source_mods" name="source_mods" spellcheck="false" placeholder="Carpeta del cliente" aria-describedby="hint-source_mods">
+                  <button type="button" class="btn" data-browse="source_mods">Examinar</button>
+                </div>
+                <p class="hint" id="hint-source_mods">Por ejemplo, la carpeta mods del servidor de Minecraft. Antes de cada generación se copia a mods de la carpeta del cliente y lo que ya no esté en ella se borra de allí; con «Vigilar la carpeta», los cambios se publican solos. Vacía: se publica lo que haya en la carpeta del cliente.</p>
               </div>
               </div>
             </details>

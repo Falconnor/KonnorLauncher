@@ -7,6 +7,7 @@ Formato (el que espera Konnor Launcher)::
       "delete_unauthorized": true,                        ← Seguridad: borrar lo que no esté aquí
       "always_online": true,                              ← Seguridad: sin servidor no se juega
       "lock_server_url": true,                            ← Seguridad: dirección no modificable
+      "protect_packs": false,                             ← Seguridad: packs obligatorios y protegidos
       "released": false,                                  ← Seguridad: instancias liberadas
       "files": { "mods/x.jar": {"sha256": ..., "size": ...}, ... },
       "asset_blocks": { "assets_block_0-<hash>.zip": {"sha256", "size", "files": {...}}, ... }
@@ -15,6 +16,9 @@ Formato (el que espera Konnor Launcher)::
 - ``files``: todo lo que hay en la carpeta del cliente excepto ``assets/`` (va en los bloques),
   ``packages/`` (los propios bloques) y archivos basura o temporales.
 - ``asset_blocks``: ver ``generate_asset_blocks.py``.
+
+Antes de generar, las carpetas del cliente que tengan carpeta de origen se igualan a ella (ver
+``client_sources.py``).
 
 El servidor lo ejecuta solo al arrancar y cada vez que cambia la carpeta del cliente. También se
 puede lanzar a mano::
@@ -33,9 +37,10 @@ import os
 import re
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from Services.client_sources import sync_sources
 from Services.generate_asset_blocks import build_blocks, clean_old_blocks
 from Services.hash_cache import HashCache
 from Services.settings import Settings, is_released, load_settings
@@ -62,6 +67,9 @@ class GenerationResult:
     version: str = ""
     seconds: float = 0.0
     error: str = ""
+    copied: int = 0               # archivos copiados desde las carpetas de origen
+    deleted: int = 0              # archivos borrados porque ya no están en su origen
+    missing_sources: list[str] = field(default_factory=list)  # orígenes que no existen
 
 
 def invalid_path_reason(relative: str) -> str | None:
@@ -123,12 +131,26 @@ def write_atomic(path: Path, data: dict) -> None:
 
 
 def generate_manifest(settings: Settings | None = None, force_blocks: bool = False,
-                      output: Path | None = None, log=print) -> GenerationResult:
-    """Genera el manifest completo. Solo reescribe el archivo si el contenido cambió."""
+                      output: Path | None = None, log=print,
+                      touched: set[str] | None = None) -> GenerationResult:
+    """Copia las carpetas de origen y genera el manifest completo. Solo reescribe el archivo si el
+    contenido cambió. ``touched`` recibe las rutas del cliente que cambió la copia."""
     settings = settings or load_settings()
     output = output or settings.manifest_file
     started = time.perf_counter()
     client_dir = settings.client_dir
+
+    # 0. Carpetas de origen. Si una copia falla, publicar dejaría a los jugadores con una mezcla
+    # de archivos viejos y nuevos: el manifest no se toca hasta que se pueda copiar todo.
+    synced = sync_sources(settings, touched, log=log)
+    if synced.errors:
+        log("[ERROR] No se pudo copiar desde las carpetas de origen:")
+        for entry in synced.errors:
+            log(f"   {entry}")
+        return GenerationResult(ok=False, copied=synced.copied, deleted=synced.deleted,
+                                missing_sources=synced.missing,
+                                error=f"{len(synced.errors)} errores al copiar desde las carpetas "
+                                      f"de origen; el manifest no se modificó")
 
     if not client_dir.is_dir():
         return GenerationResult(ok=False, error=f"No existe la carpeta del cliente: {client_dir}")
@@ -165,6 +187,7 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     manifest["delete_unauthorized"] = settings.delete_unauthorized
     manifest["always_online"] = settings.always_online
     manifest["lock_server_url"] = settings.lock_server_url
+    manifest["protect_packs"] = settings.protect_packs
     manifest["released"] = is_released(settings.profile_id)  # al día aunque el servidor no se reinicie
     manifest |= {"files": files, "asset_blocks": asset_blocks}
 
@@ -180,6 +203,7 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
         ok=True, changed=changed, files=len(files), blocks=len(asset_blocks),
         assets=sum(len(b["files"]) for b in asset_blocks.values()), version=version,
         seconds=time.perf_counter() - started,
+        copied=synced.copied, deleted=synced.deleted, missing_sources=synced.missing,
     )
     log(f"Manifest {'actualizado' if changed else 'sin cambios'}: versión {version or '-'}, "
         f"{result.files} archivos, {result.blocks} bloques ({result.assets} assets), "

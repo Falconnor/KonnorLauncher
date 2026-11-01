@@ -26,10 +26,12 @@ public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnly
 /// Política del servidor (opcional; null si un servidor anterior no la publica):
 /// <c>delete_unauthorized</c> (limpieza), <c>always_online</c> (sin respuesta del servidor no se juega)
 /// <c>released</c> (instancias liberadas: el jugador puede desactivar la sincronización) y
-/// <c>lock_server_url</c> (el jugador no puede cambiar la dirección del servidor; reversible).
+/// <c>lock_server_url</c> (el jugador no puede cambiar la dirección del servidor; reversible) y
+/// <c>protect_packs</c> (los paquetes de recursos y de shaders se instalan siempre y se protegen).
 /// </summary>
 public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks,
-    bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null, bool? LockServerUrl = null);
+    bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null, bool? LockServerUrl = null,
+    bool? ProtectPacks = null);
 
 /// <summary>Resultado de una verificación.</summary>
 /// <param name="Success">true = el juego puede iniciarse.</param>

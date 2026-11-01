@@ -83,6 +83,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     [ObservableProperty] private string _loaderListLabel = "Elige una versión";
     [ObservableProperty] private bool _syncWithServer;
     [ObservableProperty] private string _serverUrl = string.Empty;
+    [ObservableProperty] private bool _installPacks;
     [ObservableProperty] private string? _error;
     [ObservableProperty] private bool _isSyncing;
     [ObservableProperty] private string _syncStatus = string.Empty;
@@ -127,6 +128,15 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     public bool IsUrlEditable => !IsSyncing && !IsUrlLocked;
 
+    /// <summary>El servidor obliga a instalar sus packs (opción reversible del servidor).</summary>
+    public bool IsPacksLocked => _editing?.IsPacksLocked == true;
+
+    public bool IsPacksSwitchEnabled => !IsSyncing && !IsPacksLocked;
+
+    public string PacksHint => IsPacksLocked
+        ? "El servidor obliga a instalar sus paquetes de recursos y de shaders, y los mantiene como el resto de sus archivos."
+        : "Descarga los paquetes de recursos y de shaders del servidor. Si ya tienes uno con el mismo nombre, se conserva el tuyo; nunca se borran los tuyos.";
+
     /// <summary>Explica lo que el servidor permite o bloquea en esta instancia.</summary>
     public string? SyncLockText
     {
@@ -147,6 +157,11 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(IsUrlLocked));
         OnPropertyChanged(nameof(IsUrlEditable));
         OnPropertyChanged(nameof(SyncLockText));
+        OnPropertyChanged(nameof(IsPacksLocked));
+        OnPropertyChanged(nameof(IsPacksSwitchEnabled));
+        OnPropertyChanged(nameof(PacksHint));
+        if (IsPacksLocked)
+            InstallPacks = true;
     }
 
     public string MinecraftVersionLabel => SyncWithServer
@@ -181,6 +196,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         CustomMemory = false;
         MemoryMb = ClampMemory(_settings.MemoryMb);
         ServerUrl = _settings.ServerUrl; // la del launcher.properties de la comunidad, lista para marcar la casilla
+        InstallPacks = false;
         OpenCommon();
     }
 
@@ -200,6 +216,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         Channel = instance.LoaderChannel;
         SpecificLoaderVersion = instance.LoaderChannel == LoaderChannel.Specific ? instance.LoaderVersion : null;
         ServerUrl = instance.ServerUrl;
+        InstallPacks = instance.InstallPacks || instance.IsPacksLocked;
         OpenCommon();
         // Ya sincronizada: se pregunta al servidor por su política actual (liberación, dirección...).
         if (instance.SyncWithServer && (instance.SyncLocked || instance.ServerReleased))
@@ -217,13 +234,16 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
             return;
         var changed = probe.ServerReleased != _editing.ServerReleased
                       || probe.ServerAlwaysOnline != _editing.ServerAlwaysOnline
-                      || probe.ServerLocksUrl != _editing.ServerLocksUrl;
+                      || probe.ServerLocksUrl != _editing.ServerLocksUrl
+                      || probe.ServerProtectsPacks != _editing.ServerProtectsPacks;
         if (!changed)
             return;
 
         _editing.ServerReleased = probe.ServerReleased;
         _editing.ServerAlwaysOnline = probe.ServerAlwaysOnline;
         _editing.ServerLocksUrl = probe.ServerLocksUrl;
+        _editing.ServerProtectsPacks = probe.ServerProtectsPacks;
+        _editing.InstallPacks = probe.InstallPacks;
         try
         {
             // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
@@ -233,6 +253,9 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
                 stored.ServerReleased = probe.ServerReleased;
                 stored.ServerAlwaysOnline = probe.ServerAlwaysOnline;
                 stored.ServerLocksUrl = probe.ServerLocksUrl;
+                stored.ServerProtectsPacks = probe.ServerProtectsPacks;
+                if (probe.ServerProtectsPacks)
+                    stored.InstallPacks = true;
                 _store.Save(stored);
             }
         }
@@ -568,6 +591,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsSyncSwitchEnabled));
         OnPropertyChanged(nameof(IsUrlEditable));
+        OnPropertyChanged(nameof(IsPacksSwitchEnabled));
         OnPropertyChanged(nameof(IsSelectionUnlocked));
         OnPropertyChanged(nameof(IsNotSyncing));
     }
@@ -637,8 +661,13 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
         var instance = _editing ?? new GameInstance();
         // Hay que descargar del servidor al crear, al activar la sincronización o al cambiar de servidor.
+        // Lo que el servidor obliga se mantiene aunque se fuerce la interfaz.
+        var installPacks = InstallPacks || (_editing?.IsPacksLocked == true);
+        // Hay que descargar del servidor al crear, al activar la sincronización, al cambiar de servidor
+        // o al pedir sus packs.
         var needsSync = SyncWithServer && (IsNew || !instance.SyncWithServer || instance.ServerUrl != url
-                                           || string.IsNullOrWhiteSpace(instance.MinecraftVersion));
+                                           || string.IsNullOrWhiteSpace(instance.MinecraftVersion)
+                                           || (installPacks && !instance.InstallPacks));
         var changedGame = SyncWithServer != instance.SyncWithServer
                           || (!SyncWithServer && (instance.MinecraftVersion != MinecraftVersion.Trim() || instance.Loader != Loader
                                                   || instance.LoaderVersion != loaderVersion));
@@ -646,6 +675,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         instance.MemoryMb = CustomMemory ? (int)ClampMemory(MemoryMb) : null;
         instance.SyncWithServer = SyncWithServer;
         instance.ServerUrl = url;
+        instance.InstallPacks = installPacks;
         if (SyncWithServer)
         {
             // La versión la decide el servidor (se detecta al sincronizar); el id ya incluye el cargador.

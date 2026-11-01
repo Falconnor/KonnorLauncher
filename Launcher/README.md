@@ -93,6 +93,10 @@ meta/                  ← compartido entre instancias (como en Modrinth)
   decide el servidor (`delete_unauthorized` en el manifest; si un servidor antiguo no lo publica, se borra). Una instancia sincronizada guarda sus propios `versions`, `libraries` y
   `assets` dentro de su carpeta, porque la verificación borra lo que no está en el manifest y nunca
   debe tocar los archivos compartidos de las demás.
+- **Instalar paquetes de recursos** (casilla de una instancia sincronizada): descarga los
+  `resourcepacks` y `shaderpacks` que publica el servidor. Solo se instalan los que no haya ya con el
+  mismo nombre y nunca se borran los del jugador. Si el servidor los protege (`protect_packs`), la
+  casilla queda marcada y bloqueada, y los packs se reparan y limpian como el resto de sus archivos.
 - **Sin conexión**: si el cargador ya se instaló, la instancia se puede jugar sin internet.
 - **Migración**: la primera vez, si `launcher.properties` tenía una versión o la verificación
   activada, esa configuración se convierte en la instancia "Konnor".

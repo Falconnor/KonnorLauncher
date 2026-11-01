@@ -19,6 +19,10 @@ Un servidor (``/api/servers/{id}/...``):
 - ``POST open``                      abre la carpeta del cliente en el Explorador
 - ``POST release``                   libera las instancias (irreversible) y regenera el manifest
 - ``GET  files``                     archivos en disco y si se borrarían al eliminarlo
+
+Otros:
+
+- ``POST /api/browse-folder``        diálogo de Windows para elegir una carpeta ``{initial, title}``
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ import asyncio
 import json
 import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -43,18 +48,19 @@ from pydantic import BaseModel
 
 from Panel.supervisor import LogBuffer, PanelError, ServerProcess
 from Services.generate_manifest import generate_manifest, read_client_version
-from Services.profile_files import create_client_dir, delete_files, describe_files
+from Services.profile_files import PACK_SUBDIRS, create_client_dir, delete_files, describe_files
 from Services.settings import (release_profile, BASE_DIR, MAX_BLOCKS, PROFILES_DIR, Settings, create_profile,
                                delete_profile, env_overrides, get_profile, list_profiles,
                                load_settings, profile_defaults, raw_config, resolve_path,
                                select_profile, update_profile)
+from Services.client_sources import overlap_reason
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 PANEL_PORT = int(os.environ.get("KONNOR_PANEL_PORT", "59380"))
 # Versión de la API. La interfaz se sirve desde el disco, así que un panel abierto antes de
 # actualizar serviría la interfaz nueva con la API vieja: con esto ambas lo detectan.
-API_VERSION = 3
+API_VERSION = 4
 
 
 def _source_stamp() -> int:
@@ -112,6 +118,12 @@ async def lifespan(app: FastAPI):
         client_dir = resolve_path(profile["client_dir"])
         if not client_dir.exists() and (BASE_DIR / PROFILES_DIR / profile["id"]) in client_dir.parents:
             create_client_dir(profile["id"])
+        elif client_dir.is_dir():
+            for name in PACK_SUBDIRS:  # carpetas creadas antes de que existieran los packs
+                try:
+                    (client_dir / name).mkdir(exist_ok=True)
+                except OSError:
+                    pass
     yield
     # Al cerrar el panel se detienen también los servidores que arrancó.
     await asyncio.gather(*(asyncio.to_thread(rt.server.stop) for rt in list(_runtimes.values())))
@@ -404,6 +416,12 @@ async def state(profile_id: str):
             "exists": settings.client_dir.is_dir(),
             "version": read_client_version(settings),
             "block_count": settings.block_count,
+            # Carpetas que se copian de otro sitio; las demás se publican tal cual.
+            "sources": [
+                {"folder": folder, "path": str(source), "exists": source.is_dir(),
+                 "problem": overlap_reason(source, settings.client_dir)}
+                for folder, source in settings.sources
+            ],
         },
         "activity": rt.logs.activity.as_dict(),
         "now": time.time(),
@@ -532,6 +550,65 @@ def open_folder(profile_id: str):
     if sys.platform == "win32":
         os.startfile(folder)  # noqa: S606 - carpeta del cliente configurada en el panel
     return {"ok": True}
+
+
+# ── Elegir carpeta ───────────────────────────────────────────────────────────
+# El navegador no puede dar la ruta de una carpeta del disco: el diálogo lo abre el propio panel
+# (es local) con PowerShell y Windows Forms, que vienen con Windows. La ventana dueña invisible y
+# siempre encima hace que el diálogo aparezca delante de la ventana del panel.
+
+_BROWSE_SCRIPT = r"""
+Add-Type -AssemblyName System.Windows.Forms
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$owner = New-Object System.Windows.Forms.Form -Property @{
+  TopMost = $true; ShowInTaskbar = $false; Opacity = 0
+  StartPosition = 'CenterScreen'; Width = 1; Height = 1
+}
+$owner.Show()
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = $env:KONNOR_BROWSE_TITLE
+$dialog.ShowNewFolderButton = $false
+if ($env:KONNOR_BROWSE_INITIAL -and (Test-Path -LiteralPath $env:KONNOR_BROWSE_INITIAL -PathType Container)) {
+  $dialog.SelectedPath = $env:KONNOR_BROWSE_INITIAL
+}
+if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $dialog.SelectedPath }
+$owner.Close()
+"""
+_browse_lock = threading.Lock()
+
+
+def _browse_folder(initial: str, title: str) -> str | None:
+    """Ruta elegida en el diálogo, o None si se cancela."""
+    env = {**os.environ, "KONNOR_BROWSE_INITIAL": initial, "KONNOR_BROWSE_TITLE": title}
+    completed = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass",
+         "-Command", _BROWSE_SCRIPT],
+        capture_output=True, env=env, timeout=1800,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    path = completed.stdout.decode("utf-8", "replace").strip().lstrip("\ufeff")
+    return path or None
+
+
+class BrowseBody(BaseModel):
+    initial: str = ""
+    title: str = "Elige una carpeta"
+
+
+@app.post("/api/browse-folder")
+async def browse_folder(body: BrowseBody):
+    if sys.platform != "win32":
+        raise HTTPException(501, "Solo disponible en Windows; escribe la ruta a mano")
+    if not _browse_lock.acquire(blocking=False):
+        raise HTTPException(409, "Ya hay un diálogo abierto para elegir carpeta")
+    try:
+        initial = str(resolve_path(body.initial)) if body.initial.strip() else ""
+        path = await asyncio.to_thread(_browse_folder, initial, body.title[:120])
+    except (OSError, subprocess.SubprocessError) as error:
+        raise HTTPException(500, f"No se pudo abrir el diálogo: {error}") from None
+    finally:
+        _browse_lock.release()
+    return {"path": path}
 
 
 # ── Interfaz ────────────────────────────────────────────────────────────────

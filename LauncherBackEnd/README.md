@@ -24,13 +24,14 @@ Services/
   settings.py                  ← servidores y su configuración (servidores.json y variables de entorno)
   profile_files.py             ← crear y borrar los archivos de un servidor (con sus reglas de seguridad)
   serve.py                     ← arranca uvicorn para un servidor, con su host y su puerto
+  client_sources.py            ← copia al cliente los mods de su origen (p. ej. los del servidor)
   generate_manifest.py         ← genera client_manifest.json
   generate_asset_blocks.py     ← bloques ZIP de assets (incrementales)
   auto_update.py               ← actualización automática al arrancar y al cambiar el cliente
   hash_cache.py                ← caché de hashes (tamaño + fecha de modificación)
   client_version.txt           ← versión del cliente que anuncia el manifest
 tests/Client/                  ← archivos de prueba del cliente (no está en git)
-  mods/  versions/  libraries/  assets/
+  mods/  versions/  libraries/  assets/  resourcepacks/  shaderpacks/
   packages/                    ← bloques generados
 profiles/<id>/                 ← archivos de los servidores creados desde el panel (no está en git)
 servidores.json                ← servidores y su configuración (no está en git)
@@ -59,7 +60,7 @@ mezclarse con el navegador que ya esté abierto. El panel está ordenado por imp
 
 - **Servidores** (columna izquierda, plegable): lista con el estado de cada uno; se elige cuál ver
   y se crean nuevos con un nombre. Cada servidor nuevo usa su propia carpeta en `profiles/<id>/`
-  (se crea con `Client/mods`, `versions`, `libraries` y `assets`) y el siguiente puerto libre.
+  (se crea con `Client/mods`, `versions`, `libraries`, `assets`, `resourcepacks` y `shaderpacks`) y el siguiente puerto libre.
   Varios pueden estar en marcha a la vez.
 - **Avisos**: lo que requiere atención, de más a menos grave (servidor caído, carpeta del cliente
   inexistente, generación fallida, reinicio pendiente, manifest desactualizado, errores servidos),
@@ -72,8 +73,8 @@ mezclarse con el navegador que ya esté abierto. El panel está ordenado por imp
   actualización automática y regeneración manual. Con el servidor detenido, la regeneración se
   hace desde el propio panel.
 - **Registro**: salida del servidor en vivo, con filtro de avisos y errores.
-- **Configuración**: nombre, red, carpeta del cliente, número de bloques, actualización automática
-  y rutas avanzadas. Se guarda en `servidores.json`; si el servidor está en marcha, el panel avisa
+- **Configuración**: nombre, red, carpeta del cliente, actualización automática y, en
+  configuración avanzada, el número de bloques y el origen de mods (ver más abajo). Se guarda en `servidores.json`; si el servidor está en marcha, el panel avisa
   de que hay que reiniciarlo. Al final, la opción de eliminar el servidor.
 
 Al eliminar un servidor se puede marcar **Eliminar archivos**. El panel muestra antes qué se borra y
@@ -88,10 +89,11 @@ El panel solo escucha en `127.0.0.1`. Cerrar su consola detiene también los ser
 Sin panel, `iniciar_servidor.bat` arranca el servidor seleccionado en el panel, o el indicado
 (`iniciar_servidor.bat principal`). Al arrancar, el servidor:
 
-1. Revisa la carpeta del cliente y actualiza el manifest en segundo plano. El servidor responde
-   desde el primer momento: mientras tanto se sirve el manifest anterior.
-2. Vigila la carpeta y vuelve a actualizar el manifest cada vez que algo cambia, cuando la
-   carpeta lleva unos segundos sin modificarse (para no hacerlo a mitad de una copia).
+1. Copia lo que haya cambiado en el origen de mods, revisa la carpeta del cliente y actualiza
+   el manifest en segundo plano. El servidor responde desde el primer momento: mientras tanto se
+   sirve el manifest anterior.
+2. Vigila la carpeta del cliente y el origen de mods, y vuelve a actualizar el manifest cada vez que
+   algo cambia, cuando llevan unos segundos sin modificarse (para no hacerlo a mitad de una copia).
 
 No hace falta regenerar el manifest a mano ni reiniciar el servidor.
 
@@ -105,6 +107,25 @@ los archivos modificados y solo se rehacen los bloques de assets que cambiaron.
 
 Si alguna ruta no es válida para el launcher (caracteres como `:` o `?`, nombres que terminan
 en punto...), el manifest publicado no se modifica y el error aparece en la consola.
+
+## Origen de mods
+
+En **Configuración avanzada**, **Origen de mods** (se elige con **Examinar**) indica de dónde se
+copian los mods, normalmente la carpeta `mods` del servidor de Minecraft. Antes de cada generación,
+`mods` de la carpeta del cliente se iguala a ella: se copia lo nuevo o modificado y se borra lo que
+ya no esté. Con **Vigilar la carpeta**, al añadir o quitar un mod del servidor los launchers lo
+reciben en su próxima verificación.
+
+- Vacío (por defecto): no se copia nada; se publica lo que haya en `mods` de la carpeta del cliente.
+- `versions`, `libraries` y `assets` siempre se ponen a mano en la carpeta del cliente: las de un
+  servidor de Minecraft son las del servidor (no sirven para jugar) y los servidores no tienen assets.
+- El origen solo se lee. Lo que se cambie a mano en `mods` de la carpeta del cliente se sobrescribe.
+- Los mods solo de servidor también se envían; Fabric y Quilt no los cargan en el cliente, pero
+  otros cargadores podrían fallar. Los mods solo de cliente hay que añadirlos al origen.
+- Si el origen no existe (un disco desconectado), se avisa y `mods` no se toca. Si una copia
+  falla, el manifest no se modifica.
+- El origen no puede estar dentro de la carpeta del cliente ni contenerla. Eliminar un servidor
+  nunca lo borra.
 
 ## Endpoints
 
@@ -122,7 +143,9 @@ Las descargas admiten `Range` (reanudación), `ETag` y `Last-Modified`.
 
 ## Configuración
 
-Se edita desde el panel y se guarda en `servidores.json` (no está en git).
+Se edita desde el panel y se guarda en `servidores.json` (no está en git). El manifest, el archivo
+de versión y la caché de hashes no aparecen en el panel: usan su ruta por defecto, que se puede
+cambiar en `servidores.json` o con su variable de entorno.
 
 Dos servidores no pueden compartir puerto, carpeta del cliente ni manifest. Cada valor se puede
 forzar con una variable de entorno, que tiene prioridad al usar los `.bat`; los servidores que
@@ -145,6 +168,8 @@ principal.
 | `KONNOR_DELETE_UNAUTHORIZED` | `1` | Los launchers sincronizados borran lo que no esté en el manifest (se publica en él) |
 | `KONNOR_ALWAYS_ONLINE` | `1` | Sin respuesta del servidor, el launcher no abre el juego (se publica en el manifest) |
 | `KONNOR_LOCK_SERVER_URL` | `1` | Los jugadores no pueden cambiar la dirección del servidor en sus instancias (se publica en el manifest) |
+| `KONNOR_PROTECT_PACKS` | `0` | Los packs se instalan siempre y se protegen como el resto del cliente (se publica en el manifest) |
+| `KONNOR_SOURCE_MODS` | (vacía) | Carpeta de la que se copian los mods (ver "Origen de mods") |
 | `KONNOR_PANEL_PORT` | `59380` | Puerto del panel de control (solo 127.0.0.1) |
 
 Ejemplo para producción con otra carpeta: `set KONNOR_CLIENT_DIR=D:\KonnorClient` antes de
@@ -171,6 +196,15 @@ bloques: 00-0f → bloque 0, 10-1f → bloque 1...
   encendido para mundos que no lo necesitan.
 - **Bloquear cambio de dirección**: en las instancias ya sincronizadas, el launcher no deja cambiar
   la dirección del servidor. Reversible: al desactivarlo, los jugadores pueden cambiarla.
+- **Incluir packs** (desactivado por defecto): los paquetes de recursos y de shaders
+  (`resourcepacks` y `shaderpacks` de la carpeta del cliente) se publican siempre en el manifest.
+  - Desactivado: cada jugador decide con la casilla **Instalar paquetes de recursos** de su
+    instancia. Se instalan solo los packs que no tenga ya con el mismo nombre; nunca se reparan,
+    reemplazan ni borran sus packs.
+  - Activado (`"protect_packs": true`): la casilla queda marcada y bloqueada en los launchers y los
+    packs se tratan como el resto del cliente: se reparan y, con **Borrar archivos que no estén en el
+    servidor**, se borran los que no publique el servidor. Reversible: al desactivarlo, la casilla se
+    desbloquea (sigue marcada).
 - **Liberar instancias**: las instancias creadas con un servidor quedan vinculadas a él (el jugador
   no puede desactivar la sincronización). Al liberarlas, el manifest publica `"released": true` y
   los launchers dejan cambiarlo. Es irreversible: no hay forma de volver a vincularlas.

@@ -41,6 +41,13 @@ public sealed record VerifierOptions
     /// </summary>
     public bool SkipCleanupInOfficialDir { get; init; } = true;
 
+    /// <summary>
+    /// El jugador quiere los paquetes de recursos y de shaders del servidor. Si el servidor no los
+    /// protege (<c>protect_packs</c>), solo se instalan los que no tenga ya con el mismo nombre y nunca
+    /// se reparan ni se borran. Si los protege, se instalan siempre, sea cual sea este valor.
+    /// </summary>
+    public bool InstallPacks { get; init; } = true;
+
     /// <summary>Descargas simultáneas de archivos sueltos (1 = una detrás de otra).</summary>
     public int MaxParallelDownloads { get; init; } = 4;
 
@@ -64,6 +71,12 @@ public sealed partial class ClientVerifier
 {
     /// <summary>Las únicas carpetas que la limpieza puede tocar (nunca saves, config, options.txt...).</summary>
     public static readonly IReadOnlyList<string> ProtectedFolders = ["mods", "versions", "libraries", "assets"];
+
+    /// <summary>
+    /// Paquetes de recursos y de shaders. Solo se protegen (reparación y limpieza) si el servidor
+    /// publica <c>protect_packs</c>; si no, son del jugador.
+    /// </summary>
+    public static readonly IReadOnlyList<string> PackFolders = ["resourcepacks", "shaderpacks"];
 
     /// <summary>
     /// Carpeta (dentro de la del juego) con las descargas en curso. No está entre las protegidas, así
@@ -145,8 +158,10 @@ public sealed partial class ClientVerifier
             ManifestReceived?.Invoke(manifest);
 
             // 4-5. Qué hay que reparar (existencia + tamaño; el hash solo valida lo descargado).
+            var protectPacks = manifest.ProtectPacks == true;
+            var files = SelectFiles(gameDir, manifest.Files, protectPacks, options.InstallPacks, _logger);
             var repairBlocks = FindBlocksToRepair(gameDir, manifest.AssetBlocks);
-            var repairFiles = FindFilesToRepair(gameDir, manifest.Files);
+            var repairFiles = FindFilesToRepair(gameDir, files);
             _logger.LogInformation("Manifest: {Files} archivos, {Blocks} bloques. A reparar: {RFiles} archivos, {RBlocks} bloques",
                 manifest.Files.Count, manifest.AssetBlocks.Count, repairFiles.Count, repairBlocks.Count);
 
@@ -190,7 +205,8 @@ public sealed partial class ClientVerifier
                     var allowed = manifest.Files.Concat(manifest.AssetBlocks.SelectMany(b => b.Files))
                         .Select(f => ManifestPath.ComparisonKey(f.RelativePath))
                         .ToHashSet(StringComparer.Ordinal);
-                    removed = RemoveUnauthorizedFiles(gameDir, allowed);
+                    var folders = protectPacks ? ProtectedFolders.Concat(PackFolders) : ProtectedFolders;
+                    removed = RemoveUnauthorizedFiles(gameDir, allowed, folders);
                     _logger.LogInformation("Limpieza: {Removed} archivos no autorizados eliminados", removed);
                 }
             }
@@ -237,6 +253,60 @@ public sealed partial class ClientVerifier
     // ══════════════════════════════════════════════════════════════════════
     // QUÉ HAY QUE REPARAR
     // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Pack al que pertenece una ruta del manifest (<c>resourcepacks/Nombre.zip</c> o la carpeta
+    /// <c>shaderpacks/Nombre</c>), o null si no está en <see cref="PackFolders"/>.
+    /// </summary>
+    public static (string Folder, string Name)? PackOf(string urlPath)
+    {
+        var parts = urlPath.Split('/');
+        if (parts.Length < 2)
+            return null;
+        var folder = PackFolders.FirstOrDefault(f => string.Equals(f, parts[0], StringComparison.OrdinalIgnoreCase));
+        return folder is null ? null : (parts[0], parts[1]);
+    }
+
+    /// <summary>
+    /// Archivos del manifest que hay que tener en disco. Los de los packs dependen de la política:
+    /// <list type="bullet">
+    /// <item>el servidor los protege: todos, como el resto;</item>
+    /// <item>no los protege y el jugador no los quiere: ninguno;</item>
+    /// <item>no los protege y el jugador los quiere: solo los de packs que no tenga ya con el mismo
+    /// nombre (archivo o carpeta). Los suyos nunca se reemplazan.</item>
+    /// </list>
+    /// </summary>
+    public static List<ManifestFile> SelectFiles(string gameDir, IEnumerable<ManifestFile> files, bool protectPacks, bool installPacks,
+        ILogger? logger = null)
+    {
+        var installed = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var selected = new List<ManifestFile>();
+        foreach (var file in files)
+        {
+            if (protectPacks || PackOf(file.UrlPath) is not { } pack)
+            {
+                selected.Add(file);
+                continue;
+            }
+
+            if (!installPacks)
+                continue;
+            var key = pack.Folder + "/" + pack.Name;
+            if (!installed.TryGetValue(key, out var exists))
+            {
+                var local = Path.Combine(gameDir, pack.Folder, pack.Name);
+                exists = File.Exists(local) || Directory.Exists(local);
+                installed[key] = exists;
+                if (exists)
+                    logger?.LogInformation("Pack {Pack} ya instalado: no se descarga", key);
+            }
+
+            if (!exists)
+                selected.Add(file);
+        }
+
+        return selected;
+    }
 
     /// <summary>Archivos ausentes o con tamaño distinto. Si existe con el mismo tamaño se da por válido (evita hashear miles de JAR).</summary>
     public static List<ManifestFile> FindFilesToRepair(string gameDir, IEnumerable<ManifestFile> files) =>
@@ -394,11 +464,12 @@ public sealed partial class ClientVerifier
     // ══════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Borra, solo dentro de <see cref="ProtectedFolders"/>, todo archivo cuya ruta relativa no esté
-    /// en <paramref name="allowedKeys"/> (claves de <see cref="ManifestPath.ComparisonKey"/>).
-    /// No sigue enlaces simbólicos ni uniones, así que nunca sale de esas carpetas.
+    /// Borra, solo dentro de <paramref name="folders"/> (por defecto <see cref="ProtectedFolders"/>), todo
+    /// archivo cuya ruta relativa no esté en <paramref name="allowedKeys"/> (claves de
+    /// <see cref="ManifestPath.ComparisonKey"/>). No sigue enlaces simbólicos ni uniones, así que nunca
+    /// sale de esas carpetas.
     /// </summary>
-    public static int RemoveUnauthorizedFiles(string gameDir, IReadOnlySet<string> allowedKeys)
+    public static int RemoveUnauthorizedFiles(string gameDir, IReadOnlySet<string> allowedKeys, IEnumerable<string>? folders = null)
     {
         var removed = 0;
         var enumeration = new EnumerationOptions
@@ -408,7 +479,7 @@ public sealed partial class ClientVerifier
             AttributesToSkip = FileAttributes.ReparsePoint,
         };
 
-        foreach (var folder in ProtectedFolders)
+        foreach (var folder in folders ?? ProtectedFolders)
         {
             var folderPath = Path.Combine(gameDir, folder);
             if (!Directory.Exists(folderPath) || new DirectoryInfo(folderPath).Attributes.HasFlag(FileAttributes.ReparsePoint))

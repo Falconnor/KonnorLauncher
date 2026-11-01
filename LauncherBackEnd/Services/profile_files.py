@@ -6,7 +6,11 @@ Borrar es la operación peligrosa del panel, así que solo se elimina lo que cum
   cliente en otro disco la eligió alguien a mano y puede contener cualquier cosa;
 - no es parte del programa (``Services/``, ``Panel/``, ``.venv/``, ``.git/``) ni una de sus
   carpetas de primer nivel (``tests/``, ``profiles/``);
-- no lo usa otro servidor (misma ruta, una carpeta que la contiene o una que está dentro).
+- no lo usa otro servidor (misma ruta, una carpeta que la contiene o una que está dentro),
+  tampoco como carpeta de origen.
+
+Las carpetas de origen de un servidor nunca son candidatas: son de otros programas (por ejemplo,
+un servidor de Minecraft) y el panel solo las lee.
 
 Lo que no cumple alguna condición se conserva y el panel explica por qué.
 """
@@ -17,7 +21,8 @@ import os
 import shutil
 from pathlib import Path
 
-from Services.settings import BASE_DIR, PATH_KEYS, PROFILES_DIR, get_profile, read_store, resolve_path
+from Services.settings import (BASE_DIR, PATH_KEYS, PROFILES_DIR, SOURCE_KEYS, get_profile, read_store,
+                               resolve_path)
 
 
 # Carpetas del programa: ni ellas ni nada de dentro se borra nunca.
@@ -25,7 +30,10 @@ PROTECTED_TREES = ("Services", "Panel", ".venv", ".git")
 # Carpetas contenedoras: se puede borrar lo que hay dentro, pero no la carpeta en sí.
 PROTECTED_ROOTS = ("tests", PROFILES_DIR)
 # Subcarpetas con las que se crea la carpeta del cliente de un servidor nuevo.
-CLIENT_SUBDIRS = ("mods", "versions", "libraries", "assets")
+CLIENT_SUBDIRS = ("mods", "versions", "libraries", "assets", "resourcepacks", "shaderpacks")
+# Paquetes de recursos y de shaders: se añadieron después; los servidores existentes las reciben al
+# abrir el panel.
+PACK_SUBDIRS = ("resourcepacks", "shaderpacks")
 
 LABELS = {
     "client_dir": "Carpeta del cliente",
@@ -73,9 +81,9 @@ def _keep_reason(path: Path, others: list[tuple[str, Path]]) -> str | None:
         return "Es parte del programa"
     if len(relative.parts) == 1 and relative.parts[0] in PROTECTED_ROOTS:
         return "Es una carpeta compartida del servidor"
-    for name, other in others:
+    for reason, other in others:
         if _inside(path, other) or _inside(other, path):
-            return f"La usa el servidor «{name}»"
+            return reason
     return None
 
 
@@ -86,9 +94,16 @@ def describe_files(profile_id: str) -> list[dict]:
     """
     profile = get_profile(profile_id)
     others = [
-        (other["name"], resolve_path(other[key]))
+        (f"La usa el servidor «{other['name']}»", resolve_path(other[key]))
         for other in (get_profile(b["id"]) for b in read_store()["servers"] if b["id"] != profile_id)
-        for key in PATH_KEYS
+        for key in (*PATH_KEYS, *SOURCE_KEYS)
+        if str(other.get(key) or "").strip()
+    ]
+    # Sus propias carpetas de origen tampoco, aunque estén dentro de una carpeta que se borra.
+    others += [
+        ("Contiene una carpeta de origen de este servidor", resolve_path(profile[key]))
+        for key in SOURCE_KEYS
+        if str(profile.get(key) or "").strip()
     ]
     candidates = [(key, resolve_path(profile[key])) for key in PATH_KEYS]
     candidates.append(("profile_dir", (BASE_DIR / PROFILES_DIR / profile_id).resolve()))
