@@ -716,7 +716,8 @@ class AuthManagerPage(QWidget):
             self.btn_toggle.setEnabled(False)
         else:
             self.console.append("[GUI] Iniciando API de Auth...")
-            self.api_process.start("uvicorn", ["auth.api:app", "--host", "0.0.0.0", "--port", "8000"])
+            # Con el mismo Python que el gestor: el instalado no deja uvicorn en el PATH.
+            self.api_process.start(sys.executable, ["-m", "uvicorn", "auth.api:app", "--host", "0.0.0.0", "--port", "8000"])
             self.btn_toggle.setText("Detener API")
             self.btn_toggle.setStyleSheet("background-color: #E74C3C; color: white;")
             

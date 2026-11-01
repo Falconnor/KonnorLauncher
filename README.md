@@ -20,4 +20,7 @@ le distribuye los archivos y un gestor de servidores de Minecraft.
 3. Después, el launcher instala el cargador de mods de la instancia, la versión de Minecraft y su
    Java con CmlLib, y arranca el juego.
 
+El instalador del launcher (`Launcher/build.ps1`) puede instalar también el panel del servidor y el
+gestor de servidores, listos para usar con su propio Python.
+
 Cada carpeta tiene su propio README con los detalles para compilar, configurar y ejecutar.

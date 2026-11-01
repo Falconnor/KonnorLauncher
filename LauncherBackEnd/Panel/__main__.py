@@ -93,7 +93,7 @@ def main() -> None:
     # Un panel abierto con código anterior seguiría ejecutándolo: hay que cerrarlo primero.
     if running is not None and (int(running.get("api", 0)) < API_VERSION or running.get("outdated")):
         print(f"Hay un panel abierto en {URL} con una versión anterior del código.")
-        print("Cierra su consola (detendrá sus servidores) y vuelve a abrir iniciar_panel.bat.")
+        print("Cierra su consola (detendrá sus servidores) y vuelve a abrir el panel.")
         sys.exit(1)
     if running is not None:
         print(f"El panel ya está abierto en {URL}")

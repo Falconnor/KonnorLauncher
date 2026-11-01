@@ -41,6 +41,7 @@ installer/
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Inno Setup](https://jrsoftware.org/isinfo.php) 6.7 o superior (solo para generar el instalador)
+- Python 3.12 o superior con pip (solo para empaquetar las herramientas del servidor en el instalador)
 
 ## Compilar y probar
 
@@ -61,7 +62,14 @@ instalado) y genera `artifacts/KonnorLauncher-Setup-<versión>.exe`. El instalad
 
 - instala en `%APPDATA%\KonnorLauncher` sin pedir permisos de administrador;
 - conserva el `launcher.properties` de cada jugador al reinstalar o actualizar;
-- incluye desinstalador, que nunca toca las instancias ni los archivos del juego.
+- incluye desinstalador, que nunca toca las instancias ni los archivos del juego;
+- ofrece, desmarcados por defecto, el **panel del servidor** (`LauncherBackEnd`) y el **gestor de
+  servidores** (`ServerManager`). Se instalan en `herramientas\` con su propio Python (el embebible
+  de python.org, con las dependencias ya incluidas) y se abren desde sus accesos directos del menú
+  Inicio y del escritorio: no hace falta tener Python ni ejecutar ningún `.bat`.
+
+`build.ps1 -SkipServerTools` genera el instalador solo con el launcher. La versión de Python que se
+empaqueta se cambia con `-PythonVersion`.
 
 ## Instancias y carpetas
 

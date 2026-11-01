@@ -47,6 +47,10 @@ preparar_entorno.bat           ← crea .venv e instala requirements.txt (lo usa
 iniciar_panel.bat
 ```
 
+Con el instalador del launcher no hace falta: marcando **Panel del servidor**, queda instalado en
+`%APPDATA%\KonnorLauncher\herramientas\backend` con su propio Python y se abre desde el acceso
+directo **Panel del servidor**.
+
 La primera vez crea el entorno `.venv` e instala las dependencias. Después abre el panel de
 control en una ventana propia (Edge o Chrome en modo aplicación; si no hay ninguno, el navegador
 predeterminado), siempre en proporción 4:3 y centrada según el tamaño de la pantalla. La ventana
