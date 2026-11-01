@@ -332,7 +332,12 @@ function renderState(s) {
   $("bigState").textContent = labels.big;
   $("stateDetail").textContent = stateDetail(s);
   $("serverUptime").textContent = server.started_at ? `Activo desde hace ${duration(s.now - server.started_at)}` : "";
-  $("launcherLine").textContent = `server.url=${server.lan_urls[0] || server.local_url}`;
+  $("launcherLine").textContent = server.public_url || server.lan_urls[0] || server.local_url;
+  $("launcherLineHint").textContent = server.public_url
+    ? `IP pública de la red. Para que entren jugadores de fuera, el router debe redirigir el puerto ${server.port} (TCP) a este equipo.`
+    : server.host === "0.0.0.0" || server.host === "::"
+      ? "Buscando la IP pública de la red… Mientras tanto se muestra la dirección de la red local."
+      : "El servidor solo escucha en esta dirección: no es accesible desde Internet.";
   renderUrls(server);
   $("factHost").textContent = server.host === "0.0.0.0" ? "Todas las interfaces" : server.host;
   $("factPort").textContent = server.port;
@@ -372,6 +377,7 @@ function stateDetail(s) {
 
 function renderUrls(server) {
   const urls = [{ label: "Este equipo", url: server.local_url }, ...server.lan_urls.map((url) => ({ label: "Red local", url }))];
+  if (server.public_url) urls.push({ label: "Internet", url: server.public_url });
   const html = urls.map(({ label, url }) => `<li>${label}: <a href="${url}/" target="_blank" rel="noopener">${url}</a></li>`).join("");
   if ($("urlList").innerHTML !== html) $("urlList").innerHTML = html;
 }

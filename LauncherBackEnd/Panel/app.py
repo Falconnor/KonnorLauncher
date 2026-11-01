@@ -189,6 +189,43 @@ def _lan_addresses() -> list[str]:
     return sorted({info[4][0] for info in infos if not info[4][0].startswith("127.")})
 
 
+# IP pública de la red: la que usan los jugadores de fuera. Se pregunta a un servicio externo
+# en segundo plano y se guarda unos minutos para que el sondeo del panel no espere por ella.
+PUBLIC_IP_SERVICES = ("https://api.ipify.org", "https://checkip.amazonaws.com")
+PUBLIC_IP_TTL = 600.0
+PUBLIC_IP_RETRY = 60.0
+_public_ip = {"value": None, "checked": 0.0, "running": False}
+_public_ip_lock = threading.Lock()
+
+
+def _fetch_public_ip() -> None:
+    value = None
+    for url in PUBLIC_IP_SERVICES:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                text = response.read(64).decode("ascii", "replace").strip()
+            socket.inet_aton(text)  # solo se acepta una IPv4 válida
+            value = text
+            break
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    with _public_ip_lock:
+        if value:
+            _public_ip["value"] = value
+        _public_ip.update(checked=time.time(), running=False)
+
+
+def _public_address() -> str | None:
+    """Última IP pública conocida; si está caducada, la renueva en segundo plano."""
+    with _public_ip_lock:
+        age = time.time() - _public_ip["checked"]
+        stale = age > (PUBLIC_IP_TTL if _public_ip["value"] else PUBLIC_IP_RETRY)
+        if stale and not _public_ip["running"]:
+            _public_ip["running"] = True
+            threading.Thread(target=_fetch_public_ip, daemon=True).start()
+        return _public_ip["value"]
+
+
 # ── Manifest ────────────────────────────────────────────────────────────────
 
 def _manifest_summary(rt: Runtime, path: Path) -> dict:
@@ -340,7 +377,10 @@ async def state(profile_id: str):
     server = rt.server
     restart_required = server.alive and server.config_at_start is not None and server.config_at_start != current
     port = settings.port
-    lan = _lan_addresses() if settings.host in ("0.0.0.0", "::") else [settings.host]
+    all_interfaces = settings.host in ("0.0.0.0", "::")
+    lan = _lan_addresses() if all_interfaces else [settings.host]
+    # Solo tiene sentido si el servidor escucha en todas las interfaces (accesible desde Internet).
+    public_ip = _public_address() if all_interfaces else None
 
     return {
         "profile": {"id": settings.profile_id, "name": settings.profile_name},
@@ -353,6 +393,7 @@ async def state(profile_id: str):
             "port": port,
             "local_url": f"http://{_probe_host(settings.host)}:{port}",
             "lan_urls": [f"http://{ip}:{port}" for ip in lan],
+            "public_url": f"http://{public_ip}:{port}" if public_ip else None,
             "restart_required": restart_required,
         },
         "auto_update": probe.get("auto_update") if online and probe else None,

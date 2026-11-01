@@ -60,8 +60,9 @@ mezclarse con el navegador que ya esté abierto. El panel está ordenado por imp
 - **Avisos**: lo que requiere atención, de más a menos grave (servidor caído, carpeta del cliente
   inexistente, generación fallida, reinicio pendiente, manifest desactualizado, errores servidos),
   cada uno con su acción.
-- **Servidor**: iniciar, detener y reiniciar; estado, PID, tiempo activo, la línea `server.url=`
-  lista para copiar en el `launcher.properties` de los jugadores y la actividad desde el arranque
+- **Servidor**: iniciar, detener y reiniciar; estado, PID, tiempo activo, la dirección
+  lista para copiar que usan los jugadores (la IP pública de la red, consultada a `api.ipify.org`;
+  requiere redirigir el puerto en el router) y la actividad desde el arranque
   (verificaciones, archivos servidos, equipos distintos y respuestas con error).
 - **Manifest**: versión publicada (editable), archivos, bloques y assets, estado de la
   actualización automática y regeneración manual. Con el servidor detenido, la regeneración se
