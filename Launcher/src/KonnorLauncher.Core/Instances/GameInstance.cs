@@ -80,9 +80,19 @@ public sealed partial class GameInstance
     /// </summary>
     public bool ServerAlwaysOnline { get; set; } = true;
 
+    /// <summary>
+    /// Última política <c>lock_server_url</c> del servidor (reversible): true = el jugador no puede
+    /// cambiar la dirección del servidor de esta instancia.
+    /// </summary>
+    public bool ServerLocksUrl { get; set; } = true;
+
     /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
     [JsonIgnore]
     public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;
+
+    /// <summary>Ya se sincronizó con su servidor y este no deja cambiar la dirección.</summary>
+    [JsonIgnore]
+    public bool IsUrlLocked => SyncWithServer && ServerLocksUrl && (SyncLocked || ServerReleased);
 
     /// <summary>Última <c>client_version</c> que anunció el servidor.</summary>
     public string? ServerClientVersion { get; set; }

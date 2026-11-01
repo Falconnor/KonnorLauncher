@@ -247,7 +247,7 @@
                                 <StackPanel Margin="0,14,0,0" Visibility="{Binding SyncWithServer, Converter={StaticResource BoolToVisibility}}">
                                     <TextBlock Text="Dirección del servidor" Style="{StaticResource FieldLabel}" />
                                     <TextBox Style="{StaticResource GlassTextBox}" Tag="http://servidor:59381" AutomationProperties.Name="Dirección del servidor"
-                                             IsEnabled="{Binding IsSyncSwitchEnabled}"
+                                             IsEnabled="{Binding IsUrlEditable}"
                                              Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </StackPanel>

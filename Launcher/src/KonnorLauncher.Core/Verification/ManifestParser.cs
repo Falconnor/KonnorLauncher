@@ -50,7 +50,8 @@ public static partial class ManifestParser
         var blocks = ParseAssetBlocks(root);
         // Política del servidor (solo cuenta un booleano; si falta, null).
         return new ClientManifest(clientVersion, files, blocks,
-            ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"));
+            ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"),
+            ReadFlag(root, "lock_server_url"));
     }
 
     private static bool? ReadFlag(JsonElement root, string name) =>

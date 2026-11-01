@@ -191,6 +191,7 @@
 
             <fieldset class="group">
               <legend>Seguridad</legend>
+              <div class="group-scroll">
               <label class="switch-row">
                 <span>
                   <span class="switch-title">Borrar archivos que no estén en el servidor</span>
@@ -205,6 +206,13 @@
                 </span>
                 <input type="checkbox" role="switch" class="switch" name="always_online" id="cfg-always_online">
               </label>
+              <label class="switch-row">
+                <span>
+                  <span class="switch-title">Bloquear cambio de dirección</span>
+                  <span class="hint">En las instancias ya sincronizadas, los jugadores no pueden cambiar la dirección del servidor desde el launcher. Se puede volver a permitir cuando quieras.</span>
+                </span>
+                <input type="checkbox" role="switch" class="switch" name="lock_server_url" id="cfg-lock_server_url">
+              </label>
               <div class="release-row">
                 <div>
                   <span class="switch-title">Liberar instancias</span>
@@ -212,6 +220,7 @@
                   <span class="hint" id="releaseHint">Las instancias creadas con este servidor quedan vinculadas: los jugadores no pueden desactivar la sincronización. Al liberarlas podrán hacerlo. No se puede deshacer.</span>
                 </div>
                 <button type="button" class="btn btn-danger" id="btnRelease">Liberar</button>
+              </div>
               </div>
             </fieldset>
 
@@ -243,6 +252,7 @@
 
             <details class="group group-details">
               <summary>Configuración avanzada</summary>
+              <div class="group-scroll">
               <div class="field">
                 <label for="cfg-block_count">Bloques de assets</label>
                 <input id="cfg-block_count" name="block_count" type="number" min="1" max="256" inputmode="numeric" required aria-describedby="hint-blocks">
@@ -259,6 +269,7 @@
               <div class="field">
                 <label for="cfg-cache_dir">Caché de hashes</label>
                 <input id="cfg-cache_dir" name="cache_dir" spellcheck="false" required>
+              </div>
               </div>
             </details>
           </div>

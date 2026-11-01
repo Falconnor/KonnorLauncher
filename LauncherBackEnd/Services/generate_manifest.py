@@ -6,6 +6,7 @@ Formato (el que espera Konnor Launcher)::
       "client_version": "1.0.1",                          ← de Services/client_version.txt
       "delete_unauthorized": true,                        ← Seguridad: borrar lo que no esté aquí
       "always_online": true,                              ← Seguridad: sin servidor no se juega
+      "lock_server_url": true,                            ← Seguridad: dirección no modificable
       "released": false,                                  ← Seguridad: instancias liberadas
       "files": { "mods/x.jar": {"sha256": ..., "size": ...}, ... },
       "asset_blocks": { "assets_block_0-<hash>.zip": {"sha256", "size", "files": {...}}, ... }
@@ -163,6 +164,7 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     # Los launchers sincronizados aplican esta decisión (los antiguos ignoran el campo).
     manifest["delete_unauthorized"] = settings.delete_unauthorized
     manifest["always_online"] = settings.always_online
+    manifest["lock_server_url"] = settings.lock_server_url
     manifest["released"] = is_released(settings.profile_id)  # al día aunque el servidor no se reinicie
     manifest |= {"files": files, "asset_blocks": asset_blocks}
 

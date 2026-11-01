@@ -423,10 +423,28 @@ body.sidebar-collapsed .server-add { display: grid; }
 .field-row + .hint { margin-top: -10px; }
 .group-details { gap: 0; }
 .group-details[open] { gap: 16px; }
+/* Plegada, la caja se ajusta al alto de su título en vez de estirarse con la fila. */
+.group-details:not([open]) { align-self: start; }
+
+/* Zona con desplazamiento vertical para grupos con muchas opciones (Seguridad, Configuración avanzada). */
+.group-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 290px;
+  overflow-y: auto;
+  margin-right: -10px;
+  padding-right: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(200, 210, 220, 0.35) transparent;
+}
+.group-scroll::-webkit-scrollbar { width: 6px; }
+.group-scroll::-webkit-scrollbar-thumb { background: rgba(200, 210, 220, 0.35); border-radius: 3px; }
+.group-scroll::-webkit-scrollbar-thumb:hover { background: rgba(230, 235, 240, 0.6); }
 .group-details summary { font-weight: 650; cursor: pointer; list-style-position: inside; }
 /* <details> no reparte el espacio como el resto de grupos: separación explícita entre campos. */
 .group-details[open] > summary { margin-bottom: 14px; }
-.group-details > .field + .field { margin-top: 16px; }
+.group-details .group-scroll > .field + .field { margin-top: 0; }
 .group-details summary::marker { color: var(--ink-3); }
 .group legend { float: left; width: 100%; padding: 0; margin-bottom: 2px; font-weight: 650; font-size: 15px; }
 .group legend + * { clear: both; }

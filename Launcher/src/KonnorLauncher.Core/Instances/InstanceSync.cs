@@ -59,6 +59,7 @@ public sealed class InstanceSync
             ManifestReceived = m =>
             {
                 instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
+                instance.ServerLocksUrl = m.LockServerUrl ?? true;
                 if (m.Released == true)
                     instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
             },
@@ -101,6 +102,7 @@ public sealed class InstanceSync
             var json = await _httpFactory.CreateClient(HttpClientName).GetStringAsync(url, timeout.Token).ConfigureAwait(false);
             var manifest = ManifestParser.Parse(json);
             instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
+            instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
             if (manifest.Released == true)
                 instance.ServerReleased = true;
             return true;

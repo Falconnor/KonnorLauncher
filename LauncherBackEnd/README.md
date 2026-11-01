@@ -139,6 +139,7 @@ principal.
 | `KONNOR_WATCH_QUIET_MS` | `3000` | Milisegundos sin cambios antes de regenerar |
 | `KONNOR_DELETE_UNAUTHORIZED` | `1` | Los launchers sincronizados borran lo que no esté en el manifest (se publica en él) |
 | `KONNOR_ALWAYS_ONLINE` | `1` | Sin respuesta del servidor, el launcher no abre el juego (se publica en el manifest) |
+| `KONNOR_LOCK_SERVER_URL` | `1` | Los jugadores no pueden cambiar la dirección del servidor en sus instancias (se publica en el manifest) |
 | `KONNOR_PANEL_PORT` | `59380` | Puerto del panel de control (solo 127.0.0.1) |
 
 Ejemplo para producción con otra carpeta: `set KONNOR_CLIENT_DIR=D:\KonnorClient` antes de
@@ -163,6 +164,8 @@ bloques: 00-0f → bloque 0, 10-1f → bloque 1...
 - **Siempre en línea**: el juego solo se abre si el launcher conecta con el servidor. Desactivado,
   si el servidor no responde se juega con los archivos que ya hay, así que no hace falta tenerlo
   encendido para mundos que no lo necesitan.
+- **Bloquear cambio de dirección**: en las instancias ya sincronizadas, el launcher no deja cambiar
+  la dirección del servidor. Reversible: al desactivarlo, los jugadores pueden cambiarla.
 - **Liberar instancias**: las instancias creadas con un servidor quedan vinculadas a él (el jugador
   no puede desactivar la sincronización). Al liberarlas, el manifest publica `"released": true` y
   los launchers dejan cambiarlo. Es irreversible: no hay forma de volver a vincularlas.

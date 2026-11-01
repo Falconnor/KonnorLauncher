@@ -36,7 +36,7 @@ public sealed class InstanceSyncTests : IAsyncLifetime
     private InstanceSync CreateSync() => new(new Factory(_http), metaDir: _dir.Combine("meta"));
 
     /// <summary>Servidor con una versión vanilla y la política indicada (null = no se publica).</summary>
-    private void Publish(bool? alwaysOnline = null, bool? released = null)
+    private void Publish(bool? alwaysOnline = null, bool? released = null, bool? lockUrl = null)
     {
         var json = Encoding.UTF8.GetBytes("""{ "id": "1.21.1", "mainClass": "net.minecraft.client.main.Main" }""");
         var manifest = new Dictionary<string, object>
@@ -51,6 +51,8 @@ public sealed class InstanceSyncTests : IAsyncLifetime
             manifest["always_online"] = online;
         if (released is { } r)
             manifest["released"] = r;
+        if (lockUrl is { } l)
+            manifest["lock_server_url"] = l;
         _server.Map("/client_manifest.json", JsonSerializer.Serialize(manifest));
         _server.Map("/client/versions/1.21.1/1.21.1.json", json);
     }
@@ -103,6 +105,31 @@ public sealed class InstanceSyncTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Url_lock_follows_the_server_and_is_reversible()
+    {
+        var instance = NewInstance(_server.BaseUrl);
+
+        Publish(); // servidor anterior: la dirección queda bloqueada, como hasta ahora
+        await CreateSync().SyncAsync(instance, _dir.Combine("instances"), null, TestContext.Current.CancellationToken);
+        instance.IsUrlLocked.ShouldBeTrue();
+
+        Publish(lockUrl: false);
+        (await CreateSync().RefreshPolicyAsync(instance, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        instance.IsUrlLocked.ShouldBeFalse();
+
+        Publish(lockUrl: true); // reversible: el servidor puede volver a bloquearla
+        await CreateSync().SyncAsync(instance, _dir.Combine("instances"), null, TestContext.Current.CancellationToken);
+        instance.IsUrlLocked.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void New_instances_never_lock_the_url_before_their_first_sync()
+    {
+        var instance = new GameInstance { SyncWithServer = true, ServerUrl = "http://x" };
+        instance.IsUrlLocked.ShouldBeFalse(); // aún no habló con ningún servidor
+    }
+
+    [Fact]
     public async Task Unreachable_server_is_reported_as_such()
     {
         var instance = NewInstance("http://127.0.0.1:9"); // nadie escucha en el puerto 9
@@ -117,7 +144,8 @@ public sealed class InstanceSyncTests : IAsyncLifetime
     [Fact]
     public void Manifest_policy_flags_are_parsed()
     {
-        var manifest = ManifestParser.Parse("""{ "files": {}, "always_online": false, "released": true, "delete_unauthorized": "si" }""");
+        var manifest = ManifestParser.Parse("""{ "files": {}, "always_online": false, "released": true, "lock_server_url": false, "delete_unauthorized": "si" }""");
+        manifest.LockServerUrl.ShouldBe(false);
         manifest.AlwaysOnline.ShouldBe(false);
         manifest.Released.ShouldBe(true);
         manifest.DeleteUnauthorized.ShouldBeNull(); // solo cuenta un booleano

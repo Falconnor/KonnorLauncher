@@ -33,6 +33,7 @@ Las rutas relativas se resuelven respecto a la carpeta LauncherBackEnd.
 | ``watch_quiet_ms`` | ``KONNOR_WATCH_QUIET_MS``      | ``3000``                        | Silencio necesario antes de regenerar          |
 | ``delete_unauthorized`` | ``KONNOR_DELETE_UNAUTHORIZED`` | ``true``                   | Los launchers borran lo que no esté en el manifest |
 | ``always_online``  | ``KONNOR_ALWAYS_ONLINE``       | ``true``                        | Sin respuesta del servidor, el launcher no abre el juego |
+| ``lock_server_url`` | ``KONNOR_LOCK_SERVER_URL``    | ``true``                        | Los jugadores no pueden cambiar la dirección del servidor |
 
 Además, ``released`` (no configurable): el servidor liberó sus instancias y los jugadores pueden
 desactivar la sincronización. Se activa con :func:`release_profile` y no se puede deshacer.
@@ -74,6 +75,7 @@ DEFAULTS: dict[str, object] = {
     "watch_quiet_ms": 3000,
     "delete_unauthorized": True,
     "always_online": True,
+    "lock_server_url": True,
 }
 ENV_VARS: dict[str, str] = {
     "host": "KONNOR_HOST",
@@ -88,10 +90,11 @@ ENV_VARS: dict[str, str] = {
     "watch_quiet_ms": "KONNOR_WATCH_QUIET_MS",
     "delete_unauthorized": "KONNOR_DELETE_UNAUTHORIZED",
     "always_online": "KONNOR_ALWAYS_ONLINE",
+    "lock_server_url": "KONNOR_LOCK_SERVER_URL",
 }
 PROFILE_ENV = "KONNOR_PROFILE"
 PATH_KEYS = ("client_dir", "manifest", "version_file", "cache_dir")
-FLAG_KEYS = ("auto_update", "watch", "delete_unauthorized", "always_online")
+FLAG_KEYS = ("auto_update", "watch", "delete_unauthorized", "always_online", "lock_server_url")
 
 _lock = threading.RLock()
 
@@ -116,6 +119,9 @@ class Settings:
     # Se publica en el manifest: con true, sin respuesta del servidor el launcher no abre el juego;
     # con false, juega con los archivos que ya tiene.
     always_online: bool
+    # Se publica en el manifest: los launchers no dejan cambiar la dirección del servidor en las
+    # instancias ya sincronizadas. Reversible (a diferencia de la liberación).
+    lock_server_url: bool
     # Instancias liberadas: los jugadores pueden desactivar la sincronización. Irreversible.
     released: bool
 
@@ -428,5 +434,6 @@ def load_settings(profile_id: str | None = None, use_env: bool = True) -> Settin
         watch_quiet_ms=int(values["watch_quiet_ms"]),  # type: ignore[arg-type]
         delete_unauthorized=_flag(values["delete_unauthorized"]),
         always_online=_flag(values["always_online"]),
+        lock_server_url=_flag(values["lock_server_url"]),
         released=values.get("released") is True,
     )

@@ -122,12 +122,34 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     public bool IsSyncSwitchEnabled => !IsSyncing && !IsSyncLocked;
 
-    /// <summary>Explica el bloqueo, o que el servidor ya liberó la instancia.</summary>
-    public string? SyncLockText => IsSyncLocked
-        ? "Instancia vinculada a su servidor: sigue sus instrucciones de seguridad. La sincronización solo se puede desactivar si el servidor la libera."
-        : _editing is { ServerReleased: true }
-            ? "El servidor liberó esta instancia: puedes activar o desactivar la sincronización."
-            : null;
+    /// <summary>El servidor no deja cambiar la dirección (opción reversible del servidor).</summary>
+    public bool IsUrlLocked => _editing?.IsUrlLocked == true;
+
+    public bool IsUrlEditable => !IsSyncing && !IsUrlLocked;
+
+    /// <summary>Explica lo que el servidor permite o bloquea en esta instancia.</summary>
+    public string? SyncLockText
+    {
+        get
+        {
+            if (_editing is null || !_editing.SyncWithServer || !(_editing.SyncLocked || _editing.ServerReleased))
+                return null;
+            var sync = IsSyncLocked
+                ? "Instancia vinculada a su servidor: sigue sus instrucciones de seguridad. La sincronización solo se puede desactivar si el servidor la libera."
+                : "El servidor liberó esta instancia: puedes activar o desactivar la sincronización.";
+            var url = IsUrlLocked ? " El servidor no permite cambiar su dirección." : " El servidor permite cambiar su dirección.";
+            return sync + url;
+        }
+    }
+
+    private void NotifyServerPolicy()
+    {
+        OnPropertyChanged(nameof(IsSyncLocked));
+        OnPropertyChanged(nameof(IsSyncSwitchEnabled));
+        OnPropertyChanged(nameof(IsUrlLocked));
+        OnPropertyChanged(nameof(IsUrlEditable));
+        OnPropertyChanged(nameof(SyncLockText));
+    }
 
     public string MinecraftVersionLabel => SyncWithServer
         ? (string.IsNullOrWhiteSpace(MinecraftVersion) || IsNew ? "La decide el servidor" : $"{ServerVersionText(MinecraftVersion)}  ·  del servidor")
@@ -181,50 +203,52 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         SpecificLoaderVersion = instance.LoaderChannel == LoaderChannel.Specific ? instance.LoaderVersion : null;
         ServerUrl = instance.ServerUrl;
         OpenCommon();
-        if (instance.IsSyncLocked)
+        // Ya sincronizada: se pregunta al servidor por su política actual (liberación, dirección...).
+        if (instance.SyncWithServer && (instance.SyncLocked || instance.ServerReleased))
             _ = RefreshServerPolicyAsync(instance.Id);
     }
 
     /// <summary>
-    /// Instancia vinculada: pregunta al servidor si ya la liberó. Si es así, se guarda y el
-    /// interruptor de sincronización se desbloquea en el acto.
+    /// Instancia ya sincronizada: pregunta al servidor por su política (liberación, siempre en línea,
+    /// bloqueo de la dirección). Si cambió, se guarda y el formulario se actualiza en el acto.
     /// </summary>
     private async Task RefreshServerPolicyAsync(string id)
     {
         var probe = _editing?.Clone();
         if (probe is null || !await _sync.RefreshPolicyAsync(probe) || _editing?.Id != id || !IsOpen)
             return;
-        if (probe.ServerReleased && !_editing.ServerReleased)
-        {
-            _editing.ServerReleased = true;
-            _editing.ServerAlwaysOnline = probe.ServerAlwaysOnline;
-            try
-            {
-                // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
-                var stored = _store.LoadAll().FirstOrDefault(i => i.Id == id);
-                if (stored is not null)
-                {
-                    stored.ServerReleased = true;
-                    stored.ServerAlwaysOnline = probe.ServerAlwaysOnline;
-                    _store.Save(stored);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-            {
-                _logger.LogWarning(ex, "No se pudo guardar la liberación de {Id}", id);
-            }
+        var changed = probe.ServerReleased != _editing.ServerReleased
+                      || probe.ServerAlwaysOnline != _editing.ServerAlwaysOnline
+                      || probe.ServerLocksUrl != _editing.ServerLocksUrl;
+        if (!changed)
+            return;
 
-            OnPropertyChanged(nameof(IsSyncLocked));
-            OnPropertyChanged(nameof(IsSyncSwitchEnabled));
-            OnPropertyChanged(nameof(SyncLockText));
+        _editing.ServerReleased = probe.ServerReleased;
+        _editing.ServerAlwaysOnline = probe.ServerAlwaysOnline;
+        _editing.ServerLocksUrl = probe.ServerLocksUrl;
+        try
+        {
+            // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
+            var stored = _store.LoadAll().FirstOrDefault(i => i.Id == id);
+            if (stored is not null)
+            {
+                stored.ServerReleased = probe.ServerReleased;
+                stored.ServerAlwaysOnline = probe.ServerAlwaysOnline;
+                stored.ServerLocksUrl = probe.ServerLocksUrl;
+                _store.Save(stored);
+            }
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _logger.LogWarning(ex, "No se pudo guardar la política del servidor de {Id}", id);
+        }
+
+        NotifyServerPolicy();
     }
 
     private void OpenCommon()
     {
-        OnPropertyChanged(nameof(IsSyncLocked));
-        OnPropertyChanged(nameof(IsSyncSwitchEnabled));
-        OnPropertyChanged(nameof(SyncLockText));
+        NotifyServerPolicy();
         Error = null;
         IsSyncing = false;
         SyncStatus = string.Empty;
@@ -545,6 +569,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     partial void OnIsSyncingChanged(bool value)
     {
         OnPropertyChanged(nameof(IsSyncSwitchEnabled));
+        OnPropertyChanged(nameof(IsUrlEditable));
         OnPropertyChanged(nameof(IsSelectionUnlocked));
         OnPropertyChanged(nameof(IsNotSyncing));
     }
@@ -599,10 +624,16 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
             }
         }
 
-        // Defensa: una instancia vinculada no puede dejar de sincronizar ni cambiar de servidor.
-        if (_editing is { IsSyncLocked: true } locked && (!SyncWithServer || locked.ServerUrl != url))
+        // Defensa: lo que el servidor bloquea no se puede guardar aunque se fuerce la interfaz.
+        if (_editing is { IsSyncLocked: true } && !SyncWithServer)
         {
             Error = "Esta instancia está vinculada a su servidor: solo el servidor puede liberarla.";
+            return;
+        }
+
+        if (_editing is { IsUrlLocked: true } urlLocked && urlLocked.ServerUrl != url)
+        {
+            Error = "El servidor no permite cambiar su dirección en esta instancia.";
             return;
         }
 

@@ -575,7 +575,7 @@ document.addEventListener("click", async (event) => {
 const form = $("configForm");
 let savedConfig = null;
 let defaults = null;
-const CONFIG_KEYS = ["name", "host", "port", "client_dir", "delete_unauthorized", "always_online", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
+const CONFIG_KEYS = ["name", "host", "port", "client_dir", "delete_unauthorized", "always_online", "lock_server_url", "block_count", "auto_update", "watch", "watch_quiet_ms", "manifest", "version_file", "cache_dir"];
 
 function fillForm(values) {
   const host = form.elements.host;
