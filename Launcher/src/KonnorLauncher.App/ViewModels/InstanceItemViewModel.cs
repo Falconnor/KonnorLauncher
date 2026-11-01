@@ -29,6 +29,8 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     [ObservableProperty] private bool _isModded;
     [ObservableProperty] private bool _isSynced;
     [ObservableProperty] private string _syncText = string.Empty;
+    [ObservableProperty] private bool _hasUpdate;
+    [ObservableProperty] private string _updateText = string.Empty;
     [ObservableProperty] private string _readyText = string.Empty;
     [ObservableProperty] private string _lastPlayedText = string.Empty;
     [ObservableProperty] private string _memoryText = string.Empty;
@@ -55,6 +57,9 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         IsSynced = model.SyncWithServer;
         SyncText = (model.ServerClientVersion is { Length: > 0 } v ? $"Servidor · modpack {v}" : "Sincronizada con el servidor")
                    + (model.ServerReleased ? " · liberada" : string.Empty);
+        // El servidor publicó una versión del cliente posterior a la instalada: se descarga al jugar.
+        HasUpdate = model.HasUpdate;
+        UpdateText = HasUpdate ? $"Actualización disponible · modpack {model.AvailableClientVersion}" : string.Empty;
         // Una instancia enlazada aún debe pasar la verificación del servidor antes de estar lista.
         ReadyText = IsSynced ? $"Jugar a {model.Name}" : $"Listo para jugar a {model.Name}";
         LastPlayedText = FormatLastPlayed(model.LastPlayed);

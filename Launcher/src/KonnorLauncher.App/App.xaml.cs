@@ -100,8 +100,10 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
-        // La lista de versiones de Mojang se pide en segundo plano para no retrasar el arranque.
-        await _host.Services.GetRequiredService<MainViewModel>().LoadRemoteVersionsAsync();
+        // La lista de versiones de Mojang y los manifests de las instancias sincronizadas se piden en
+        // segundo plano para no retrasar el arranque.
+        var main = _host.Services.GetRequiredService<MainViewModel>();
+        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync());
     }
 
     /// <summary>Registro de servicios (Core + ViewModels + vistas).</summary>

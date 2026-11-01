@@ -52,9 +52,11 @@ public sealed class InstanceSync
         var layout = InstanceLayout.For(instance, instancesDir, _metaDir ?? LauncherPaths.MetaDir);
         layout.EnsureCreated();
 
+        string? announced = null;
         var verifier = new ClientVerifier(_httpFactory.CreateClient(HttpClientName), _loggerFactory.CreateLogger<ClientVerifier>())
         {
-            ClientVersionReceived = v => instance.ServerClientVersion = v,
+            // No cuenta como instalada hasta que los archivos se hayan descargado (ver más abajo).
+            ClientVersionReceived = v => announced = v,
             // Política del servidor: se recuerda en la instancia para cuando no responda.
             ManifestReceived = m =>
             {
@@ -81,6 +83,10 @@ public sealed class InstanceSync
                 ? InstanceSyncResult.Fail("El servidor no responde. Comprueba la dirección y que esté en marcha.", serverUnreachable: true)
                 : InstanceSyncResult.Fail("No se pudieron descargar los archivos del servidor.");
 
+        // Archivos al día: la versión anunciada pasa a ser la instalada.
+        if (announced is not null)
+            instance.ServerClientVersion = instance.AvailableClientVersion = announced;
+
         // Sincronizada con éxito: queda vinculada a su servidor (salvo que este la haya liberado).
         if (!instance.ServerReleased)
             instance.SyncLocked = true;
@@ -91,8 +97,10 @@ public sealed class InstanceSync
     }
 
     /// <summary>
-    /// Consulta rápida de la política del servidor (sin descargar archivos) y la aplica a la instancia:
-    /// así el editor sabe al momento si el servidor la liberó. false si el servidor no responde.
+    /// Consulta rápida del manifest (sin descargar archivos) y aplica a la instancia la política del
+    /// servidor y la versión que anuncia (<see cref="GameInstance.AvailableClientVersion"/>; la
+    /// instalada no cambia). Así el editor sabe al momento si el servidor la liberó y la lista, si hay
+    /// una actualización. false si el servidor no responde.
     /// </summary>
     public async Task<bool> RefreshPolicyAsync(GameInstance instance, CancellationToken ct = default)
     {
@@ -103,6 +111,8 @@ public sealed class InstanceSync
             var url = instance.ServerUrl.Trim().TrimEnd('/') + "/client_manifest.json";
             var json = await _httpFactory.CreateClient(HttpClientName).GetStringAsync(url, timeout.Token).ConfigureAwait(false);
             var manifest = ManifestParser.Parse(json);
+            if (!string.IsNullOrWhiteSpace(manifest.ClientVersion))
+                instance.AvailableClientVersion = manifest.ClientVersion;
             instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
             instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
             ApplyPacksPolicy(instance, manifest);
@@ -110,12 +120,71 @@ public sealed class InstanceSync
                 instance.ServerReleased = true;
             return true;
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or VerificationException or InvalidOperationException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or VerificationException or InvalidOperationException
+                                       or UriFormatException)
         {
             _logger.LogInformation("No se pudo consultar la política del servidor de {Id}: {Message}", instance.Id, ex.Message);
             return false;
         }
     }
+
+    /// <summary>
+    /// Al abrir el launcher: consulta el manifest de cada instancia sincronizada, a la vez, y guarda lo
+    /// que haya cambiado (política del servidor y versión anunciada). No descarga ningún archivo.
+    /// Devuelve las instancias actualizadas, tal como quedan en disco.
+    /// </summary>
+    public async Task<IReadOnlyList<GameInstance>> CheckLinkedInstancesAsync(InstanceStore store, CancellationToken ct = default)
+    {
+        var linked = store.LoadAll().Where(i => i.SyncWithServer && !string.IsNullOrWhiteSpace(i.ServerUrl)).ToList();
+        var checks = await Task.WhenAll(linked.Select(async instance =>
+        {
+            var probe = instance.Clone();
+            var changed = await RefreshPolicyAsync(probe, ct).ConfigureAwait(false) && PolicyDiffers(instance, probe);
+            return (Probe: probe, Changed: changed);
+        })).ConfigureAwait(false);
+
+        var updated = new List<GameInstance>();
+        foreach (var (probe, _) in checks.Where(c => c.Changed))
+        {
+            try
+            {
+                // Se relee justo antes de guardar y solo se copia la política: si mientras tanto se jugó
+                // o se editó la instancia, no se pisa nada más.
+                var stored = store.LoadAll().FirstOrDefault(i => i.Id == probe.Id);
+                if (stored is null)
+                    continue;
+                CopyPolicy(probe, stored);
+                store.Save(stored);
+                updated.Add(stored);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                _logger.LogWarning(ex, "No se pudo guardar lo que anuncia el servidor de {Id}", probe.Id);
+            }
+        }
+
+        _logger.LogInformation("Servidores consultados al abrir: {Linked} instancias, {Updated} con cambios", linked.Count, updated.Count);
+        return updated;
+    }
+
+    /// <summary>Lo que el servidor decide sobre la instancia y se consulta sin descargar archivos.</summary>
+    public static void CopyPolicy(GameInstance from, GameInstance to)
+    {
+        to.ServerAlwaysOnline = from.ServerAlwaysOnline;
+        to.ServerLocksUrl = from.ServerLocksUrl;
+        to.ServerReleased |= from.ServerReleased; // irreversible
+        to.ServerProtectsPacks = from.ServerProtectsPacks;
+        to.InstallPacks |= from.ServerProtectsPacks;
+        to.AvailableClientVersion = from.AvailableClientVersion;
+    }
+
+    public static bool PolicyDiffers(GameInstance a, GameInstance b) =>
+        a.ServerAlwaysOnline != b.ServerAlwaysOnline
+        || a.ServerLocksUrl != b.ServerLocksUrl
+        || a.ServerReleased != b.ServerReleased
+        || a.ServerProtectsPacks != b.ServerProtectsPacks
+        || a.InstallPacks != b.InstallPacks
+        || a.AvailableClientVersion != b.AvailableClientVersion;
 
     /// <summary>
     /// <c>protect_packs</c>: si el servidor obliga a instalar sus packs, la casilla queda marcada (y

@@ -97,6 +97,10 @@ meta/                  ← compartido entre instancias (como en Modrinth)
   `resourcepacks` y `shaderpacks` que publica el servidor. Solo se instalan los que no haya ya con el
   mismo nombre y nunca se borran los del jugador. Si el servidor los protege (`protect_packs`), la
   casilla queda marcada y bloqueada, y los packs se reparan y limpian como el resto de sus archivos.
+- **Al abrir el launcher** se consulta el manifest de cada instancia sincronizada (sin descargar
+  archivos): se aplica la política actual del servidor y, si anuncia una `client_version` posterior
+  a la instalada, la instancia se marca con **Actualización disponible**. La versión instalada solo
+  cambia cuando una sincronización termina de descargar los archivos.
 - **Sin conexión**: si el cargador ya se instaló, la instancia se puede jugar sin internet.
 - **Migración**: la primera vez, si `launcher.properties` tenía una versión o la verificación
   activada, esa configuración se convierte en la instancia "Konnor".

@@ -30,6 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly VersionService _versions;
     private readonly PlayWorkflow _workflow;
     private readonly InstanceStore _store;
+    private readonly InstanceSync _sync;
     private readonly IDialogService _dialogs;
     private readonly ILogger<MainViewModel> _logger;
 
@@ -38,6 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
         VersionService versions,
         PlayWorkflow workflow,
         InstanceStore store,
+        InstanceSync sync,
         OptionsViewModel options,
         UsernamePromptViewModel usernamePrompt,
         InstanceEditorViewModel editor,
@@ -49,6 +51,7 @@ public sealed partial class MainViewModel : ObservableObject
         _versions = versions;
         _workflow = workflow;
         _store = store;
+        _sync = sync;
         _dialogs = dialogs;
         _logger = logger;
         Options = options;
@@ -95,6 +98,32 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await Task.Run(() => _versions.FetchRemoteReleasesAsync()).ConfigureAwait(true);
         Editor.NotifyRemoteVersionsLoaded();
+    }
+
+    /// <summary>
+    /// Consulta el manifest de las instancias sincronizadas (sin descargar archivos): así se sabe ya
+    /// al abrir si un servidor cambió su política o publicó una versión nueva del cliente.
+    /// </summary>
+    public async Task CheckLinkedInstancesAsync()
+    {
+        IReadOnlyList<GameInstance> updated;
+        try
+        {
+            updated = await Task.Run(() => _sync.CheckLinkedInstancesAsync(_store)).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "No se pudieron consultar los servidores de las instancias");
+            return;
+        }
+
+        foreach (var instance in updated)
+        {
+            // La que se está jugando se relee al terminar la partida.
+            if (IsPlaying && SelectedInstance?.Id == instance.Id)
+                continue;
+            Instances.FirstOrDefault(i => i.Id == instance.Id)?.Update(instance);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════

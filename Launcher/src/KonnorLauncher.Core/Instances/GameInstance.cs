@@ -110,8 +110,21 @@ public sealed partial class GameInstance
     [JsonIgnore]
     public bool IsPacksLocked => SyncWithServer && ServerProtectsPacks;
 
-    /// <summary>Última <c>client_version</c> que anunció el servidor.</summary>
+    /// <summary>
+    /// <c>client_version</c> instalada: la del servidor en la última sincronización que terminó con
+    /// éxito (con los archivos ya descargados).
+    /// </summary>
     public string? ServerClientVersion { get; set; }
+
+    /// <summary>
+    /// <c>client_version</c> que anuncia ahora el servidor (se consulta al abrir el launcher, sin
+    /// descargar nada). Si es posterior a la instalada, hay una actualización pendiente.
+    /// </summary>
+    public string? AvailableClientVersion { get; set; }
+
+    /// <summary>El servidor publicó una versión del cliente posterior a la instalada.</summary>
+    [JsonIgnore]
+    public bool HasUpdate => SyncWithServer && ClientVersions.IsNewer(AvailableClientVersion, ServerClientVersion);
 
     public DateTimeOffset Created { get; set; } = DateTimeOffset.Now;
 

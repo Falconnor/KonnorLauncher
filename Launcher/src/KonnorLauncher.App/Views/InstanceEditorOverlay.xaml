@@ -253,7 +253,7 @@
                                               IsEnabled="{Binding IsPacksSwitchEnabled}" AutomationProperties.Name="Instalar paquetes de recursos">
                                         <StackPanel>
                                             <TextBlock Text="Instalar paquetes de recursos" FontWeight="SemiBold" />
-                                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding PacksHint}" />
+                                            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Descarga los paquetes de recursos y shaders del servidor de estar disponibles." />
                                         </StackPanel>
                                     </CheckBox>
                                 </StackPanel>

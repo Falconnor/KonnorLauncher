@@ -109,14 +109,27 @@
                                                 <TextBlock Text="{Binding Initials}" FontWeight="Bold" FontSize="13"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                             </Border>
-                                            <!-- Punto verde: instancia sincronizada con el servidor -->
-                                            <Ellipse Width="11" Height="11" Fill="{StaticResource Ok}" Stroke="#1A1F27" StrokeThickness="2"
+                                            <!-- Punto verde: instancia sincronizada con el servidor; ámbar: con una actualización -->
+                                            <Ellipse Width="11" Height="11" Stroke="#1A1F27" StrokeThickness="2"
                                                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-3"
-                                                     Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}" />
+                                                     Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasUpdate}" Value="True">
+                                                                <Setter Property="Fill" Value="{StaticResource Warn}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
                                         </Grid>
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding Summary}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="Actualización disponible" FontSize="12.5" Foreground="{StaticResource Warn}" TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}" />
                                         </StackPanel>
                                     </DockPanel>
                                 </DataTemplate>
@@ -193,6 +206,13 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Ok}" />
                                                 <TextBlock Text="{Binding SyncText}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Ok}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Chip}"
+                                                Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0" Foreground="{StaticResource Warn}" />
+                                                <TextBlock Text="{Binding UpdateText}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Warn}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Chip}"

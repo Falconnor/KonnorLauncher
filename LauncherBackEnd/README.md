@@ -196,7 +196,7 @@ bloques: 00-0f → bloque 0, 10-1f → bloque 1...
   encendido para mundos que no lo necesitan.
 - **Bloquear cambio de dirección**: en las instancias ya sincronizadas, el launcher no deja cambiar
   la dirección del servidor. Reversible: al desactivarlo, los jugadores pueden cambiarla.
-- **Incluir packs** (desactivado por defecto): los paquetes de recursos y de shaders
+- **Proteger paquetes** (desactivado por defecto): los paquetes de recursos y de shaders
   (`resourcepacks` y `shaderpacks` de la carpeta del cliente) se publican siempre en el manifest.
   - Desactivado: cada jugador decide con la casilla **Instalar paquetes de recursos** de su
     instancia. Se instalan solo los packs que no tenga ya con el mismo nombre; nunca se reparan,

@@ -133,9 +133,6 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     public bool IsPacksSwitchEnabled => !IsSyncing && !IsPacksLocked;
 
-    public string PacksHint => IsPacksLocked
-        ? "El servidor obliga a instalar sus paquetes de recursos y de shaders, y los mantiene como el resto de sus archivos."
-        : "Descarga los paquetes de recursos y de shaders del servidor. Si ya tienes uno con el mismo nombre, se conserva el tuyo; nunca se borran los tuyos.";
 
     /// <summary>Explica lo que el servidor permite o bloquea en esta instancia.</summary>
     public string? SyncLockText
@@ -159,7 +156,6 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(SyncLockText));
         OnPropertyChanged(nameof(IsPacksLocked));
         OnPropertyChanged(nameof(IsPacksSwitchEnabled));
-        OnPropertyChanged(nameof(PacksHint));
         if (IsPacksLocked)
             InstallPacks = true;
     }
@@ -232,30 +228,17 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         var probe = _editing?.Clone();
         if (probe is null || !await _sync.RefreshPolicyAsync(probe) || _editing?.Id != id || !IsOpen)
             return;
-        var changed = probe.ServerReleased != _editing.ServerReleased
-                      || probe.ServerAlwaysOnline != _editing.ServerAlwaysOnline
-                      || probe.ServerLocksUrl != _editing.ServerLocksUrl
-                      || probe.ServerProtectsPacks != _editing.ServerProtectsPacks;
-        if (!changed)
+        if (!InstanceSync.PolicyDiffers(_editing, probe))
             return;
 
-        _editing.ServerReleased = probe.ServerReleased;
-        _editing.ServerAlwaysOnline = probe.ServerAlwaysOnline;
-        _editing.ServerLocksUrl = probe.ServerLocksUrl;
-        _editing.ServerProtectsPacks = probe.ServerProtectsPacks;
-        _editing.InstallPacks = probe.InstallPacks;
+        InstanceSync.CopyPolicy(probe, _editing);
         try
         {
             // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
             var stored = _store.LoadAll().FirstOrDefault(i => i.Id == id);
             if (stored is not null)
             {
-                stored.ServerReleased = probe.ServerReleased;
-                stored.ServerAlwaysOnline = probe.ServerAlwaysOnline;
-                stored.ServerLocksUrl = probe.ServerLocksUrl;
-                stored.ServerProtectsPacks = probe.ServerProtectsPacks;
-                if (probe.ServerProtectsPacks)
-                    stored.InstallPacks = true;
+                InstanceSync.CopyPolicy(probe, stored);
                 _store.Save(stored);
             }
         }
