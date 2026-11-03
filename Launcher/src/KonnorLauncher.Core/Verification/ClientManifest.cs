@@ -1,3 +1,5 @@
+using KonnorLauncher.Core.Instances;
+
 namespace KonnorLauncher.Core.Verification;
 
 /// <summary>Error que bloquea el inicio del juego.</summary>
@@ -15,8 +17,16 @@ public sealed class VerificationException : Exception
 /// <paramref name="UrlPath"/> usa <c>/</c> y es a la vez la clave del manifest, la ruta de la URL
 /// y (dentro de un bloque) el nombre de la entrada ZIP. <paramref name="RelativePath"/> usa el
 /// separador del sistema. <paramref name="Sha256"/> está en mayúsculas.
+/// <paramref name="Sha512"/> (minúsculas) solo lo llevan los archivos que pueden estar en Modrinth:
+/// sirve para buscarlos allí, pero la comprobación es siempre con el SHA-256.
 /// </summary>
-public sealed record ManifestFile(string RelativePath, string UrlPath, string Sha256, long Size);
+public sealed record ManifestFile(string RelativePath, string UrlPath, string Sha256, long Size, string? Sha512 = null);
+
+/// <summary>
+/// Sección <c>minecraft</c>: versión y cargador que el launcher instala por su cuenta (Mojang y la web
+/// oficial del cargador). <paramref name="LoaderVersion"/> es null en vanilla.
+/// </summary>
+public sealed record ManifestGame(string MinecraftVersion, ModLoader Loader, string? LoaderVersion);
 
 /// <summary>Bloque ZIP de assets con sus archivos internos.</summary>
 public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnlyList<ManifestFile> Files);
@@ -28,10 +38,12 @@ public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnly
 /// <c>released</c> (instancias liberadas: el jugador puede desactivar la sincronización) y
 /// <c>lock_server_url</c> (el jugador no puede cambiar la dirección del servidor; reversible) y
 /// <c>protect_packs</c> (los paquetes de recursos y de shaders se instalan siempre y se protegen).
+/// <c>minecraft</c> (opcional): si está, <c>versions</c>, <c>libraries</c> y <c>assets</c> no vienen del
+/// servidor, los instala el launcher.
 /// </summary>
 public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks,
     bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null, bool? LockServerUrl = null,
-    bool? ProtectPacks = null);
+    bool? ProtectPacks = null, ManifestGame? Game = null);
 
 /// <summary>Resultado de una verificación.</summary>
 /// <param name="Success">true = el juego puede iniciarse.</param>

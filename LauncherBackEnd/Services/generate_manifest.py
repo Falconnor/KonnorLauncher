@@ -9,12 +9,20 @@ Formato (el que espera Konnor Launcher)::
       "lock_server_url": true,                            ← Seguridad: dirección no modificable
       "protect_packs": false,                             ← Seguridad: packs obligatorios y protegidos
       "released": false,                                  ← Seguridad: instancias liberadas
-      "files": { "mods/x.jar": {"sha256": ..., "size": ...}, ... },
+      "minecraft": {"version": "1.21.1", "loader": "fabric", "loader_version": "0.19.3"},
+      "files": { "mods/x.jar": {"sha256": ..., "sha512": ..., "size": ...}, ... },
       "asset_blocks": { "assets_block_0-<hash>.zip": {"sha256", "size", "files": {...}}, ... }
     }
 
+- ``minecraft``: la versión y el cargador que hay en ``versions/`` (ver ``game_version.py``). Con
+  ella, el launcher instala el juego desde Mojang y el cargador desde su web oficial, así que
+  ``versions/``, ``libraries/`` y ``assets/`` no se publican (``asset_blocks`` queda vacío). Si no
+  se reconoce, no aparece y esas carpetas se publican como antes.
 - ``files``: todo lo que hay en la carpeta del cliente excepto ``assets/`` (va en los bloques),
-  ``packages/`` (los propios bloques) y archivos basura o temporales.
+  ``packages/`` (los propios bloques) y archivos basura o temporales. Los archivos de primer nivel de
+  ``mods/``, ``resourcepacks/`` y ``shaderpacks/`` llevan además su ``sha512``: con él, el launcher
+  los busca en Modrinth y los descarga de allí; los que no están en Modrinth los descarga de este
+  servidor. La comprobación siempre es contra el ``sha256`` de este manifest.
 - ``asset_blocks``: ver ``generate_asset_blocks.py``.
 
 Antes de generar, las carpetas del cliente que tengan carpeta de origen se igualan a ella (ver
@@ -41,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from Services.client_sources import sync_sources
+from Services.game_version import describe, detect_game
 from Services.generate_asset_blocks import build_blocks, clean_old_blocks
 from Services.hash_cache import HashCache
 from Services.settings import Settings, is_released, load_settings
@@ -48,6 +57,10 @@ from Services.settings import Settings, is_released, load_settings
 
 # Carpetas de primer nivel del cliente que no van en "files".
 EXCLUDED_TOP_LEVEL = {"assets", "packages"}
+# Las que instala el propio launcher cuando el manifest publica la versión del juego.
+GAME_TOP_LEVEL = {"versions", "libraries"}
+# Carpetas cuyos archivos pueden estar en Modrinth (se publica también su SHA-512).
+MODRINTH_FOLDERS = {"mods", "resourcepacks", "shaderpacks"}
 # Archivos que nunca se publican (basura del sistema o temporales).
 EXCLUDED_NAMES = {"Thumbs.db", "desktop.ini", ".DS_Store"}
 EXCLUDED_SUFFIXES = (".tmp", ".part")
@@ -65,6 +78,7 @@ class GenerationResult:
     blocks: int = 0
     assets: int = 0
     version: str = ""
+    game: str = ""                # versión de Minecraft y cargador publicados ("" = no reconocida)
     seconds: float = 0.0
     error: str = ""
     copied: int = 0               # archivos copiados desde las carpetas de origen
@@ -101,22 +115,28 @@ def load_manifest(path: Path) -> dict:
         return {}
 
 
-def collect_files(client_dir: Path, cache: HashCache) -> tuple[dict[str, dict], list[str]]:
-    """Archivos sueltos para la sección ``files`` y la lista de rutas inválidas."""
+def collect_files(client_dir: Path, cache: HashCache,
+                  excluded: set[str] = EXCLUDED_TOP_LEVEL) -> tuple[dict[str, dict], list[str]]:
+    """Archivos sueltos para la sección ``files`` y la lista de rutas inválidas. Se omiten las
+    carpetas de primer nivel de ``excluded``."""
     files: dict[str, dict] = {}
     invalid: list[str] = []
     for path in sorted(client_dir.rglob("*")):
         if not path.is_file():
             continue
         relative = path.relative_to(client_dir).as_posix()
-        if relative.split("/")[0] in EXCLUDED_TOP_LEVEL:
+        parts = relative.split("/")
+        if parts[0] in excluded:
             continue
         if path.name in EXCLUDED_NAMES or path.name.endswith(EXCLUDED_SUFFIXES):
             continue
         if reason := invalid_path_reason(relative):
             invalid.append(f"{relative}  ({reason})")
             continue
-        files[relative] = {"sha256": cache.sha256(path), "size": path.stat().st_size}
+        on_modrinth = len(parts) == 2 and parts[0] in MODRINTH_FOLDERS
+        sha256, sha512 = cache.hashes(path, with_sha512=on_modrinth)
+        files[relative] = {"sha256": sha256, **({"sha512": sha512} if sha512 else {}),
+                           "size": path.stat().st_size}
     return files, invalid
 
 
@@ -159,9 +179,16 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     previous_blocks = previous.get("asset_blocks") if isinstance(previous.get("asset_blocks"), dict) else {}
     cache = HashCache(settings.hash_cache_file)
 
-    # 1. Bloques de assets (solo se reconstruyen los que cambiaron).
-    asset_blocks = build_blocks(client_dir, cache, previous_blocks, force=force_blocks, log=log,
-                                block_count=settings.block_count)
+    # 1. Versión del juego. Si se reconoce, el launcher instala versions, libraries y assets.
+    game = detect_game(client_dir)
+    if game:
+        log(f"Juego: {describe(game)} (lo instala el launcher; no se publican versions, libraries ni assets)")
+    else:
+        log("No se reconoce la versión de versions/: se publican versions, libraries y assets")
+
+    # 2. Bloques de assets (solo se reconstruyen los que cambiaron).
+    asset_blocks = {} if game else build_blocks(client_dir, cache, previous_blocks, force=force_blocks,
+                                                log=log, block_count=settings.block_count)
     invalid = [
         f"{rel}  ({reason})"
         for block in asset_blocks.values()
@@ -169,8 +196,9 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
         if (reason := invalid_path_reason(rel))
     ]
 
-    # 2. Archivos sueltos.
-    files, invalid_files = collect_files(client_dir, cache)
+    # 3. Archivos sueltos.
+    files, invalid_files = collect_files(
+        client_dir, cache, EXCLUDED_TOP_LEVEL | GAME_TOP_LEVEL if game else EXCLUDED_TOP_LEVEL)
     invalid = invalid_files + invalid
     cache.save()
 
@@ -180,7 +208,7 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
             log(f"   {entry}")
         return GenerationResult(ok=False, error=f"{len(invalid)} rutas no válidas; el manifest no se modificó")
 
-    # 3. Manifest final (solo se escribe si cambió).
+    # 4. Manifest final (solo se escribe si cambió).
     version = read_client_version(settings)
     manifest: dict = {"client_version": version} if version else {}
     # Los launchers sincronizados aplican esta decisión (los antiguos ignoran el campo).
@@ -189,23 +217,27 @@ def generate_manifest(settings: Settings | None = None, force_blocks: bool = Fal
     manifest["lock_server_url"] = settings.lock_server_url
     manifest["protect_packs"] = settings.protect_packs
     manifest["released"] = is_released(settings.profile_id)  # al día aunque el servidor no se reinicie
+    if game:
+        manifest["minecraft"] = game
     manifest |= {"files": files, "asset_blocks": asset_blocks}
 
     changed = load_manifest(output) != manifest
     if changed:
         write_atomic(output, manifest)
 
-    # 4. Bloques que ya no usa nadie (se conservan los del manifest anterior).
+    # 5. Bloques que ya no usa nadie (se conservan los del manifest anterior).
     if output == settings.manifest_file:
         clean_old_blocks(client_dir, keep=set(asset_blocks) | set(previous_blocks), log=log)
 
     result = GenerationResult(
         ok=True, changed=changed, files=len(files), blocks=len(asset_blocks),
         assets=sum(len(b["files"]) for b in asset_blocks.values()), version=version,
+        game=describe(game) if game else "",
         seconds=time.perf_counter() - started,
         copied=synced.copied, deleted=synced.deleted, missing_sources=synced.missing,
     )
     log(f"Manifest {'actualizado' if changed else 'sin cambios'}: versión {version or '-'}, "
+        f"{result.game or 'juego publicado como archivos'}, "
         f"{result.files} archivos, {result.blocks} bloques ({result.assets} assets), "
         f"{result.seconds:.1f} s (hashes en caché: {cache.hits}, calculados: {cache.misses})")
     return result

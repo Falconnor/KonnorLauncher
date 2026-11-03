@@ -40,7 +40,7 @@ public static class MarkdownPage
         :root { color-scheme: dark; }
         html, body { background: transparent; margin: 0; }
         body {
-          padding: 4px 18px 28px 2px;
+          padding: 4px 12px 28px 2px;
           color: #F3F5F7; font: 15px/1.6 "Segoe UI Variable Text", "Segoe UI", sans-serif;
           word-wrap: break-word; overflow-wrap: anywhere;
         }
@@ -63,9 +63,8 @@ public static class MarkdownPage
         details { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 14px; margin-bottom: 1em; }
         summary { cursor: pointer; font-weight: 600; }
         ::selection { background: #27AE60; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); }
-        ::-webkit-scrollbar-track { background: transparent; }
+        /* La barra de desplazamiento la pone el launcher: la de la página no se ve. */
+        html { scrollbar-width: none; }
+        ::-webkit-scrollbar { width: 0; height: 0; }
         """;
 }

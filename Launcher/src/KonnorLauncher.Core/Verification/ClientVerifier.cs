@@ -73,6 +73,12 @@ public sealed partial class ClientVerifier
     public static readonly IReadOnlyList<string> ProtectedFolders = ["mods", "versions", "libraries", "assets"];
 
     /// <summary>
+    /// Carpetas del juego. Si el manifest publica la versión (<c>minecraft</c>), las llena el propio
+    /// launcher desde Mojang y el cargador, no el servidor: la limpieza no las toca.
+    /// </summary>
+    public static readonly IReadOnlyList<string> GameFolders = ["versions", "libraries", "assets"];
+
+    /// <summary>
     /// Paquetes de recursos y de shaders. Solo se protegen (reparación y limpieza) si el servidor
     /// publica <c>protect_packs</c>; si no, son del jugador.
     /// </summary>
@@ -115,6 +121,13 @@ public sealed partial class ClientVerifier
 
     /// <summary>Se invoca con el manifest ya validado (la instancia guarda la política del servidor).</summary>
     public Action<ClientManifest>? ManifestReceived { get; set; }
+
+    /// <summary>
+    /// Réplica de los archivos que llevan SHA-512 (Modrinth): recibe esos hashes y devuelve, de los que
+    /// encuentra, la dirección de descarga. Solo se usa para descargar; lo descargado se comprueba con
+    /// el SHA-256 del manifest, y si no está o falla se descarga del servidor. null = solo el servidor.
+    /// </summary>
+    public Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlyDictionary<string, string>>>? MirrorLookup { get; set; }
 
     // ══════════════════════════════════════════════════════════════════════
     // FLUJO PRINCIPAL
@@ -205,7 +218,9 @@ public sealed partial class ClientVerifier
                     var allowed = manifest.Files.Concat(manifest.AssetBlocks.SelectMany(b => b.Files))
                         .Select(f => ManifestPath.ComparisonKey(f.RelativePath))
                         .ToHashSet(StringComparer.Ordinal);
-                    var folders = protectPacks ? ProtectedFolders.Concat(PackFolders) : ProtectedFolders;
+                    var folders = manifest.Game is null ? ProtectedFolders : ProtectedFolders.Except(GameFolders);
+                    if (protectPacks)
+                        folders = folders.Concat(PackFolders);
                     removed = RemoveUnauthorizedFiles(gameDir, allowed, folders);
                     _logger.LogInformation("Limpieza: {Removed} archivos no autorizados eliminados", removed);
                 }
@@ -444,19 +459,62 @@ public sealed partial class ClientVerifier
         if (files.Count == 0 || downloadsDir is null)
             return;
 
+        var mirrors = await FindMirrorsAsync(files, ct).ConfigureAwait(false);
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallel), CancellationToken = ct };
         await Parallel.ForEachAsync(files, parallelOptions, async (file, token) =>
         {
-            // Descarga (o reanuda) en la carpeta de descargas, verificando el hash...
+            // Descarga (o reanuda) en la carpeta de descargas, verificando el hash: primero de Modrinth
+            // si lo tiene y, si no, o si allí falla, del servidor. El parcial es el mismo en los dos casos
+            // (mismo contenido), así que lo que se bajó de uno se reanuda desde el otro.
             var url = $"{baseUrl}/client/{ManifestPath.EncodeUrlPath(file.UrlPath)}";
-            var downloaded = await DownloadAsync(url, downloadsDir, file.UrlPath, file.Sha256, file.Size,
-                Path.GetFileName(file.RelativePath), tracker, token).ConfigureAwait(false);
+            var name = Path.GetFileName(file.RelativePath);
+            string? downloaded = null;
+            if (file.Sha512 is { } sha512 && mirrors.TryGetValue(sha512, out var mirror))
+            {
+                try
+                {
+                    downloaded = await DownloadAsync(mirror, downloadsDir, file.UrlPath, file.Sha256, file.Size, name, tracker, token)
+                        .ConfigureAwait(false);
+                }
+                catch (VerificationException ex)
+                {
+                    _logger.LogWarning(ex, "No se pudo descargar {File} de Modrinth; se descarga del servidor", name);
+                }
+            }
+
+            downloaded ??= await DownloadAsync(url, downloadsDir, file.UrlPath, file.Sha256, file.Size,
+                name, tracker, token).ConfigureAwait(false);
 
             // ...y se mueve a su destino de forma atómica.
             var destination = ManifestPath.ToLocalPath(gameDir, file);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             File.Move(downloaded, destination, overwrite: true);
         }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Direcciones en la réplica (Modrinth) de los archivos a reparar que llevan SHA-512. Si la réplica no
+    /// responde, todo se descarga del servidor: nunca bloquea la verificación.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> FindMirrorsAsync(List<ManifestFile> files, CancellationToken ct)
+    {
+        var hashes = files.Select(f => f.Sha512).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (MirrorLookup is null || hashes.Count == 0)
+            return new Dictionary<string, string>();
+        try
+        {
+            var found = await MirrorLookup(hashes, ct).ConfigureAwait(false);
+            var mirrors = found
+                .Where(m => Modrinth.ContentInstaller.IsAllowedUrl(m.Value, out _)) // HTTPS (o local, en pruebas)
+                .ToDictionary(m => m.Key, m => m.Value, StringComparer.OrdinalIgnoreCase);
+            _logger.LogInformation("Modrinth: {Found} de {Total} archivos a reparar se descargan de allí", mirrors.Count, hashes.Count);
+            return mirrors;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "No se pudo consultar Modrinth; todo se descarga del servidor");
+            return new Dictionary<string, string>();
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -587,6 +645,9 @@ public sealed partial class ClientVerifier
             }
             catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException)
             {
+                // Lo ya descargado se descuenta del progreso: si se reintenta desde otra dirección, se
+                // vuelve a contar al reanudar.
+                Report(0);
                 throw new VerificationException($"No se pudo descargar {displayName}", ex);
             }
 

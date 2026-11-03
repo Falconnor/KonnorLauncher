@@ -450,8 +450,12 @@ function renderManifest(s) {
     $("mfBlocksSize").textContent = bytes(m.blocks_size);
     $("mfAssets").textContent = number.format(m.assets);
     $("mfTotal").textContent = `Total ${bytes(m.files_size + m.blocks_size)}`;
+    $("mfGame").textContent = m.game
+      ? `${m.game}: el launcher instala el juego desde las fuentes oficiales. ${number.format(m.hashed_for_modrinth)} archivos de mods y paquetes se buscan primero en Modrinth por su hash.`
+      : "No se reconoce la versión de versions/: se publican versions, libraries y assets como archivos.";
     renderFolders(m.folders, m.files);
   } else {
+    $("mfGame").textContent = "";
     $("mfPublished").textContent = m.error || "Todavía no hay manifest: se crea al regenerar o al iniciar el servidor.";
     for (const id of ["mfFiles", "mfBlocks", "mfAssets"]) $(id).textContent = "—";
     for (const id of ["mfFilesSize", "mfBlocksSize", "mfTotal"]) $(id).textContent = "";

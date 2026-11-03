@@ -63,6 +63,32 @@ public sealed class ModrinthClient
     public Task<ProjectVersion> GetVersionAsync(string versionId, CancellationToken ct = default) =>
         GetAsync<ProjectVersion>($"/version/{Uri.EscapeDataString(versionId)}", ct);
 
+    /// <summary>Hashes por consulta a <c>/version_files</c> (la API no publica un límite; se va con margen).</summary>
+    private const int HashesPerRequest = 200;
+
+    /// <summary>
+    /// Busca archivos por su SHA-512 (<c>POST /version_files</c>) y devuelve, para cada hash que está en
+    /// Modrinth, la dirección de descarga del archivo con ese mismo hash. Los que no están, no aparecen.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> FindFilesBySha512Async(IEnumerable<string> sha512, CancellationToken ct = default)
+    {
+        var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chunk in sha512.Select(h => h.ToLowerInvariant()).Distinct().Chunk(HashesPerRequest))
+        {
+            var versions = await PostAsync<Dictionary<string, ProjectVersion>>("/version_files",
+                new { hashes = chunk, algorithm = "sha512" }, ct).ConfigureAwait(false);
+            foreach (var (hash, version) in versions)
+            {
+                // La respuesta trae la versión entera: se toma el archivo cuyo hash es el pedido.
+                if (version.Files.FirstOrDefault(f => string.Equals(f.Hashes.Sha512, hash, StringComparison.OrdinalIgnoreCase)) is { } file
+                    && ContentInstaller.IsAllowedUrl(file.Url, out _))
+                    found[hash] = file.Url;
+            }
+        }
+
+        return found;
+    }
+
     public async Task<IReadOnlyList<CategoryTag>> GetCategoriesAsync(CancellationToken ct = default) =>
         await CachedAsync(() => _categories, v => _categories = v, "/tag/category", ct).ConfigureAwait(false);
 
@@ -92,13 +118,24 @@ public sealed class ModrinthClient
         }
     }
 
-    private async Task<T> GetAsync<T>(string path, CancellationToken ct)
+    private Task<T> GetAsync<T>(string path, CancellationToken ct) =>
+        SendAsync(path, token => Http.GetFromJsonAsync<T>(BaseUrl + path, Json, token), ct);
+
+    private Task<T> PostAsync<T>(string path, object body, CancellationToken ct) =>
+        SendAsync(path, async token =>
+        {
+            using var response = await Http.PostAsJsonAsync(BaseUrl + path, body, Json, token).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<T>(Json, token).ConfigureAwait(false);
+        }, ct);
+
+    private async Task<T> SendAsync<T>(string path, Func<CancellationToken, Task<T?>> request, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(RequestTimeout);
         try
         {
-            var value = await Http.GetFromJsonAsync<T>(BaseUrl + path, Json, timeout.Token).ConfigureAwait(false);
+            var value = await request(timeout.Token).ConfigureAwait(false);
             return value ?? throw new ModrinthException("Modrinth devolvió una respuesta vacía.");
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)

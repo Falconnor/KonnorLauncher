@@ -60,6 +60,8 @@ public sealed partial class GameInstance
     /// Si está activa, al jugar se verifican los archivos con el servidor. La instancia guarda
     /// entonces sus propios <c>versions</c>, <c>libraries</c> y <c>assets</c>: la verificación borra lo
     /// que no está en el manifest y nunca debe tocar los archivos compartidos de otras instancias.
+    /// Si el manifest publica la versión (<c>minecraft</c>), esas carpetas las llena el launcher y la
+    /// limpieza solo afecta a <c>mods</c> (y a los packs si el servidor los protege).
     /// </summary>
     public bool SyncWithServer { get; set; }
 

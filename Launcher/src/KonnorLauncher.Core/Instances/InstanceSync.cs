@@ -1,4 +1,5 @@
 using System.Text.Json;
+using KonnorLauncher.Core.Modrinth;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Progress;
 using KonnorLauncher.Core.Verification;
@@ -7,17 +8,27 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KonnorLauncher.Core.Instances;
 
-/// <summary>Resultado de sincronizar una instancia: la versión que publica el servidor, si se pudo detectar.</summary>
+/// <summary>
+/// Resultado de sincronizar una instancia: la versión que publica el servidor. O bien
+/// <paramref name="Game"/> (el manifest publica versión y cargador y el launcher los instala), o bien
+/// <paramref name="VersionId"/> (el servidor envía la carpeta <c>versions</c> y se lanza la que hay).
+/// </summary>
 /// <param name="ServerUnreachable">El servidor no respondió (no es un fallo de los archivos).</param>
-public sealed record InstanceSyncResult(bool Success, string Message, string? VersionId, bool ServerUnreachable = false)
+public sealed record InstanceSyncResult(bool Success, string Message, string? VersionId, bool ServerUnreachable = false,
+    ManifestGame? Game = null)
 {
     public static InstanceSyncResult Fail(string message, bool serverUnreachable = false) => new(false, message, null, serverUnreachable);
 }
 
 /// <summary>
 /// Sincroniza una instancia con el servidor (LauncherBackEnd) y detecta qué versión hay que lanzar.
-/// En una instancia sincronizada la versión la decide el servidor: es la que publica en
-/// <c>versions/</c> (la del cargador si hay una, por ejemplo <c>1.20.1-forge-47.3.0</c>).
+/// En una instancia sincronizada la versión la decide el servidor:
+/// <list type="bullet">
+/// <item>la de la sección <c>minecraft</c> del manifest: el launcher instala el juego y el cargador por
+/// su cuenta, como en una instancia normal, y los mods que están en Modrinth se descargan de allí;</item>
+/// <item>si el manifest no la trae (servidor antiguo o versión no reconocida), la que publica en
+/// <c>versions/</c> (la del cargador si hay una, por ejemplo <c>1.20.1-forge-47.3.0</c>).</item>
+/// </list>
 /// Lo usan el editor (al crear la instancia) y el flujo de JUGAR (antes de cada partida).
 /// </summary>
 public sealed class InstanceSync
@@ -32,12 +43,16 @@ public sealed class InstanceSync
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
     private readonly string? _metaDir;
+    private readonly ModrinthClient? _modrinth;
 
     /// <param name="metaDir">Carpeta compartida (Java); por defecto la de los datos del launcher.</param>
-    public InstanceSync(IHttpClientFactory httpFactory, ILoggerFactory? loggerFactory = null, string? metaDir = null)
+    /// <param name="modrinth">Para descargar de Modrinth los archivos que publica con su hash; null = todo del servidor.</param>
+    public InstanceSync(IHttpClientFactory httpFactory, ILoggerFactory? loggerFactory = null, string? metaDir = null,
+        ModrinthClient? modrinth = null)
     {
         _httpFactory = httpFactory;
         _metaDir = metaDir;
+        _modrinth = modrinth;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<InstanceSync>();
     }
@@ -53,6 +68,7 @@ public sealed class InstanceSync
         layout.EnsureCreated();
 
         string? announced = null;
+        ManifestGame? game = null;
         var verifier = new ClientVerifier(_httpFactory.CreateClient(HttpClientName), _loggerFactory.CreateLogger<ClientVerifier>())
         {
             // No cuenta como instalada hasta que los archivos se hayan descargado (ver más abajo).
@@ -60,12 +76,15 @@ public sealed class InstanceSync
             // Política del servidor: se recuerda en la instancia para cuando no responda.
             ManifestReceived = m =>
             {
+                game = m.Game;
                 instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
                 instance.ServerLocksUrl = m.LockServerUrl ?? true;
                 ApplyPacksPolicy(instance, m);
                 if (m.Released == true)
                     instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
             },
+            // Solo para descargar: lo comprobado sigue siendo el SHA-256 del manifest.
+            MirrorLookup = _modrinth is null ? null : (hashes, token) => _modrinth.FindFilesBySha512Async(hashes, token),
         };
         var result = await verifier.VerifyAsync(new VerifierOptions
         {
@@ -91,9 +110,37 @@ public sealed class InstanceSync
         if (!instance.ServerReleased)
             instance.SyncLocked = true;
 
+        if (game is not null)
+        {
+            _logger.LogInformation("Instancia {Id} sincronizada; el servidor pide {Minecraft} {Loader} {LoaderVersion}",
+                instance.Id, game.MinecraftVersion, game.Loader, game.LoaderVersion);
+            return new InstanceSyncResult(true, string.Empty, null, Game: game);
+        }
+
         var version = DetectVersion(layout.VersionsDir);
         _logger.LogInformation("Instancia {Id} sincronizada; versión del servidor: {Version}", instance.Id, version ?? "(ninguna)");
         return version is null ? InstanceSyncResult.Fail(NoVersionText) : new InstanceSyncResult(true, string.Empty, version);
+    }
+
+    /// <summary>
+    /// Adopta en la instancia la versión que publica el servidor tras sincronizar con éxito. Devuelve
+    /// true si cambió (entonces la versión instalada se vuelve a resolver al jugar).
+    /// </summary>
+    public static bool AdoptServerVersion(GameInstance instance, InstanceSyncResult result)
+    {
+        var (minecraft, loader, loaderVersion) = result.Game is { } game
+            ? (game.MinecraftVersion, game.Loader, game.LoaderVersion)
+            // El id ya incluye el cargador (p. ej. 1.20.1-forge-47.3.0): se lanza tal cual.
+            : (result.VersionId ?? string.Empty, ModLoader.Vanilla, (string?)null);
+        if (instance.MinecraftVersion == minecraft && instance.Loader == loader && instance.LoaderVersion == loaderVersion)
+            return false;
+
+        instance.MinecraftVersion = minecraft;
+        instance.Loader = loader;
+        instance.LoaderVersion = loaderVersion;
+        instance.LoaderChannel = loader == ModLoader.Vanilla ? LoaderChannel.Stable : LoaderChannel.Specific;
+        instance.InstalledVersionId = null;
+        return true;
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using KonnorLauncher.Core.Instances;
 
 namespace KonnorLauncher.Core.Verification;
 
@@ -10,6 +11,13 @@ public static partial class ManifestParser
 {
     [GeneratedRegex("^[0-9a-fA-F]{64}$")]
     private static partial Regex Sha256Regex();
+
+    [GeneratedRegex("^[0-9a-fA-F]{128}$")]
+    private static partial Regex Sha512Regex();
+
+    /// <summary>Versiones de Minecraft y del cargador: se usan en URLs y nombres de carpeta.</summary>
+    [GeneratedRegex("^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$")]
+    private static partial Regex VersionRegex();
 
     /// <summary>
     /// Parsea el texto JSON. Un JSON mal formado se considera un fallo del servidor
@@ -51,8 +59,46 @@ public static partial class ManifestParser
         // Política del servidor (solo cuenta un booleano; si falta, null).
         return new ClientManifest(clientVersion, files, blocks,
             ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"),
-            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"));
+            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"), ParseGame(root));
     }
+
+    /// <summary>
+    /// Sección opcional <c>minecraft</c>: <c>{ "version", "loader", "loader_version" }</c>. Si está pero no
+    /// es válida, el manifest se rechaza: sin ella el servidor no publica los archivos del juego.
+    /// </summary>
+    private static ManifestGame? ParseGame(JsonElement root)
+    {
+        if (!root.TryGetProperty("minecraft", out var game) || game.ValueKind == JsonValueKind.Null)
+            return null;
+        if (game.ValueKind != JsonValueKind.Object)
+            throw new VerificationException("Sección minecraft inválida");
+
+        var version = ReadString(game, "version");
+        if (version is null || !VersionRegex().IsMatch(version))
+            throw new VerificationException("Versión de Minecraft inválida en el manifest");
+
+        ModLoader? loader = ReadString(game, "loader")?.ToLowerInvariant() switch
+        {
+            null or "vanilla" => ModLoader.Vanilla,
+            "fabric" => ModLoader.Fabric,
+            "quilt" => ModLoader.Quilt,
+            "forge" => ModLoader.Forge,
+            "neoforge" => ModLoader.NeoForge,
+            _ => null,
+        };
+        if (loader is null)
+            throw new VerificationException("Cargador de mods desconocido en el manifest");
+        if (loader == ModLoader.Vanilla)
+            return new ManifestGame(version, ModLoader.Vanilla, null);
+
+        var loaderVersion = ReadString(game, "loader_version");
+        if (loaderVersion is null || !VersionRegex().IsMatch(loaderVersion))
+            throw new VerificationException("Versión del cargador inválida en el manifest");
+        return new ManifestGame(version, loader.Value, loaderVersion);
+    }
+
+    private static string? ReadString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static bool? ReadFlag(JsonElement root, string name) =>
         root.TryGetProperty(name, out var element) && element.ValueKind is JsonValueKind.True or JsonValueKind.False
@@ -108,7 +154,9 @@ public static partial class ManifestParser
             var (relative, url) = ManifestPath.Normalize(rawPath);
             var sha = ReadSha(meta) ?? throw new VerificationException($"SHA-256 inválido para {rawPath}{suffix}");
             var size = ReadSize(meta) ?? throw new VerificationException($"Tamaño inválido para {rawPath}{suffix}");
-            result[rawPath] = new ManifestFile(relative, url, sha, size);
+            // SHA-512 opcional (para buscarlo en Modrinth): si no es válido se ignora, no es lo que se comprueba.
+            var sha512 = ReadString(meta, "sha512") is { } text && Sha512Regex().IsMatch(text) ? text.ToLowerInvariant() : null;
+            result[rawPath] = new ManifestFile(relative, url, sha, size, sha512);
         }
 
         return [.. result.Values];

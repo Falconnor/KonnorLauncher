@@ -47,6 +47,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from Panel.supervisor import LogBuffer, PanelError, ServerProcess
+from Services.game_version import describe
 from Services.generate_manifest import generate_manifest, read_client_version
 from Services.profile_files import PACK_SUBDIRS, create_client_dir, delete_files, describe_files
 from Services.settings import (release_profile, BASE_DIR, MAX_BLOCKS, PROFILES_DIR, Settings, create_profile,
@@ -272,6 +273,9 @@ def _manifest_summary(rt: Runtime, path: Path) -> dict:
         "blocks_size": sum(int(b.get("size", 0)) for b in blocks.values()),
         "assets": sum(len(b.get("files") or {}) for b in blocks.values()),
         "folders": dict(sorted(folders.items(), key=lambda item: -item[1])),
+        # Versión del juego que instala el propio launcher (None = se publica como archivos).
+        "game": describe(manifest["minecraft"]) if isinstance(manifest.get("minecraft"), dict) else None,
+        "hashed_for_modrinth": sum(1 for f in files.values() if isinstance(f, dict) and "sha512" in f),
     }
     rt.manifest_cache.update(key=key, data=data)
     return data

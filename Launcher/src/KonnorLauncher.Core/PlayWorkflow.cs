@@ -24,8 +24,9 @@ public sealed record PlayResult(bool Success, string Message)
 /// verificar con el servidor (si la instancia se sincroniza) → instalar el cargador → instalar con
 /// CmlLib (vanilla, librerías, assets, Java) → lanzar → esperar
 /// </code>
-/// La verificación va antes de CmlLib para que las versiones que publica el servidor (Forge, Fabric...)
-/// ya estén en disco. La UI pide el nombre de jugador antes de llamar a <see cref="RunAsync"/>.
+/// La verificación va antes porque decide la versión: la que publica el manifest (y entonces el
+/// cargador se instala aquí, como en una instancia normal) o, con servidores que envían la carpeta
+/// <c>versions</c>, la que ya dejó en disco. La UI pide el nombre de jugador antes de llamar a <see cref="RunAsync"/>.
 /// </summary>
 public sealed class PlayWorkflow
 {
@@ -93,12 +94,11 @@ public sealed class PlayWorkflow
                     progress?.Report(new LauncherProgress(LauncherPhase.Verifying, "El servidor no responde: se juega con los archivos actuales"));
                 }
                 // Si el servidor cambió de versión, la instancia la adopta.
-                else if (result.VersionId != instance.MinecraftVersion || instance.Loader != ModLoader.Vanilla)
+                else
                 {
-                    _logger.LogInformation("La versión del servidor cambió: {Old} → {New}", instance.Summary, result.VersionId);
-                    instance.MinecraftVersion = result.VersionId!;
-                    instance.Loader = ModLoader.Vanilla; // el id ya incluye el cargador (p. ej. 1.20.1-forge-47.3.0)
-                    instance.LoaderVersion = null;
+                    var old = instance.Summary;
+                    if (InstanceSync.AdoptServerVersion(instance, result))
+                        _logger.LogInformation("La versión del servidor cambió: {Old} → {New}", old, instance.Summary);
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)

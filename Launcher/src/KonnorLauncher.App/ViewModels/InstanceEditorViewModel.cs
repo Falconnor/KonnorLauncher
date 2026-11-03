@@ -164,10 +164,15 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         ? (string.IsNullOrWhiteSpace(MinecraftVersion) || IsNew ? "La decide el servidor" : $"{ServerVersionText(MinecraftVersion)}  ·  del servidor")
         : string.IsNullOrWhiteSpace(MinecraftVersion) ? "Elige una versión de Minecraft" : $"Minecraft {MinecraftVersion}";
 
-    /// <summary>"fabric-loader-0.19.3-1.21.1" → "Minecraft 1.21.1 · Fabric 0.19.3".</summary>
-    private static string ServerVersionText(string id)
+    /// <summary>
+    /// "fabric-loader-0.19.3-1.21.1" (el servidor envía versions) o "1.21.1" con Fabric 0.19.3 (lo
+    /// publica en el manifest) → "Minecraft 1.21.1 · Fabric 0.19.3".
+    /// </summary>
+    private string ServerVersionText(string id)
     {
         var (minecraft, loader, version) = GameInstance.ParseVersionId(id);
+        if (loader == ModLoader.Vanilla && Loader != ModLoader.Vanilla)
+            (loader, version) = (Loader, SpecificLoaderVersion);
         return loader == ModLoader.Vanilla
             ? $"Minecraft {minecraft}"
             : $"Minecraft {minecraft} · {GameInstance.LoaderDisplayName(loader)} {version}".TrimEnd();
@@ -661,10 +666,14 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         instance.InstallPacks = installPacks;
         if (SyncWithServer)
         {
-            // La versión la decide el servidor (se detecta al sincronizar); el id ya incluye el cargador.
-            instance.Loader = ModLoader.Vanilla;
-            instance.LoaderChannel = LoaderChannel.Stable;
-            instance.LoaderVersion = null;
+            // La versión la decide el servidor (se adopta al sincronizar); al editar una instancia ya
+            // sincronizada se conserva la que tiene.
+            if (changedGame)
+            {
+                instance.Loader = ModLoader.Vanilla;
+                instance.LoaderChannel = LoaderChannel.Stable;
+                instance.LoaderVersion = null;
+            }
         }
         else
         {
@@ -757,10 +766,14 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
             return false;
         }
 
-        instance.MinecraftVersion = result.VersionId!;
-        instance.InstalledVersionId = null;
-        MinecraftVersion = result.VersionId!;
-        _logger.LogInformation("Instancia {Id} lista con la versión del servidor {Version}", instance.Id, result.VersionId);
+        InstanceSync.AdoptServerVersion(instance, result);
+        // Mismo orden que al abrir: versión, cargador y por último la versión concreta del cargador.
+        MinecraftVersion = instance.MinecraftVersion;
+        Loader = instance.Display.Loader;
+        Channel = instance.LoaderChannel;
+        SpecificLoaderVersion = instance.LoaderChannel == LoaderChannel.Specific ? instance.LoaderVersion : null;
+        OnPropertyChanged(nameof(MinecraftVersionLabel));
+        _logger.LogInformation("Instancia {Id} lista con la versión del servidor {Version}", instance.Id, instance.Summary);
         return true;
     }
 
