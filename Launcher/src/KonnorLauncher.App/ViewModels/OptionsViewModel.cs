@@ -43,23 +43,14 @@ public sealed partial class OptionsViewModel : ObservableObject
     /// <summary>Se dispara después de guardar (la ventana principal actualiza la bienvenida).</summary>
     public event EventHandler? Saved;
 
-    /// <summary>La vista enfoca el campo de nombre cuando GUARDAR falla por un nombre inválido.</summary>
-    public event EventHandler? FocusUsernameRequested;
-
     public ObservableCollection<RamOption> RamOptions { get; } = [];
 
     [ObservableProperty] private bool _isOpen;
     [ObservableProperty] private RamOption? _selectedRam;
-    [ObservableProperty] private string _username = string.Empty;
-    [ObservableProperty] private string? _usernameError;
     [ObservableProperty] private string _javaPath = string.Empty;
-    [ObservableProperty] private string _skinPath = string.Empty;
 
     /// <summary>Carpeta con las instancias y los archivos compartidos.</summary>
     public string DataDir => LauncherPaths.DataDir;
-
-    /// <summary>Valida el nombre mientras se escribe.</summary>
-    partial void OnUsernameChanged(string value) => UsernameError = UsernameRules.ValidateForOptions(value);
 
     /// <summary>Abre el panel con los valores actuales del archivo.</summary>
     public void Open()
@@ -80,34 +71,19 @@ public sealed partial class OptionsViewModel : ObservableObject
 
         SelectedRam = selected ?? RamOptions.First(o => o.Value == LauncherSettings.DefaultMemory);
 
-        Username = _settings.PlayerUsername;
-        UsernameError = null; // El error solo aparece al editar o al guardar.
-
         // Java vacío = automático (el campo muestra "Automático (recomendado)").
         JavaPath = JavaSelector.IsAutomatic(_settings.JavaPath) ? string.Empty : _settings.JavaPath;
-        SkinPath = _settings.PlayerSkin;
         IsOpen = true;
     }
 
-    /// <summary>GUARDAR: valida el nombre y guarda todas las claves de una vez.</summary>
+    /// <summary>GUARDAR: guarda todas las claves de una vez (el nombre y la skin están en la cuenta).</summary>
     [RelayCommand]
     private void Save()
     {
-        var username = Username.Trim();
-        if (!UsernameRules.IsValid(username))
-        {
-            // El mensaje se calcula aquí también por si el campo no se llegó a editar.
-            UsernameError = UsernameRules.ValidateForOptions(username);
-            FocusUsernameRequested?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
         _settings.Properties.SetMany(
         [
-            new(LauncherSettings.KeyPlayerUsername, username),
             new(LauncherSettings.KeyJavaMemory, SelectedRam?.Value ?? LauncherSettings.DefaultMemory),
             new(LauncherSettings.KeyJavaPath, JavaPath.Trim()),
-            new(LauncherSettings.KeyPlayerSkin, SkinPath.Trim()),
         ]);
         _logger.LogInformation("Opciones guardadas");
         IsOpen = false;
@@ -141,22 +117,5 @@ public sealed partial class OptionsViewModel : ObservableObject
         {
             _logger.LogWarning(ex, "No se pudo abrir la carpeta {Path}", path);
         }
-    }
-
-    /// <summary>"..." de skin: selector de PNG.</summary>
-    [RelayCommand]
-    private void BrowseSkin()
-    {
-        var path = _dialogs.PickFile("Seleccionar Skin", "Imágenes PNG (*.png)|*.png");
-        if (path is not null)
-            SkinPath = path;
-    }
-
-    /// <summary>👁: vista previa (si no hay skin válida, muestra a Steve).</summary>
-    [RelayCommand]
-    private void PreviewSkin()
-    {
-        var path = SkinPath.Trim();
-        _dialogs.ShowSkinPreview(path.Length > 0 && File.Exists(path) ? path : null);
     }
 }

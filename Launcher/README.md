@@ -102,6 +102,10 @@ meta/                  ← compartido entre instancias (como en Modrinth)
   a la instalada, la instancia se marca con **Actualización disponible**. La versión instalada solo
   cambia cuando una sincronización termina de descargar los archivos.
 - **Sin conexión**: si el cargador ya se instaló, la instancia se puede jugar sin internet.
+- **Cuenta sin conexión**: al pulsar el jugador en la barra lateral se cambian el nombre, la foto
+  de perfil y la skin. La skin se valida (PNG de 64×64 o 64×32) y se muestra en 3D, girando y con
+  sus capas exteriores; se puede arrastrar para girarla y elegir el modelo clásico o delgado. En
+  una cuenta sin conexión el juego no descarga skins: dentro del juego solo se ve con un mod de skins.
 - **Migración**: la primera vez, si `launcher.properties` tenía una versión o la verificación
   activada, esa configuración se convierte en la instancia "Konnor".
 
@@ -110,14 +114,17 @@ La variable `KONNOR_DATA_DIR` cambia la carpeta de datos (útil para pruebas o u
 ## Configuración (`launcher.properties`)
 
 El archivo se encuentra junto al ejecutable y guarda los ajustes del jugador, comunes a todas las
-instancias (se editan en **Opciones**, abajo a la izquierda de la barra lateral):
+instancias. Nombre, foto de perfil y skin se editan en la **cuenta** (pulsando el jugador, abajo a
+la izquierda de la barra lateral); memoria y Java, en **Opciones**:
 
 | Clave | Uso |
 |---|---|
 | `player.username` | Nombre del jugador offline (de 4 a 16 caracteres: letras, números y `_`) |
 | `java.memory` | Memoria máxima para el juego (`4G`) |
 | `java.path` | Vacía = se usa el Java de Mojang adecuado para cada versión; con una ruta, se usa ese Java |
-| `player.skin` | Skin del jugador (.png) |
+| `player.skin` | Skin del jugador: PNG de 64×64 o 64×32 (se copia a `player\skin.png` en la carpeta de datos) |
+| `player.skin.model` | Modelo de la skin: `classic` (brazos de 4 píxeles) o `slim` (3 píxeles) |
+| `player.avatar` | Foto de perfil (se guarda recortada en `player\avatar.png`) |
 | `instance.selected` | Instancia seleccionada en la barra lateral |
 | `server.url` | Dirección que se propone al marcar "Sincronizar con el servidor" en una instancia nueva |
 

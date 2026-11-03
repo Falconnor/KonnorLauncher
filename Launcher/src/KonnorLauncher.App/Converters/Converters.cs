@@ -4,11 +4,16 @@ using System.Windows.Data;
 
 namespace KonnorLauncher.App.Converters;
 
-/// <summary>Texto vacío o null → Collapsed; con texto → Visible (mensajes de error).</summary>
+/// <summary>
+/// Texto vacío o null → Collapsed; con texto → Visible (mensajes de error). Con el parámetro
+/// <c>invert</c>, al revés (textos de ayuda que se ocultan al escribir).
+/// </summary>
 public sealed class TextToVisibilityConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        string.IsNullOrEmpty(value as string) ? Visibility.Collapsed : Visibility.Visible;
+        string.IsNullOrEmpty(value as string) != Inverted(parameter) ? Visibility.Collapsed : Visibility.Visible;
+
+    internal static bool Inverted(object? parameter) => string.Equals(parameter as string, "invert", StringComparison.Ordinal);
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
@@ -55,11 +60,14 @@ public sealed class NullToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>0 → Visible; cualquier otro número → Collapsed (mensaje de lista vacía).</summary>
+/// <summary>
+/// 0 → Visible; cualquier otro número → Collapsed (mensaje de lista vacía). Con el parámetro
+/// <c>invert</c>, al revés (contadores que solo se ven si hay algo).
+/// </summary>
 public sealed class ZeroToVisibleConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is 0 ? Visibility.Visible : Visibility.Collapsed;
+        (value is 0) != TextToVisibilityConverter.Inverted(parameter) ? Visibility.Visible : Visibility.Collapsed;
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();

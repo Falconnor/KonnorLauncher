@@ -11,6 +11,7 @@ using KonnorLauncher.Core.Configuration;
 using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Launching;
 using KonnorLauncher.Core.Loaders;
+using KonnorLauncher.Core.Modrinth;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Versions;
 using Microsoft.Extensions.DependencyInjection;
@@ -133,6 +134,15 @@ public partial class App : Application
             c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         });
 
+        // Modrinth: pide identificar el programa en el User-Agent (sin datos del jugador).
+        services.AddHttpClient(ModrinthClient.HttpClientName, c =>
+        {
+            c.Timeout = Timeout.InfiniteTimeSpan;
+            // Formato que pide Modrinth (usuario/proyecto/versión); .NET no lo acepta como "producto", así que va sin validar.
+            c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
+                $"Falconnor/KonnorLauncher/{typeof(App).Assembly.GetName().Version?.ToString(3)} (github.com/Falconnor/KonnorLauncher)");
+        });
+
         // Core. Las instancias viven en %APPDATA%\KonnorLauncher\instances.
         services.AddSingleton(sp => new InstanceStore(LauncherPaths.InstancesDir, sp.GetRequiredService<ILogger<InstanceStore>>()));
         services.AddSingleton<InstanceSync>();
@@ -141,10 +151,15 @@ public partial class App : Application
         services.AddSingleton<LoaderInstaller>();
         services.AddSingleton<GameLauncher>();
         services.AddSingleton<PlayWorkflow>();
+        services.AddSingleton(sp => new ModrinthClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ModrinthClient>>()));
+        services.AddSingleton<ContentInstaller>();
+        services.AddSingleton<IconLoader>();
 
         // UI.
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<OptionsViewModel>();
+        services.AddSingleton<AccountViewModel>();
+        services.AddSingleton<BrowseViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
         services.AddSingleton<ConfirmViewModel>();

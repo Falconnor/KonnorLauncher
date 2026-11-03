@@ -35,7 +35,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-MinVersion=10.0
+; Windows 10 1809 o posterior: lo necesita WebView2 (página de los proyectos de Modrinth).
+MinVersion=10.0.17763
 OutputDir=..\artifacts
 OutputBaseFilename=KonnorLauncher-Setup-{#AppVersion}
 SetupIconFile=..\src\KonnorLauncher.App\Assets\icon.ico

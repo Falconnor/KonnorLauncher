@@ -2,7 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- 10.0.17763 (Windows 10 1809): lo necesita el control de composición de WebView2 (página de los proyectos de Modrinth) -->
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <!-- La documentación XML de los paquetes (WebView2) no se instala con el launcher -->
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
     <UseWPF>true</UseWPF>
     <!-- Nombre del exe: "Konnor Launcher.exe" (el instalador elimina el antiguo "Fkonnor Launcher.exe") -->
     <AssemblyName>Konnor Launcher</AssemblyName>
@@ -29,6 +32,8 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />

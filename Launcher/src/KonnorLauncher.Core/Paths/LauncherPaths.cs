@@ -37,6 +37,9 @@ public sealed class LauncherPaths
     public static string DataDir =>
         Environment.GetEnvironmentVariable("KONNOR_DATA_DIR") is { Length: > 0 } custom ? Path.GetFullPath(custom) : AppDataDir;
 
+    /// <summary>Cuenta del jugador: su skin y su foto de perfil (copias, por si se borra el original).</summary>
+    public static string PlayerDir => Path.Combine(DataDir, "player");
+
     /// <summary>Instancias: una carpeta por instancia con su <c>instance.json</c>, mods, config, saves...</summary>
     public static string InstancesDir => Path.Combine(DataDir, "instances");
 

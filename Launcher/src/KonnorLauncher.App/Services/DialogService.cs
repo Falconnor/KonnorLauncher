@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Windows;
-using KonnorLauncher.App.Views;
 using Microsoft.Win32;
 
 namespace KonnorLauncher.App.Services;
@@ -11,7 +10,6 @@ public interface IDialogService
     string? PickFile(string title, string filter);
     string? PickFolder(string title);
     void OpenInExplorer(string folder);
-    void ShowSkinPreview(string? skinPath);
     void ShowWarning(string title, string message);
 }
 
@@ -37,13 +35,6 @@ public sealed class DialogService : IDialogService
     /// <summary>Abre la carpeta en el Explorador de Windows.</summary>
     public void OpenInExplorer(string folder) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
-
-    /// <summary>Ventana de vista previa de skin (modal, con marco del sistema).</summary>
-    public void ShowSkinPreview(string? skinPath)
-    {
-        var window = new SkinPreviewWindow(skinPath) { Owner = Owner };
-        window.ShowDialog();
-    }
 
     public void ShowWarning(string title, string message) =>
         MessageBox.Show(Owner!, message, title, MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -53,7 +53,7 @@
                             FontSize="11" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar" />
                     <StackPanel>
                         <TextBlock Text="Opciones" Style="{StaticResource H2}" FontSize="21" />
-                        <TextBlock Text="Ajustes del jugador, comunes a todas las instancias." Style="{StaticResource Hint}" Margin="0,4,0,0" />
+                        <TextBlock Text="Ajustes comunes a todas las instancias. El nombre y la skin están en tu cuenta (abajo a la izquierda)." Style="{StaticResource Hint}" Margin="0,4,0,0" />
                     </StackPanel>
                 </DockPanel>
 
@@ -65,18 +65,8 @@
 
                 <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="28,8,14,0">
                     <StackPanel Margin="0,0,14,8">
-                        <!-- Nombre -->
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Nombre de jugador" Style="{StaticResource FieldLabel}" />
-                            <TextBlock Text="4 a 16 letras, números o _" Style="{StaticResource Hint}" Margin="10,1,0,0" />
-                        </StackPanel>
-                        <TextBox x:Name="UsernameBox" Style="{StaticResource GlassTextBox}" MaxLength="16" Tag="Nombre de jugador"
-                                 Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="{Binding UsernameError}" Foreground="{StaticResource Danger}" FontSize="12.5" Margin="0,6,0,0"
-                                   Visibility="{Binding UsernameError, Converter={StaticResource TextToVisibility}}" />
-
                         <!-- RAM -->
-                        <TextBlock Text="Memoria para el juego" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                        <TextBlock Text="Memoria para el juego" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
                         <ListBox ItemsSource="{Binding RamOptions}" SelectedItem="{Binding SelectedRam}" DisplayMemberPath="Display"
                                  ItemContainerStyle="{StaticResource RamItem}" Background="Transparent" BorderThickness="0" Padding="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Memoria para el juego">
@@ -92,16 +82,6 @@
                                     Command="{Binding BrowseJavaCommand}" />
                             <TextBox Style="{StaticResource GlassTextBox}" Tag="Automático: el Java correcto para cada versión (recomendado)"
                                      Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" />
-                        </DockPanel>
-
-                        <!-- Skin -->
-                        <TextBlock Text="Skin del jugador" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Ver" Margin="8,0,0,0"
-                                    Command="{Binding PreviewSkinCommand}" />
-                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Examinar" Margin="8,0,0,0"
-                                    Command="{Binding BrowseSkinCommand}" />
-                            <TextBox Style="{StaticResource GlassTextBox}" Text="{Binding SkinPath}" IsReadOnly="True" Tag="Archivo .png de la skin" />
                         </DockPanel>
 
                         <!-- Carpeta de datos -->

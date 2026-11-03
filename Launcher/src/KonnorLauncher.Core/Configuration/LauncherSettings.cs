@@ -22,6 +22,12 @@ public sealed class LauncherSettings
     public const string KeyPlayerUsername = "player.username";
     public const string KeyJavaMemory = "java.memory";
     public const string KeyPlayerSkin = "player.skin";
+
+    /// <summary>Modelo de la skin: <c>classic</c> (brazos de 4 píxeles) o <c>slim</c> (3 píxeles).</summary>
+    public const string KeyPlayerSkinModel = "player.skin.model";
+
+    /// <summary>Foto de perfil del launcher (PNG en la carpeta de datos).</summary>
+    public const string KeyPlayerAvatar = "player.avatar";
     public const string KeyPlayerUuid = "player.uuid";
     public const string KeyPlayerAccessToken = "player.accessToken";
 
@@ -46,6 +52,8 @@ public sealed class LauncherSettings
     public string CachedClientVersion => Properties.Get(KeyCachedClientVersion);
     public string PlayerUsername => Properties.Get(KeyPlayerUsername);
     public string PlayerSkin => Properties.Get(KeyPlayerSkin);
+    public bool PlayerSkinSlim => string.Equals(Properties.Get(KeyPlayerSkinModel), "slim", StringComparison.OrdinalIgnoreCase);
+    public string PlayerAvatar => Properties.Get(KeyPlayerAvatar);
     public string JavaMemory => Properties.Get(KeyJavaMemory, DefaultMemory);
 
     /// <summary>UUID manual (no está en el archivo por defecto); null si no existe o está vacío.</summary>

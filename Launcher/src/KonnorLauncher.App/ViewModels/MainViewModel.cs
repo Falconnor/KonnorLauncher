@@ -41,6 +41,8 @@ public sealed partial class MainViewModel : ObservableObject
         InstanceStore store,
         InstanceSync sync,
         OptionsViewModel options,
+        AccountViewModel account,
+        BrowseViewModel browse,
         UsernamePromptViewModel usernamePrompt,
         InstanceEditorViewModel editor,
         ConfirmViewModel confirm,
@@ -55,10 +57,21 @@ public sealed partial class MainViewModel : ObservableObject
         _dialogs = dialogs;
         _logger = logger;
         Options = options;
+        Account = account;
+        Browse = browse;
         UsernamePrompt = usernamePrompt;
         Editor = editor;
         Confirm = confirm;
         Options.Saved += (_, _) => RefreshPlayer();
+        Account.Saved += (_, _) => RefreshPlayer();
+        // Un modpack instalado crea una instancia: aparece en la lista sin salir de la página.
+        Browse.InstanceCreated += (_, _) => ReloadInstances(SelectedInstance?.Id);
+        // Contenido instalado: se actualizan los contadores (mods, paquetes...) de esa instancia.
+        Browse.InstanceChanged += (_, id) =>
+        {
+            if (Instances.FirstOrDefault(i => i.Id == id) is { } item)
+                item.Update(item.Model);
+        };
         Editor.Saved += (_, instance) => ReloadInstances(instance.Id);
         Editor.DeleteRequested += async (_, instance) => await DeleteInstanceAsync(instance);
 
@@ -71,6 +84,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     public OptionsViewModel Options { get; }
+    public AccountViewModel Account { get; }
+    public BrowseViewModel Browse { get; }
     public UsernamePromptViewModel UsernamePrompt { get; }
     public InstanceEditorViewModel Editor { get; }
     public ConfirmViewModel Confirm { get; }
@@ -80,8 +95,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private InstanceItemViewModel? _selectedInstance;
     [ObservableProperty] private bool _hasInstances;
+
+    /// <summary>Se está viendo "Explorar contenido" en lugar de la instancia.</summary>
+    [ObservableProperty] private bool _isBrowsing;
+
+    private bool _reloading;
+
+    public bool ShowInstancePanel => HasInstances && !IsBrowsing;
+    public bool ShowEmptyPanel => !HasInstances && !IsBrowsing;
     [ObservableProperty] private string _playerName = string.Empty;
     [ObservableProperty] private string _playerInitials = "?";
+    [ObservableProperty] private System.Windows.Media.ImageSource? _playerAvatar;
+    [ObservableProperty] private bool _hasPlayerAvatar;
     [ObservableProperty] private string _actionText = string.Empty;
     [ObservableProperty] private bool _isProgressVisible;
     [ObservableProperty] private double _progressValue;
@@ -133,17 +158,61 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Relee las instancias del disco y selecciona <paramref name="selectId"/> (o la primera).</summary>
     private void ReloadInstances(string? selectId)
     {
-        var all = _store.LoadAll();
-        Instances.Clear();
-        foreach (var instance in all)
-            Instances.Add(new InstanceItemViewModel(instance, _store.GetDirectory(instance.Id)));
-        HasInstances = Instances.Count > 0;
-        SelectedInstance = Instances.FirstOrDefault(i => i.Id == selectId) ?? Instances.FirstOrDefault();
+        _reloading = true; // recargar la lista no es elegir una instancia: no se sale de "Explorar"
+        try
+        {
+            var all = _store.LoadAll();
+            Instances.Clear();
+            foreach (var instance in all)
+                Instances.Add(new InstanceItemViewModel(instance, _store.GetDirectory(instance.Id)));
+            HasInstances = Instances.Count > 0;
+            SelectedInstance = Instances.FirstOrDefault(i => i.Id == selectId) ?? Instances.FirstOrDefault();
+        }
+        finally
+        {
+            _reloading = false;
+        }
+
         UpdatePlayEnabled();
+        if (IsBrowsing)
+            Browse.RefreshTargets();
+    }
+
+    partial void OnHasInstancesChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowInstancePanel));
+        OnPropertyChanged(nameof(ShowEmptyPanel));
+    }
+
+    partial void OnIsBrowsingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowInstancePanel));
+        OnPropertyChanged(nameof(ShowEmptyPanel));
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // EXPLORAR CONTENIDO (Modrinth)
+    // ══════════════════════════════════════════════════════════════════
+
+    [RelayCommand]
+    private async Task OpenBrowseAsync()
+    {
+        IsBrowsing = true;
+        await Browse.OpenAsync(SelectedInstance?.Model);
+    }
+
+    [RelayCommand]
+    private void CloseBrowse()
+    {
+        Browse.CloseTopmost();
+        IsBrowsing = false;
     }
 
     partial void OnSelectedInstanceChanged(InstanceItemViewModel? value)
     {
+        // Elegir una instancia en la barra lateral vuelve a su panel.
+        if (!_reloading && value is not null)
+            IsBrowsing = false;
         if (value is not null && value.Id != _settings.Properties.Get(LauncherSettings.KeySelectedInstance))
             _settings.Properties.Set(LauncherSettings.KeySelectedInstance, value.Id);
         if (!IsPlaying)
@@ -220,7 +289,13 @@ public sealed partial class MainViewModel : ObservableObject
         var name = _settings.PlayerUsername.Trim();
         PlayerName = name.Length == 0 ? "Sin nombre" : name;
         PlayerInitials = name.Length == 0 ? "?" : InstanceItemViewModel.MakeInitials(name);
+        PlayerAvatar = PlayerImages.OpenAvatar(_settings.PlayerAvatar);
+        HasPlayerAvatar = PlayerAvatar is not null;
     }
+
+    /// <summary>Zona del jugador en la barra lateral: abre la cuenta (nombre, foto y skin).</summary>
+    [RelayCommand]
+    private void OpenAccount() => Account.Open();
 
     // ══════════════════════════════════════════════════════════════════
     // BOTÓN JUGAR
