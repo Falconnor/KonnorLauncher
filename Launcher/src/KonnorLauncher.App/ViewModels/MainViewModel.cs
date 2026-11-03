@@ -66,6 +66,7 @@ public sealed partial class MainViewModel : ObservableObject
         Account.Saved += (_, _) => RefreshPlayer();
         // Un modpack instalado crea una instancia: aparece en la lista sin salir de la página.
         Browse.InstanceCreated += (_, _) => ReloadInstances(SelectedInstance?.Id);
+        Browse.InstallDialog.InstanceCreated += (_, _) => ReloadInstances(SelectedInstance?.Id);
         // Contenido instalado: se actualizan los contadores (mods, paquetes...) de esa instancia.
         Browse.InstanceChanged += (_, id) =>
         {
@@ -174,8 +175,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         UpdatePlayEnabled();
-        if (IsBrowsing)
-            Browse.RefreshTargets();
     }
 
     partial void OnHasInstancesChanged(bool value)
@@ -198,7 +197,7 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task OpenBrowseAsync()
     {
         IsBrowsing = true;
-        await Browse.OpenAsync(SelectedInstance?.Model);
+        await Browse.OpenAsync();
     }
 
     [RelayCommand]

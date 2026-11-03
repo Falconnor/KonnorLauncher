@@ -49,6 +49,9 @@ public sealed partial class HtmlView : Grid
         Children.Add(_web);
         Children.Add(new ScrollViewer { Content = _fallback, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         Loaded += async (_, _) => await InitializeAsync();
+        // El control de composición ya pasó el clic a la página (barra de desplazamiento, enlaces, texto),
+        // pero no lo marca como atendido: sin esto, la ventana empezaría a arrastrarse y se quedaría el ratón.
+        MouseLeftButtonDown += (_, e) => e.Handled = true;
     }
 
     private async Task InitializeAsync()

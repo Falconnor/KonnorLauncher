@@ -539,12 +539,6 @@
                             </ScrollViewer>
                         </DockPanel>
 
-                        <!-- Lo que bloquea la instancia de destino -->
-                        <Border DockPanel.Dock="Top" Background="#1FF5B041" BorderBrush="#59F5B041" BorderThickness="1" CornerRadius="14" Padding="14,10"
-                                Margin="0,14,0,0" Visibility="{Binding TargetBlockReason, Converter={StaticResource TextToVisibility}}">
-                            <TextBlock Text="{Binding TargetBlockReason}" FontSize="13.5" TextWrapping="Wrap" Foreground="#FDE3B5" />
-                        </Border>
-
                         <!-- Lista -->
                         <Grid Margin="0,14,0,0">
                             <ScrollViewer x:Name="ResultsScroll" Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
@@ -616,7 +610,7 @@
                                                     </StackPanel>
 
                                                     <StackPanel Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                                        <Button Style="{StaticResource InstallButton}" MinWidth="136" Command="{Binding InstallCommand}" ToolTip="{Binding BlockReason}"
+                                                        <Button Style="{StaticResource InstallButton}" MinWidth="136" Command="{Binding InstallCommand}"
                                                                 AutomationProperties.Name="{Binding Title, StringFormat=Instalar {0}}">
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock x:Name="ActionIcon" Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,8,0"
@@ -720,7 +714,7 @@
                                 <ContentPresenter Content="{Binding}" IsHitTestVisible="True">
                                     <ContentPresenter.ContentTemplate>
                                         <DataTemplate DataType="{x:Type vm:ProjectCard}">
-                                            <Button Style="{StaticResource InstallButton}" MinWidth="150" Command="{Binding InstallCommand}" ToolTip="{Binding BlockReason}"
+                                            <Button Style="{StaticResource InstallButton}" MinWidth="150" Command="{Binding InstallCommand}"
                                                     AutomationProperties.Name="{Binding Title, StringFormat=Instalar {0}}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock x:Name="ActionIcon" Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,8,0"
@@ -778,9 +772,6 @@
 
                             <!-- Versiones -->
                             <DockPanel Visibility="{Binding IsVersions, Converter={StaticResource BoolToVisibility}}">
-                                <CheckBox DockPanel.Dock="Top" Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OnlyCompatible}" Margin="0,0,0,10"
-                                          HorizontalAlignment="Left" FontSize="13.5" Content="{Binding CompatibleText}" Foreground="{StaticResource Ink2}"
-                                          Visibility="{Binding HasTarget, Converter={StaticResource BoolToVisibility}}" />
                                 <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding Versions}" Margin="0,0,4,0">
                                         <ItemsControl.ItemTemplate>
@@ -816,9 +807,6 @@
                                                         <Setter TargetName="Type" Property="BorderBrush" Value="{StaticResource DangerStroke}" />
                                                         <Setter TargetName="TypeText" Property="Foreground" Value="#FCA5A5" />
                                                     </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsCompatible}" Value="False">
-                                                        <Setter TargetName="Row" Property="Opacity" Value="0.55" />
-                                                    </DataTrigger>
                                                 </DataTemplate.Triggers>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -826,7 +814,7 @@
                                 </ScrollViewer>
                                 <!-- (vacío) -->
                             </DockPanel>
-                            <TextBlock Text="No hay versiones compatibles con la instancia de destino." Foreground="{StaticResource Ink2}"
+                            <TextBlock Text="Este proyecto no tiene versiones publicadas." Foreground="{StaticResource Ink2}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -898,52 +886,6 @@
             <!-- ═══ Columna derecha: destino y filtros (o la información del proyecto) ═══ -->
             <Border Grid.Column="2" Background="{StaticResource GlassFill}" BorderBrush="{StaticResource GlassEdge}" BorderThickness="1" CornerRadius="22">
                 <DockPanel>
-                    <!-- Instancia de destino -->
-                    <Grid DockPanel.Dock="Top" Margin="12,12,12,4">
-                        <Border Background="{StaticResource InnerFill}" BorderBrush="{StaticResource InnerStroke}" BorderThickness="1" CornerRadius="14"
-                                Padding="14,8" Visibility="{Binding CreatesInstance, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel>
-                                <TextBlock Text="Se crea una instancia nueva" FontSize="13.5" FontWeight="SemiBold" />
-                                <TextBlock Text="con su versión y su cargador" FontSize="12" Foreground="{StaticResource Ink3}" />
-                            </StackPanel>
-                        </Border>
-                        <Grid Visibility="{Binding CreatesInstance, Converter={StaticResource InverseBoolToVisibility}}">
-                            <ToggleButton x:Name="TargetToggle" Style="{StaticResource GlassSelect}" Height="50" IsChecked="{Binding IsTargetOpen}"
-                                          IsEnabled="{Binding HasTarget}" AutomationProperties.Name="Instalar en">
-                                <Grid>
-                                    <StackPanel Visibility="{Binding HasTarget, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="Instalar en" FontSize="11.5" Foreground="{StaticResource Ink3}" />
-                                        <TextBlock Text="{Binding Target.Name}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Ink}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <TextBlock Text="Sin instancias: crea una primero" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center"
-                                               Visibility="{Binding HasTarget, Converter={StaticResource InverseBoolToVisibility}}" />
-                                </Grid>
-                            </ToggleButton>
-                            <Popup IsOpen="{Binding IsTargetOpen}" PlacementTarget="{Binding ElementName=TargetToggle}" Placement="Bottom"
-                                   StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Width="260">
-                                <Border Style="{StaticResource MenuPanel}">
-                                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="300" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding Targets}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type vm:TargetOption}">
-                                                    <Button Style="{StaticResource ListOption}" Height="48"
-                                                            Command="{Binding DataContext.ChooseTargetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                            CommandParameter="{Binding}">
-                                                        <StackPanel>
-                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </Grid>
-
                     <!-- Limpiar filtros (solo con la lista) -->
                     <Button DockPanel.Dock="Bottom" Margin="16,6,16,14" Height="38" Cursor="Hand" Command="{Binding ClearFiltersCommand}"
                             FocusVisualStyle="{x:Null}" AutomationProperties.Name="Limpiar filtros"
@@ -970,7 +912,7 @@
 
                     <Grid>
                         <!-- Filtros -->
-                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="16,0,6,0"
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="16,8,6,0"
                                       Visibility="{Binding HasProject, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Margin="0,0,8,0">
                                 <!-- Categoría -->
@@ -1105,7 +1047,7 @@
                         </ScrollViewer>
 
                         <!-- Información del proyecto -->
-                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="16,0,6,12"
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="16,10,6,12"
                                       DataContext="{Binding Project}"
                                       Visibility="{Binding DataContext.HasProject, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="0,4,8,0">

@@ -12,10 +12,9 @@ namespace KonnorLauncher.App.ViewModels;
 /// <summary>Versión de la lista de la página de un proyecto.</summary>
 public sealed partial class VersionRow : ObservableObject
 {
-    public VersionRow(ProjectVersion version, bool compatible, Func<VersionRow, Task> install)
+    public VersionRow(ProjectVersion version, Func<VersionRow, Task> install)
     {
         Version = version;
-        IsCompatible = compatible;
         InstallCommand = new AsyncRelayCommand(() => install(this), () => !IsInstalling);
     }
 
@@ -35,9 +34,6 @@ public sealed partial class VersionRow : ObservableObject
     public string LoadersText => string.Join(", ", Version.Loaders.Select(BrowseText.Loader));
     public string DateText => Version.DatePublished.ToLocalTime().ToString("d MMM yyyy", CultureInfo.GetCultureInfo("es-ES"));
     public string DownloadsText => BrowseText.Compact(Version.Downloads);
-
-    /// <summary>Sirve para la instancia de destino (su versión de Minecraft y su cargador).</summary>
-    public bool IsCompatible { get; }
 
     public IAsyncRelayCommand InstallCommand { get; }
 
@@ -70,16 +66,13 @@ public sealed partial class ProjectPageViewModel : ObservableObject
 
     private readonly ModrinthClient _client;
     private readonly IconLoader _icons;
-    private readonly Func<GameInstance?> _target;
     private readonly Func<VersionRow, Task> _installVersion;
 
-    public ProjectPageViewModel(ProjectCard card, ModrinthClient client, IconLoader icons, Func<GameInstance?> target,
-        Func<VersionRow, Task> installVersion)
+    public ProjectPageViewModel(ProjectCard card, ModrinthClient client, IconLoader icons, Func<VersionRow, Task> installVersion)
     {
         Card = card;
         _client = client;
         _icons = icons;
-        _target = target;
         _installVersion = installVersion;
     }
 
@@ -98,7 +91,6 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     [ObservableProperty] private string? _descriptionHtml;
     [ObservableProperty] private string _section = "description";
     [ObservableProperty] private bool _isVersionsLoading;
-    [ObservableProperty] private bool _onlyCompatible = true;
 
     public bool HasGallery => Gallery.Count > 0;
     public bool HasLinks => Links.Count > 0;
@@ -108,8 +100,6 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     public bool IsGallery { get => Section == "gallery"; set { if (value) Section = "gallery"; } }
     public string VersionsTabText => Versions.Count > 0 ? $"Versiones ({Versions.Count})" : "Versiones";
     public string GalleryTabText => $"Galería ({Gallery.Count})";
-    public bool HasTarget => _target() is not null && !Card.Type.CreatesInstance();
-    public string CompatibleText => _target() is { } target ? $"Solo las que sirven para «{target.Name}»" : string.Empty;
 
     public string EnvironmentText => BrowseText.EnvironmentLabel(Details?.ClientSide, Details?.ServerSide) ?? "—";
     public string LicenseText => Details?.License is { } license
@@ -174,30 +164,13 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         }
     }
 
-    partial void OnOnlyCompatibleChanged(bool value) => RebuildVersions();
-
-    /// <summary>Lista de versiones; si hay instancia de destino, se marcan (o se filtran) las que le sirven.</summary>
+    /// <summary>Todas las versiones (al instalar una, el diálogo dice en qué instancias sirve).</summary>
     private void RebuildVersions()
     {
-        var target = Card.Type.CreatesInstance() ? null : _target();
-        var loaders = target is null ? null : ContentInstaller.CompatibleLoaders(target, Card.Type);
-        var gameVersion = target is null ? null : ContentInstaller.GameVersion(target);
         Versions.Clear();
-        foreach (var version in _allVersions)
-        {
-            var compatible = target is null
-                             || ((gameVersion is null || version.GameVersions.Contains(gameVersion))
-                                 && (loaders is null || loaders.Count == 0 || version.Loaders.Intersect(loaders, StringComparer.OrdinalIgnoreCase).Any()));
-            if (OnlyCompatible && target is not null && !compatible)
-                continue;
-            Versions.Add(new VersionRow(version, compatible, _installVersion));
-            if (Versions.Count >= MaxVersions)
-                break;
-        }
-
+        foreach (var version in _allVersions.Take(MaxVersions))
+            Versions.Add(new VersionRow(version, _installVersion));
         OnPropertyChanged(nameof(VersionsTabText));
-        OnPropertyChanged(nameof(HasTarget));
-        OnPropertyChanged(nameof(CompatibleText));
     }
 
     private void BuildInfo(ProjectDetails details)

@@ -447,6 +447,8 @@
                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
             <views:AccountOverlay DataContext="{Binding Account}"
                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+            <views:InstallDialogOverlay DataContext="{Binding Browse.InstallDialog}"
+                                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
             <views:ConfirmOverlay DataContext="{Binding Confirm}"
                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
             <views:UsernamePromptOverlay DataContext="{Binding UsernamePrompt}"

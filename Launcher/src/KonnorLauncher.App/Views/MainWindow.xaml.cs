@@ -63,6 +63,11 @@ public partial class MainWindow : Window
             _viewModel.Editor.CancelCommand.Execute(null);
             e.Handled = true;
         }
+        else if (_viewModel.Browse.InstallDialog.IsOpen)
+        {
+            _viewModel.Browse.InstallDialog.CancelCommand.Execute(null);
+            e.Handled = true;
+        }
         else if (_viewModel.Account.IsOpen)
         {
             _viewModel.Account.CancelCommand.Execute(null);
@@ -77,7 +82,7 @@ public partial class MainWindow : Window
 
     private bool AnyOverlayOpen() =>
         _viewModel.UsernamePrompt.IsOpen || _viewModel.Confirm.IsOpen || _viewModel.Editor.IsOpen
-        || _viewModel.Account.IsOpen || _viewModel.Options.IsOpen;
+        || _viewModel.Account.IsOpen || _viewModel.Options.IsOpen || _viewModel.Browse.InstallDialog.IsOpen;
 
     /// <summary>Tecla / en "Explorar contenido": lleva a la búsqueda (salvo si ya se está escribiendo).</summary>
     private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)

@@ -92,14 +92,6 @@ public sealed class PageItem(int? number, bool isCurrent, IRelayCommand<int> go)
 /// <summary>Opción del menú "Ordenar por".</summary>
 public sealed record SortOption(SearchSort Value, string Label);
 
-/// <summary>Instancia de destino de las instalaciones.</summary>
-public sealed class TargetOption(GameInstance instance)
-{
-    public GameInstance Instance { get; } = instance;
-    public string Name => Instance.Name;
-    public string Summary => Instance.Summary;
-}
-
 /// <summary>Etiqueta de una tarjeta: entorno, categoría, cargador (con su color) o "+N".</summary>
 public sealed record CardTag(string Text, string Kind);
 
@@ -119,7 +111,7 @@ public sealed partial class ProjectCard : ObservableObject
     {
         Hit = hit;
         Type = type;
-        InstallCommand = new AsyncRelayCommand(() => install(this), () => State == CardState.Available && BlockReason is null);
+        InstallCommand = new AsyncRelayCommand(() => install(this), () => State != CardState.Installing);
         Initial = hit.Title.Length > 0 ? hit.Title[..1].ToUpperInvariant() : "?";
         var rgb = hit.Color ?? 0x27AE60;
         IconBackground = new SolidColorBrush(Color.FromArgb(0x55, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));
@@ -144,7 +136,6 @@ public sealed partial class ProjectCard : ObservableObject
     [ObservableProperty] private CardState _state;
     [ObservableProperty] private double _progress;
     [ObservableProperty] private bool _isProgressKnown;
-    [ObservableProperty] private string? _blockReason;
 
     public bool HasIcon => Icon is not null;
     public bool IsInstalling => State == CardState.Installing;
@@ -159,7 +150,6 @@ public sealed partial class ProjectCard : ObservableObject
     partial void OnIconChanged(ImageSource? value) => OnPropertyChanged(nameof(HasIcon));
     partial void OnProgressChanged(double value) => OnPropertyChanged(nameof(ActionText));
     partial void OnIsProgressKnownChanged(bool value) => OnPropertyChanged(nameof(ActionText));
-    partial void OnBlockReasonChanged(string? value) => InstallCommand.NotifyCanExecuteChanged();
 
     partial void OnStateChanged(CardState value)
     {

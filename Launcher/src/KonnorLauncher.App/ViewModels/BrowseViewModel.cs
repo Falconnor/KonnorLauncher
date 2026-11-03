@@ -34,13 +34,14 @@ public sealed partial class BrowseViewModel : ObservableObject
     private TaskCompletionSource<string?>? _worldChoice;
 
     public BrowseViewModel(ModrinthClient client, ContentInstaller installer, InstanceStore store, IconLoader icons,
-        ILogger<BrowseViewModel> logger)
+        InstallDialogViewModel installDialog, ILogger<BrowseViewModel> logger)
     {
         _client = client;
         _installer = installer;
         _store = store;
         _icons = icons;
         _logger = logger;
+        InstallDialog = installDialog;
 
         Tabs =
         [
@@ -53,6 +54,9 @@ public sealed partial class BrowseViewModel : ObservableObject
         ];
         GoToPageCommand = new RelayCommand<int>(page => { Page = page; ScheduleSearch(resetPage: false, immediate: true); });
     }
+
+    /// <summary>"¿Dónde instalar?" (lo muestra la ventana como diálogo).</summary>
+    public InstallDialogViewModel InstallDialog { get; }
 
     /// <summary>Se creó una instancia con un modpack (la ventana la añade a la lista).</summary>
     public event EventHandler<GameInstance>? InstanceCreated;
@@ -73,7 +77,6 @@ public sealed partial class BrowseViewModel : ObservableObject
     public ObservableCollection<FilterOption> Environments { get; } = [];
     public ObservableCollection<FilterOption> GameVersions { get; } = [];
     public ObservableCollection<FilterOption> Loaders { get; } = [];
-    public ObservableCollection<TargetOption> Targets { get; } = [];
     public ObservableCollection<string> Worlds { get; } = [];
     public IRelayCommand<int> GoToPageCommand { get; }
 
@@ -100,8 +103,6 @@ public sealed partial class BrowseViewModel : ObservableObject
     [ObservableProperty] private bool _isNoticeError;
     [ObservableProperty] private bool _isSortOpen;
     [ObservableProperty] private bool _isPageSizeOpen;
-    [ObservableProperty] private bool _isTargetOpen;
-    [ObservableProperty] private TargetOption? _target;
     [ObservableProperty] private bool _showSnapshots;
     [ObservableProperty] private bool _openSourceOnly;
     [ObservableProperty] private string _featureFilter = string.Empty;
@@ -118,15 +119,11 @@ public sealed partial class BrowseViewModel : ObservableObject
 
     public string SortLabel => SortOptions.First(o => o.Value == Sort).Label;
     public bool CreatesInstance => ActiveType.CreatesInstance();
-    public bool HasTarget => Target is not null;
     public bool IsEmpty => !IsLoading && Error is null && Results.Count == 0;
     public bool HasPages => TotalPages > 1;
     public int TotalPages => TotalHits == 0 ? 0 : (int)Math.Ceiling(TotalHits / (double)PageSize);
     public string TotalText => TotalHits == 1 ? "1 resultado" : $"{BrowseText.Compact(TotalHits)} resultados";
     public string SearchPlaceholder => $"Buscar {Tabs.First(t => t.Type == ActiveType).Label.ToLowerInvariant()}…";
-
-    /// <summary>Por qué no se puede instalar este tipo en la instancia elegida (se muestra sobre la lista).</summary>
-    public string? TargetBlockReason => Target is null || CreatesInstance ? null : ContentInstaller.BlockReason(Target.Instance, ActiveType);
 
     public bool ShowFeatures => Features.Count > 0;
     public bool ShowEnvironment => ActiveType is ContentType.Mod or ContentType.Modpack;
@@ -145,11 +142,10 @@ public sealed partial class BrowseViewModel : ObservableObject
     // ABRIR
     // ══════════════════════════════════════════════════════════════════════
 
-    /// <summary>Abre la página con la instancia seleccionada como destino.</summary>
-    public async Task OpenAsync(GameInstance? selected)
+    /// <summary>Abre la página (la primera vez carga las listas de categorías, cargadores y versiones).</summary>
+    public async Task OpenAsync()
     {
         Notice = null;
-        RefreshTargets(selected?.Id);
         if (!_tagsLoaded)
         {
             IsLoading = true;
@@ -173,18 +169,6 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
 
         SelectType(ActiveType, keepText: true);
-    }
-
-    /// <summary>Instancias disponibles como destino; conserva la elegida si sigue existiendo.</summary>
-    public void RefreshTargets(string? preferredId = null)
-    {
-        var current = preferredId ?? Target?.Instance.Id;
-        Targets.Clear();
-        foreach (var instance in _store.LoadAll())
-            Targets.Add(new TargetOption(instance));
-        _suspend = true;
-        Target = Targets.FirstOrDefault(t => t.Instance.Id == current) ?? Targets.FirstOrDefault();
-        _suspend = false;
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -212,11 +196,9 @@ public sealed partial class BrowseViewModel : ObservableObject
         if (!keepText)
             SearchText = string.Empty;
         BuildFilters();
-        ApplyTargetFilters();
         _suspend = false;
         OnPropertyChanged(nameof(CreatesInstance));
         OnPropertyChanged(nameof(SearchPlaceholder));
-        OnPropertyChanged(nameof(TargetBlockReason));
         OnPropertyChanged(nameof(ShowEnvironment));
         ScheduleSearch(resetPage: true, immediate: true);
     }
@@ -282,52 +264,6 @@ public sealed partial class BrowseViewModel : ObservableObject
     }
 
     partial void OnOpenSourceOnlyChanged(bool value) => FiltersChanged();
-
-    /// <summary>
-    /// Con una instancia de destino, se buscan solo versiones que le sirvan: su versión de Minecraft y,
-    /// en los mods, su cargador. Aparecen como filtros normales y se pueden quitar.
-    /// </summary>
-    private void ApplyTargetFilters()
-    {
-        if (Target is null || CreatesInstance)
-            return;
-        if (ContentInstaller.GameVersion(Target.Instance) is { } version)
-        {
-            var option = GameVersions.FirstOrDefault(v => v.Value == version);
-            if (option is null && !ShowSnapshots)
-            {
-                ShowSnapshots = true; // la instancia usa una snapshot: se muestran para poder marcarla
-                option = GameVersions.FirstOrDefault(v => v.Value == version);
-            }
-
-            if (option is not null)
-                option.IsActive = true;
-        }
-
-        if (ActiveType == ContentType.Mod && ContentInstaller.CompatibleLoaders(Target.Instance, ActiveType) is { Count: > 0 } loaders)
-        {
-            foreach (var loader in Loaders.Where(l => l.Value == loaders[0]))
-                loader.IsActive = true;
-        }
-    }
-
-    partial void OnTargetChanged(TargetOption? value)
-    {
-        IsTargetOpen = false;
-        OnPropertyChanged(nameof(HasTarget));
-        OnPropertyChanged(nameof(TargetBlockReason));
-        if (_suspend || !_tagsLoaded)
-            return;
-        _suspend = true;
-        foreach (var option in GameVersions.Concat(Loaders))
-            option.IsActive = false;
-        ApplyTargetFilters();
-        _suspend = false;
-        ScheduleSearch(resetPage: true, immediate: true);
-    }
-
-    [RelayCommand]
-    private void ChooseTarget(TargetOption option) => Target = option;
 
     private void FiltersChanged()
     {
@@ -437,7 +373,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     private async Task RetryAsync()
     {
         if (!_tagsLoaded)
-            await OpenAsync(Target?.Instance); // falló al abrir: se vuelve a intentar entero
+            await OpenAsync(); // falló al abrir: se vuelve a intentar entero
         else
             ScheduleSearch(resetPage: false, immediate: true);
     }
@@ -484,15 +420,10 @@ public sealed partial class BrowseViewModel : ObservableObject
             var page = await _client.SearchAsync(BuildQuery(), ct);
             ct.ThrowIfCancellationRequested();
 
-            var installed = InstalledInTarget();
             Results.Clear();
             foreach (var hit in page.Hits)
             {
-                var card = new ProjectCard(hit, ActiveType, InstallAsync)
-                {
-                    BlockReason = TargetBlockReason,
-                    State = installed.Contains(hit.ProjectId) ? CardState.Installed : CardState.Available,
-                };
+                var card = new ProjectCard(hit, ActiveType, InstallAsync);
                 Results.Add(card);
                 _ = LoadIconAsync(card);
             }
@@ -523,30 +454,27 @@ public sealed partial class BrowseViewModel : ObservableObject
 
     private async Task LoadIconAsync(ProjectCard card) => card.Icon = await _icons.LoadAsync(card.Hit.IconUrl);
 
-    private HashSet<string> InstalledInTarget()
-    {
-        if (Target is null || CreatesInstance)
-            return [];
-        try
-        {
-            return ContentInstaller.InstalledProjects(_store.GetDirectory(Target.Instance.Id));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
-
     // ══════════════════════════════════════════════════════════════════════
     // INSTALAR
     // ══════════════════════════════════════════════════════════════════════
 
     private Task InstallAsync(ProjectCard card) => InstallAsync(card, versionId: null);
 
-    /// <summary>Instala el proyecto de la tarjeta; con <paramref name="versionId"/>, esa versión concreta.</summary>
+    /// <summary>
+    /// Instala el proyecto de la tarjeta; con <paramref name="versionId"/>, esa versión concreta. Los
+    /// modpacks crean su instancia; el resto pregunta antes dónde instalar (o crea una instancia nueva).
+    /// </summary>
     private async Task InstallAsync(ProjectCard card, string? versionId)
     {
         Notice = null;
+        GameInstance? target = null;
+        if (!card.Type.CreatesInstance())
+        {
+            target = await InstallDialog.ShowAsync(card, versionId);
+            if (target is null)
+                return; // cancelado
+        }
+
         var progress = new Progress<InstallProgress>(p =>
         {
             card.IsProgressKnown = p.Percent is not null;
@@ -564,22 +492,14 @@ public sealed partial class BrowseViewModel : ObservableObject
                     loaders: loaders, gameVersions: versions, versionId: versionId));
                 card.State = CardState.Installed;
                 ShowNotice($"Instancia «{instance.Name}» creada con {card.Title}. Al pulsar JUGAR se instala {instance.Summary}.");
-                RefreshTargets();
                 InstanceCreated?.Invoke(this, instance);
-                return;
-            }
-
-            if (Target is not { } target)
-            {
-                card.State = CardState.Available;
-                ShowNotice("Crea una instancia primero: el contenido se instala en una instancia.", error: true);
                 return;
             }
 
             string? world = null;
             if (card.Type == ContentType.DataPack)
             {
-                world = await ChooseWorldAsync(target.Instance, card.Title);
+                world = await ChooseWorldAsync(target!, card.Title);
                 if (world is null)
                 {
                     card.State = CardState.Available;
@@ -587,7 +507,7 @@ public sealed partial class BrowseViewModel : ObservableObject
                 }
             }
 
-            var result = await Task.Run(() => _installer.InstallAsync(target.Instance, card.Hit.ProjectId, card.Type, world, progress,
+            var result = await Task.Run(() => _installer.InstallAsync(target!, card.Hit.ProjectId, card.Type, world, progress,
                 versionId: versionId));
             card.State = CardState.Installed;
             var extra = result.Dependencies.Count switch
@@ -599,9 +519,9 @@ public sealed partial class BrowseViewModel : ObservableObject
             var missing = result.MissingDependencies.Count > 0
                 ? $" No se encontró versión compatible de {result.MissingDependencies.Count} dependencia(s): puede que no funcione."
                 : string.Empty;
-            ShowNotice($"{card.Title}{extra} instalado en «{target.Name}»{(world is null ? string.Empty : $", mundo «{world}»")}.{missing}",
+            ShowNotice($"{card.Title}{extra} instalado en «{target!.Name}»{(world is null ? string.Empty : $", mundo «{world}»")}.{missing}",
                 error: missing.Length > 0);
-            InstanceChanged?.Invoke(this, target.Instance.Id);
+            InstanceChanged?.Invoke(this, target!.Id);
         }
         catch (Exception ex) when (ex is ModrinthException or IOException or UnauthorizedAccessException or InvalidDataException
                                        or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
@@ -670,7 +590,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         _projectLoad?.Cancel();
         var cts = _projectLoad = new CancellationTokenSource();
         Notice = null;
-        Project = new ProjectPageViewModel(card, _client, _icons, () => Target?.Instance, InstallVersionAsync);
+        Project = new ProjectPageViewModel(card, _client, _icons, InstallVersionAsync);
         _ = Project.LoadAsync(cts.Token);
     }
 
@@ -717,7 +637,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     public bool CloseTopmost()
     {
         if (IsWorldPickerOpen) { CancelWorldPicker(); return true; }
-        if (IsSortOpen || IsPageSizeOpen || IsTargetOpen) { IsSortOpen = IsPageSizeOpen = IsTargetOpen = false; return true; }
+        if (IsSortOpen || IsPageSizeOpen) { IsSortOpen = IsPageSizeOpen = false; return true; }
         if (Project is not null) { CloseProject(); return true; }
         return false;
     }

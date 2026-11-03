@@ -159,6 +159,7 @@ public partial class App : Application
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<OptionsViewModel>();
         services.AddSingleton<AccountViewModel>();
+        services.AddSingleton<InstallDialogViewModel>();
         services.AddSingleton<BrowseViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
