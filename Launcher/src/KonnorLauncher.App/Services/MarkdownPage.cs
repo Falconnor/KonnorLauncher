@@ -35,7 +35,7 @@ public static class MarkdownPage
             """;
     }
 
-    // Mismos tokens que el launcher: tinta clara sobre cristal oscuro y el verde en los enlaces.
+    // Mismos tokens que el launcher: tinta clara sobre cristal oscuro y el acento (azul) en los enlaces.
     private const string Css = """
         :root { color-scheme: dark; }
         html, body { background: transparent; margin: 0; }
@@ -48,21 +48,21 @@ public static class MarkdownPage
         h1 { font-size: 26px; } h2 { font-size: 21px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
         h1:first-child, h2:first-child, h3:first-child, p:first-child { margin-top: 0; }
         p, ul, ol, table, blockquote, pre { margin: 0 0 1em; }
-        a { color: #4FD18B; text-decoration: none; }
-        a:hover { color: #2ECC71; text-decoration: underline; }
+        a { color: #4A88FF; text-decoration: none; }
+        a:hover { color: #7AA8FF; text-decoration: underline; }
         img, video { max-width: 100%; height: auto; border-radius: 10px; }
         a img { border-radius: 4px; }
         hr { border: 0; border-top: 1px solid rgba(255,255,255,.12); margin: 1.6em 0; }
         code { background: rgba(255,255,255,.08); border-radius: 6px; padding: 1px 6px; font: 13px Consolas, monospace; }
         pre { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px 14px; overflow: auto; }
         pre code { background: none; padding: 0; }
-        blockquote { border-left: 3px solid rgba(39,174,96,.7); padding: 2px 0 2px 14px; color: rgba(243,245,247,.75); }
+        blockquote { border-left: 3px solid rgba(52,120,246,.7); padding: 2px 0 2px 14px; color: rgba(243,245,247,.75); }
         table { border-collapse: collapse; }
         th, td { border: 1px solid rgba(255,255,255,.12); padding: 6px 10px; }
         th { background: rgba(255,255,255,.06); }
         details { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 8px 14px; margin-bottom: 1em; }
         summary { cursor: pointer; font-weight: 600; }
-        ::selection { background: #27AE60; }
+        ::selection { background: #3478F6; }
         /* La barra de desplazamiento la pone el launcher: la de la página no se ve. */
         html { scrollbar-width: none; }
         ::-webkit-scrollbar { width: 0; height: 0; }

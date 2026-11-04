@@ -7,6 +7,7 @@ using KonnorLauncher.App.Services;
 using KonnorLauncher.Core;
 using KonnorLauncher.Core.Configuration;
 using KonnorLauncher.Core.Instances;
+using KonnorLauncher.Core.Modrinth;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Players;
 using KonnorLauncher.Core.Progress;
@@ -74,6 +75,17 @@ public sealed partial class MainViewModel : ObservableObject
                 item.Update(item.Model);
         };
         Editor.Saved += (_, instance) => ReloadInstances(instance.Id);
+        // Insignia de la campana y punto de la pestaña Instancias: instancias con actualización.
+        Instances.CollectionChanged += (_, e) =>
+        {
+            foreach (var item in e.NewItems?.OfType<InstanceItemViewModel>() ?? [])
+                item.PropertyChanged += (_, args) =>
+                {
+                    if (args.PropertyName == nameof(InstanceItemViewModel.HasUpdate))
+                        NotifyUpdates();
+                };
+            NotifyUpdates();
+        };
         Editor.DeleteRequested += async (_, instance) => await DeleteInstanceAsync(instance);
 
         // La versión se toma del ensamblado para no tener que cambiarla a mano.
@@ -103,6 +115,27 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _reloading;
 
     public bool ShowInstancePanel => HasInstances && !IsBrowsing;
+
+    /// <summary>Instancias con una actualización del servidor pendiente (insignia de la campana).</summary>
+    public int UpdateCount => Instances.Count(i => i.HasUpdate);
+
+    public bool HasUpdates => UpdateCount > 0;
+
+    private void NotifyUpdates()
+    {
+        OnPropertyChanged(nameof(UpdateCount));
+        OnPropertyChanged(nameof(HasUpdates));
+    }
+
+    /// <summary>Campana: lleva a la primera instancia con una actualización pendiente.</summary>
+    [RelayCommand]
+    private void ShowUpdates()
+    {
+        if (Instances.FirstOrDefault(i => i.HasUpdate) is { } item)
+            SelectedInstance = item;
+        if (IsBrowsing)
+            CloseBrowse();
+    }
     public bool ShowEmptyPanel => !HasInstances && !IsBrowsing;
     [ObservableProperty] private string _playerName = string.Empty;
     [ObservableProperty] private string _playerInitials = "?";
@@ -187,6 +220,30 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowInstancePanel));
         OnPropertyChanged(nameof(ShowEmptyPanel));
+        OnPropertyChanged(nameof(IsInstancesTab));
+        OnPropertyChanged(nameof(IsBrowseTab));
+    }
+
+    // Pestañas de la cabecera (enlace en los dos sentidos: también responden al teclado y a la
+    // accesibilidad, que marcan la pestaña sin hacer clic).
+    public bool IsInstancesTab
+    {
+        get => !IsBrowsing;
+        set
+        {
+            if (value && IsBrowsing)
+                CloseBrowse();
+        }
+    }
+
+    public bool IsBrowseTab
+    {
+        get => IsBrowsing;
+        set
+        {
+            if (value && !IsBrowsing)
+                OpenBrowseCommand.Execute(null);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -198,6 +255,22 @@ public sealed partial class MainViewModel : ObservableObject
     {
         IsBrowsing = true;
         await Browse.OpenAsync();
+    }
+
+    /// <summary>Accesos de la barra lateral a las pestañas más usadas de Explorar.</summary>
+    public IReadOnlyList<BrowseTab> SidebarBrowseTabs =>
+    [
+        .. new[] { ContentType.Mod, ContentType.Modpack, ContentType.ResourcePack, ContentType.Shader }
+            .Select(type => Browse.Tabs.First(t => t.Type == type)),
+    ];
+
+    [RelayCommand]
+    private async Task OpenBrowseTabAsync(BrowseTab? tab)
+    {
+        if (tab is null)
+            return;
+        IsBrowsing = true;
+        await Browse.OpenAsync(tab.Type);
     }
 
     [RelayCommand]

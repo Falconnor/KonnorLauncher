@@ -17,7 +17,7 @@
 
     <!-- Velo modal: oscurece la ventana y captura los clics -->
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="660" Height="620" Padding="0" Background="{StaticResource GlassTintStrong}" BlurRadius="40">
+        <c:GlassPanel Width="660" Height="620" Padding="0" Style="{StaticResource DialogGlass}" BlurRadius="40">
             <DockPanel KeyboardNavigation.TabNavigation="Cycle">
                 <!-- Cabecera -->
                 <DockPanel DockPanel.Dock="Top" Margin="28,22,20,10">
@@ -118,7 +118,7 @@
                         </Border>
 
                         <!-- Con sincronización: lo decide el servidor -->
-                        <Border Background="#1F4FD18B" CornerRadius="10" Padding="12,9" Margin="0,8,0,0"
+                        <Border Background="{StaticResource OkSoft}" CornerRadius="{StaticResource RadiusRow}" Padding="12,9" Margin="0,8,0,0"
                                 Visibility="{Binding SyncWithServer, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel>
                                 <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource Ok}" Margin="0,0,10,0" />
@@ -193,7 +193,7 @@
                         </StackPanel>
 
                         <!-- 4. Memoria de esta instancia -->
-                        <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,0">
+                        <Border Style="{StaticResource GroupedList}" Padding="16" Margin="0,24,0,0">
                             <StackPanel>
                                 <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding CustomMemory}"
                                           AutomationProperties.Name="Personalizar memoria">
@@ -226,7 +226,7 @@
                         </Border>
 
                         <!-- 5. Servidor -->
-                        <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="16" Margin="0,24,0,4">
+                        <Border Style="{StaticResource GroupedList}" Padding="16" Margin="0,24,0,4">
                             <StackPanel>
                                 <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding SyncWithServer}" AutomationProperties.Name="Sincronizar con el servidor"
                                           IsEnabled="{Binding IsSyncSwitchEnabled}">
@@ -237,7 +237,7 @@
                                     </StackPanel>
                                 </CheckBox>
                                 <!-- Vinculada o liberada por el servidor -->
-                                <Border Background="#1F4FD18B" CornerRadius="10" Padding="12,9" Margin="0,14,0,0"
+                                <Border Background="{StaticResource OkSoft}" CornerRadius="{StaticResource RadiusRow}" Padding="12,9" Margin="0,14,0,0"
                                         Visibility="{Binding SyncLockText, Converter={StaticResource TextToVisibility}}">
                                     <DockPanel>
                                         <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource Ok}" Margin="0,0,10,0" VerticalAlignment="Top" />
@@ -261,7 +261,7 @@
                         </Border>
 
                         <!-- 6. Eliminar (solo al editar una instancia existente) -->
-                        <Border Background="#12FF6B6B" CornerRadius="14" Padding="16" Margin="0,24,0,4"
+                        <Border Background="{StaticResource DangerTint}" CornerRadius="{StaticResource RadiusGroup}" Padding="16" Margin="0,24,0,4"
                                 Visibility="{Binding IsNew, Converter={StaticResource InverseBoolToVisibility}}">
                             <DockPanel>
                                 <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" Margin="16,0,0,0" VerticalAlignment="Center"

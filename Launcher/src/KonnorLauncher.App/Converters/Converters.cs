@@ -61,6 +61,20 @@ public sealed class NullToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
+/// Cargador → su color (recursos <c>LoaderVanilla</c>, <c>LoaderFabric</c>...): borde y letras del icono
+/// de una instancia.
+/// </summary>
+public sealed class LoaderBrushConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        Application.Current.TryFindResource($"Loader{value}") as System.Windows.Media.Brush
+        ?? Application.Current.FindResource("Ink3");
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
 /// 0 → Visible; cualquier otro número → Collapsed (mensaje de lista vacía). Con el parámetro
 /// <c>invert</c>, al revés (contadores que solo se ven si hay algo).
 /// </summary>

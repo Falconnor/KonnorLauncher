@@ -10,7 +10,7 @@
              IsVisibleChanged="OnIsVisibleChanged">
     <!-- Diálogo de confirmación propio del launcher -->
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="480" Padding="28,24" VerticalAlignment="Center" Background="{StaticResource GlassTintStrong}">
+        <c:GlassPanel Width="480" Padding="28,24" VerticalAlignment="Center" Style="{StaticResource DialogGlass}">
             <StackPanel KeyboardNavigation.TabNavigation="Cycle">
                 <TextBlock Text="{Binding Title}" Style="{StaticResource H2}" FontSize="20" TextWrapping="Wrap" />
                 <TextBlock Text="{Binding Message}" Foreground="{StaticResource Ink2}" FontSize="14" TextWrapping="Wrap"

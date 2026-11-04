@@ -3,14 +3,16 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using KonnorLauncher.App.Services;
 using KonnorLauncher.App.ViewModels;
 
 namespace KonnorLauncher.App.Views;
 
 /// <summary>
-/// Ventana principal sin marco, de tamaño libre (como mínimo 1024×768, 4:3). El código subyacente solo
-/// contiene lo puramente visual: arrastre, minimizar/maximizar/cerrar y la tecla Esc de los overlays.
+/// Ventana principal sin marco, de tamaño libre (como mínimo 1024×768, 4:3, o la pantalla si es menor). El código subyacente solo
+/// contiene lo puramente visual: arrastre, semáforos (cerrar/minimizar/maximizar), la búsqueda de la
+/// cabecera y las teclas Esc y /.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -94,14 +96,25 @@ public partial class MainWindow : Window
         _viewModel.UsernamePrompt.IsOpen || _viewModel.Confirm.IsOpen || _viewModel.Editor.IsOpen
         || _viewModel.Account.IsOpen || _viewModel.Options.IsOpen || _viewModel.Browse.InstallDialog.IsOpen;
 
-    /// <summary>Tecla / en "Explorar contenido": lleva a la búsqueda (salvo si ya se está escribiendo).</summary>
+    /// <summary>Tecla /: lleva a la búsqueda de Explorar (salvo si ya se está escribiendo).</summary>
     private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
     {
-        if (e.Text == "/" && _viewModel.IsBrowsing && !AnyOverlayOpen() && Keyboard.FocusedElement is not TextBox)
+        if (e.Text == "/" && !AnyOverlayOpen() && Keyboard.FocusedElement is not TextBox)
         {
-            BrowsePage.FocusSearch();
+            OpenSearch();
             e.Handled = true;
         }
+    }
+
+    /// <summary>La búsqueda de la cabecera no busca por sí misma: abre Explorar con el foco en su caja.</summary>
+    private void OnHeaderSearchClick(object sender, RoutedEventArgs e) => OpenSearch();
+
+    private void OpenSearch()
+    {
+        if (!_viewModel.IsBrowsing)
+            _viewModel.OpenBrowseCommand.Execute(null);
+        // Cuando la página ya es visible (tras el cambio de pestaña) puede recibir el foco.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, BrowsePage.FocusSearch);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
@@ -120,14 +133,49 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WindowProc);
+        var handle = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(handle)?.AddHook(WindowProc);
+        // Windows 11: esquinas redondeadas también en la propia ventana (en Windows 10 no hace nada).
+        NativeMethods.TryRoundWindowCorners(handle);
+        FitToScreen(handle, recenter: true);
+        DpiChanged += (_, _) => FitToScreen(handle, recenter: false);
+    }
+
+    /// <summary>Tamaño mínimo pensado para la interfaz (4:3), si la pantalla lo permite.</summary>
+    private const double DesignMinWidth = 1024;
+    private const double DesignMinHeight = 768;
+
+    /// <summary>
+    /// En pantallas con poco sitio (un portátil de 1366×768, o 1920×1080 al 150 %) el área de trabajo
+    /// es menor que el mínimo de 1024×768: el mínimo y el tamaño inicial se ajustan a ella para que la
+    /// ventana no quede cortada (con JUGAR fuera de la pantalla).
+    /// </summary>
+    private void FitToScreen(nint handle, bool recenter)
+    {
+        if (!NativeMethods.TryGetWorkArea(handle, out var area))
+            return;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var width = (area.Right - area.Left) / dpi.DpiScaleX;
+        var height = (area.Bottom - area.Top) / dpi.DpiScaleY;
+        MinWidth = Math.Min(DesignMinWidth, width);
+        MinHeight = Math.Min(DesignMinHeight, height);
+        if (WindowState != WindowState.Normal || (Width <= width && Height <= height))
+            return;
+
+        Width = Math.Min(Width, width);
+        Height = Math.Min(Height, height);
+        if (recenter)
+        {
+            Left = area.Left / dpi.DpiScaleX + (width - Width) / 2;
+            Top = area.Top / dpi.DpiScaleY + (height - Height) / 2;
+        }
     }
 
     private nint WindowProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
     {
         if (msg == NativeMethods.WmGetMinMaxInfo)
         {
-            // El mínimo (1024×768) en píxeles del monitor, con su escala.
+            // El mínimo (1024×768, o el área de trabajo si es menor) en píxeles del monitor, con su escala.
             var dpi = VisualTreeHelper.GetDpi(this);
             NativeMethods.FitMaximizedToWorkArea(hwnd, lParam, (int)Math.Ceiling(MinWidth * dpi.DpiScaleX),
                 (int)Math.Ceiling(MinHeight * dpi.DpiScaleY));

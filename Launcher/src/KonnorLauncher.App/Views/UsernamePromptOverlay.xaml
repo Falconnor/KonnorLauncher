@@ -15,7 +15,7 @@
 
     <!-- Antes de la primera partida: el nombre es obligatorio -->
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="420" Padding="28,26" VerticalAlignment="Center" Background="{StaticResource GlassTintStrong}">
+        <c:GlassPanel Width="420" Padding="28,26" VerticalAlignment="Center" Style="{StaticResource DialogGlass}">
             <StackPanel KeyboardNavigation.TabNavigation="Cycle">
                 <TextBlock Text="Escribe tu nombre" Style="{StaticResource H2}" FontSize="21" />
                 <TextBlock Text="Es el nombre con el que te verán los demás en el servidor." Foreground="{StaticResource Ink2}"

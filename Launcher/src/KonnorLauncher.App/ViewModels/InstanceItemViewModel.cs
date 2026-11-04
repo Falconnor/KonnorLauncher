@@ -27,6 +27,8 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     [ObservableProperty] private string _minecraftVersion = string.Empty;
     [ObservableProperty] private string _loaderText = string.Empty;
     [ObservableProperty] private bool _isModded;
+    /// <summary>Cargador tal como se muestra (da el color del icono).</summary>
+    [ObservableProperty] private ModLoader _loader;
     [ObservableProperty] private bool _isSynced;
     [ObservableProperty] private string _syncText = string.Empty;
     [ObservableProperty] private bool _hasUpdate;
@@ -51,6 +53,7 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         var (minecraft, loader, loaderVersion) = model.Display; // interpreta el id que publica el servidor
         MinecraftVersion = string.IsNullOrWhiteSpace(minecraft) ? "Sin versión" : minecraft;
         IsModded = loader != ModLoader.Vanilla;
+        Loader = loader;
         LoaderText = IsModded
             ? $"{GameInstance.LoaderDisplayName(loader)} {loaderVersion}".Trim()
             : "Vanilla";

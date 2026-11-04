@@ -171,6 +171,20 @@ public sealed partial class BrowseViewModel : ObservableObject
         SelectType(ActiveType, keepText: true);
     }
 
+    /// <summary>Abre la página en una pestaña concreta (los accesos de la barra lateral).</summary>
+    public Task OpenAsync(ContentType type)
+    {
+        if (!_tagsLoaded)
+        {
+            ActiveType = type; // se selecciona al terminar de cargar las listas
+            return OpenAsync();
+        }
+
+        Notice = null;
+        SelectType(type, keepText: type == ActiveType);
+        return Task.CompletedTask;
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // PESTAÑAS Y FILTROS
     // ══════════════════════════════════════════════════════════════════════

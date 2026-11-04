@@ -44,7 +44,7 @@
     </UserControl.Resources>
 
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="780" Height="600" Padding="0" Background="{StaticResource GlassTintStrong}" BlurRadius="40">
+        <c:GlassPanel Width="780" Height="600" Padding="0" Style="{StaticResource DialogGlass}" BlurRadius="40">
             <DockPanel KeyboardNavigation.TabNavigation="Cycle">
                 <!-- Cabecera -->
                 <DockPanel DockPanel.Dock="Top" Margin="28,22,20,8">
@@ -75,10 +75,10 @@
 
                     <!-- ── Skin: vista 3D ─────────────────────────────────────── -->
                     <StackPanel Grid.Column="0">
-                        <Border CornerRadius="18" BorderBrush="#1FFFFFFF" BorderThickness="1" Height="318">
+                        <Border CornerRadius="{StaticResource RadiusGroup}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Height="318">
                             <Border.Background>
                                 <RadialGradientBrush Center="0.5,0.62" GradientOrigin="0.5,0.62" RadiusX="0.75" RadiusY="0.6">
-                                    <GradientStop Color="#3327AE60" Offset="0" />
+                                    <GradientStop Color="#333478F6" Offset="0" />
                                     <GradientStop Color="#0DFFFFFF" Offset="0.7" />
                                     <GradientStop Color="#08FFFFFF" Offset="1" />
                                 </RadialGradientBrush>
@@ -151,7 +151,7 @@
 
                             <!-- Skin -->
                             <TextBlock Text="Skin" Style="{StaticResource FieldLabel}" Margin="0,24,0,8" />
-                            <Border Background="{StaticResource Surface}" CornerRadius="14" Padding="14,12">
+                            <Border Style="{StaticResource GroupedList}" Padding="14,12">
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                         <Button Style="{StaticResource GlassButton}" Content="Elegir skin" Command="{Binding ChooseSkinCommand}" />

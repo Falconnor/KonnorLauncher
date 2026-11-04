@@ -26,6 +26,30 @@ internal static partial class NativeMethods
 
     internal const int SwRestore = 9;
 
+    // ── Esquinas redondeadas de la ventana (Windows 11) ─────────────────────
+
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwcpRound = 2;
+
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(nint hWnd, int attribute, ref int value, int size);
+
+    /// <summary>
+    /// Pide a Windows 11 que redondee las esquinas de la ventana. En Windows 10 el atributo no existe:
+    /// la llamada falla sin consecuencias y la ventana sigue rectangular.
+    /// </summary>
+    internal static void TryRoundWindowCorners(nint hWnd)
+    {
+        var preference = DwmwcpRound;
+        try
+        {
+            _ = DwmSetWindowAttribute(hWnd, DwmwaWindowCornerPreference, ref preference, sizeof(int));
+        }
+        catch (DllNotFoundException)
+        {
+        }
+    }
+
     // ── Tamaño máximo de la ventana sin marco (WM_GETMINMAXINFO) ──────────
 
     internal const int WmGetMinMaxInfo = 0x0024;
@@ -63,6 +87,18 @@ internal static partial class NativeMethods
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetMonitorInfoW(nint monitor, ref MonitorInfo info);
+
+    /// <summary>Área de trabajo (sin la barra de tareas), en píxeles, del monitor en el que está la ventana.</summary>
+    internal static bool TryGetWorkArea(nint hWnd, out Rect workArea)
+    {
+        workArea = default;
+        var monitor = MonitorFromWindow(hWnd, MonitorDefaultToNearest);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == 0 || !GetMonitorInfoW(monitor, ref info))
+            return false;
+        workArea = info.Work;
+        return true;
+    }
 
     /// <summary>
     /// Maximizada, la ventana ocupa el área de trabajo del monitor en el que está (sin tapar la barra de

@@ -22,7 +22,7 @@
             <Setter Property="Height" Value="32" />
             <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -51,7 +51,7 @@
     </UserControl.Resources>
 
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="620" Height="600" Padding="0" Background="{StaticResource GlassTintStrong}" BlurRadius="40">
+        <c:GlassPanel Width="620" Height="600" Padding="0" Style="{StaticResource DialogGlass}" BlurRadius="40">
             <DockPanel KeyboardNavigation.TabNavigation="Cycle">
                 <!-- Cabecera -->
                 <DockPanel DockPanel.Dock="Top" Margin="28,22,20,6">
@@ -115,7 +115,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:InstanceChoice}">
                                             <Button Command="{Binding DataContext.SelectInstanceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}" Cursor="Hand" FocusVisualStyle="{x:Null}" Margin="0,0,4,6"
+                                                    CommandParameter="{Binding}" Cursor="Hand" FocusVisualStyle="{StaticResource FocusRing}" Margin="0,0,4,6"
                                                     Foreground="{StaticResource Ink}" AutomationProperties.Name="{Binding Name}">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
@@ -142,8 +142,8 @@
                                                             BorderBrush="#14FFFFFF" BorderThickness="1" Margin="0,0,12,0">
                                                         <TextBlock Text="{Binding Initials}" FontWeight="Bold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
-                                                    <Border DockPanel.Dock="Right" CornerRadius="10" Padding="9,2" VerticalAlignment="Center"
-                                                            Background="#1F27AE60" BorderBrush="#5927AE60" BorderThickness="1"
+                                                    <Border DockPanel.Dock="Right" CornerRadius="{StaticResource RadiusPill}" Padding="9,2" VerticalAlignment="Center"
+                                                            Background="{StaticResource OkSoft}" BorderBrush="{StaticResource OkLine}" BorderThickness="1"
                                                             Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}">
                                                         <TextBlock Text="Ya instalado" FontSize="12" Foreground="{StaticResource Ok}" />
                                                     </Border>

@@ -68,7 +68,6 @@ public partial class App : Application
             .CreateLogger();
 
         RegisterGlobalExceptionHandlers();
-        EnsureMainFont();
 
         // ── Host genérico: DI, HttpClient y logging ──
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
@@ -166,27 +165,6 @@ public partial class App : Application
         services.AddSingleton<ConfirmViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
-    }
-
-    /// <summary>
-    /// Comprueba que "Boring Time" se cargó desde los recursos; si no, usa Arial.
-    /// </summary>
-    private void EnsureMainFont()
-    {
-        try
-        {
-            var families = Fonts.GetFontFamilies(new Uri("pack://application:,,,/Assets/"));
-            if (families.Any(f => f.Source.EndsWith("#Boring Time", StringComparison.OrdinalIgnoreCase)
-                                  || f.FamilyNames.Values.Contains("Boring Time")))
-                return;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "No se pudo enumerar las fuentes incrustadas");
-        }
-
-        Log.Warning("Fuente 'Boring Time' no disponible; se usa Arial");
-        Resources["MainFont"] = new FontFamily("Arial");
     }
 
     /// <summary>Cualquier error no controlado se guarda en el log y se muestra (sin cerrar si es recuperable).</summary>
