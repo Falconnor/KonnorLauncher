@@ -22,12 +22,12 @@
             <Setter Property="Height" Value="32" />
             <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="{StaticResource Surface}" BorderBrush="Transparent" BorderThickness="1"
-                                CornerRadius="16" Padding="13,0">
+                                CornerRadius="{StaticResource RadiusButton}" Padding="13,0">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -142,7 +142,7 @@
                                                             BorderBrush="#14FFFFFF" BorderThickness="1" Margin="0,0,12,0">
                                                         <TextBlock Text="{Binding Initials}" FontWeight="Bold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
-                                                    <Border DockPanel.Dock="Right" CornerRadius="{StaticResource RadiusPill}" Padding="9,2" VerticalAlignment="Center"
+                                                    <Border DockPanel.Dock="Right" CornerRadius="{StaticResource RadiusSmall}" Padding="9,2" VerticalAlignment="Center"
                                                             Background="{StaticResource OkSoft}" BorderBrush="{StaticResource OkLine}" BorderThickness="1"
                                                             Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}">
                                                         <TextBlock Text="Ya instalado" FontSize="12" Foreground="{StaticResource Ok}" />

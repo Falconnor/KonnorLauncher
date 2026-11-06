@@ -24,9 +24,11 @@
         PreviewTextInput="OnPreviewTextInput"
         StateChanged="OnStateChanged">
 
-    <!-- Sin marco, pero con bordes para cambiar el tamaño (el arrastre lo hace la propia ventana) -->
+    <!-- Sin marco, con bordes para cambiar el tamaño. La franja superior (62 px, la cabecera) es la barra
+         de título de Windows: arrastrar, encajar en los bordes, doble clic para maximizar y, maximizada,
+         arrastrar para restaurar. Lo que se pulsa en ella lleva WindowChrome.IsHitTestVisibleInChrome. -->
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="0" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"
+        <WindowChrome CaptionHeight="62" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0"
                       UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
 
@@ -35,31 +37,50 @@
         <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
 
-        <!-- La ventana de cristal deja 10 px alrededor (se ven la sombra y el fondo). Maximizada,
-             ocupa todo, sin margen ni esquinas. -->
+        <!-- La ventana entera es de cristal: el fondo solo se ve desenfocado a través de él. Sin borde: se
+             dibujaría fuera del tinte y dejaría ver el fondo en el último píxel. -->
         <Style x:Key="WindowGlass" TargetType="c:GlassPanel" BasedOn="{StaticResource {x:Type c:GlassPanel}}">
-            <Setter Property="Margin" Value="10" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="CornerRadius" Value="0" />
             <Setter Property="BlurRadius" Value="70" />
             <Setter Property="Background" Value="{StaticResource WindowTint}" />
-            <Setter Property="BorderBrush" Value="{StaticResource WindowStroke}" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
-                    <Setter Property="Margin" Value="0" />
-                    <Setter Property="CornerRadius" Value="0" />
-                    <Setter Property="BorderThickness" Value="0" />
-                </DataTrigger>
-            </Style.Triggers>
+            <Setter Property="BorderThickness" Value="0" />
         </Style>
-        <Style x:Key="WindowShadowFrame" TargetType="Border">
-            <Setter Property="Margin" Value="10" />
-            <Setter Property="CornerRadius" Value="18" />
-            <Setter Property="Background" Value="{StaticResource WindowShadowFill}" />
-            <Setter Property="Effect" Value="{StaticResource WindowShadow}" />
+
+        <!-- Fila "+" al final de la lista de instancias: mismo alto que una instancia y, centrado, un "+" sobre
+             un área semitransparente como la del "+" de la cabecera del grupo -->
+        <Style x:Key="AddInstanceRow" TargetType="Button">
+            <Setter Property="Height" Value="72" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Ink3}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingInset}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border x:Name="Tile" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    CornerRadius="{StaticResource RadiusButton}" Background="{StaticResource RowHover}">
+                                <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="14"
+                                           HorizontalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                                <Setter TargetName="Tile" Property="Background" Value="{StaticResource PillGhostHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
-                    <Setter Property="Visibility" Value="Collapsed" />
+                <!-- Sin instancias es la primera fila: sin línea encima -->
+                <DataTrigger Binding="{Binding HasInstances}" Value="False">
+                    <Setter Property="BorderThickness" Value="0" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -88,35 +109,14 @@
             </Setter>
         </Style>
 
-        <!-- Avatar del jugador en la cabecera (abre la cuenta) -->
-        <Style x:Key="HeaderAvatar" TargetType="Button">
-            <Setter Property="Width" Value="36" />
-            <Setter Property="Height" Value="36" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <ContentPresenter />
-                            <Ellipse x:Name="Ring" Stroke="{StaticResource AvatarRing}" StrokeThickness="2" />
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Ring" Property="Stroke" Value="{StaticResource AvatarRingHover}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <Grid>
         <!-- Todo lo que se ve detrás de los overlays (ellos lo desenfocan entero) -->
         <Grid x:Name="MainContent">
-            <!-- ── Fondo: imagen + aurora de color. Es lo que se ve desenfocado a través del cristal ── -->
-            <Grid x:Name="Backdrop" ClipToBounds="True">
+            <!-- ── Fondo: imagen + aurora de color. Solo se ve desenfocado a través del cristal. Sobresale de
+                 la ventana para que el desenfoque no oscurezca los bordes. ── -->
+            <Grid x:Name="Backdrop" ClipToBounds="True" Margin="-80">
                 <Border Background="{StaticResource FallbackBackground}" />
                 <Image Source="pack://application:,,,/Assets/background.png" Stretch="UniformToFill"
                        RenderOptions.BitmapScalingMode="HighQuality" />
@@ -136,7 +136,6 @@
             </Grid>
 
             <!-- ── Ventana de cristal: un único panel desenfocado; dentro, solo capas semitransparentes ── -->
-            <Border Style="{StaticResource WindowShadowFrame}" />
             <c:GlassPanel Style="{StaticResource WindowGlass}" c:GlassPanel.Backdrop="{Binding ElementName=Backdrop}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -155,27 +154,21 @@
                     <Border Grid.Column="1" Grid.Row="0" Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
 
                     <!-- ═══ Cabecera (primera en el orden de tabulación) ═══ -->
-                    <Grid Grid.Column="1" Grid.Row="0" Margin="24,0,18,0">
+                    <Grid Grid.Column="1" Grid.Row="0" Margin="24,0,12,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Pestañas principales -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <RadioButton Style="{StaticResource TopTab}" GroupName="MainTabs" Content="Instancias"
-                                         IsChecked="{Binding IsInstancesTab}" Tag="{Binding HasUpdates}"
-                                         AutomationProperties.Name="Instancias" />
-                            <RadioButton Style="{StaticResource TopTab}" GroupName="MainTabs" Content="Explorar"
-                                         IsChecked="{Binding IsBrowseTab}"
-                                         AutomationProperties.Name="Explorar" />
-                        </StackPanel>
+                        <!-- Título de la vista: "Explorar" mientras se ve Explorar -->
+                        <TextBlock Grid.Column="0" Text="Explorar" Style="{StaticResource ViewTitle}" FontSize="20" VerticalAlignment="Center"
+                                   Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVisibility}}" />
 
                         <!-- Búsqueda -->
                         <Button Grid.Column="2" Style="{StaticResource HeaderSearch}" Click="OnHeaderSearchClick"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
                                 ToolTip="Buscar en Modrinth (tecla /)" AutomationProperties.Name="Buscar contenido">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{StaticResource IconSearch}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,10,0" />
@@ -183,45 +176,26 @@
                             </StackPanel>
                         </Button>
 
-                        <!-- Campana: instancias con una actualización del servidor -->
-                        <Grid Grid.Column="3" Margin="14,0,0,0" VerticalAlignment="Center">
-                            <Button Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconBell}" FontSize="16"
-                                    Background="Transparent" Command="{Binding ShowUpdatesCommand}"
-                                    ToolTip="Actualizaciones de las instancias" AutomationProperties.Name="Actualizaciones" />
-                            <Border Style="{StaticResource BadgeSmall}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                    Margin="0,-2,-4,0" IsHitTestVisible="False"
-                                    Visibility="{Binding HasUpdates, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="{Binding UpdateCount}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                        </Grid>
-
-                        <!-- Avatar del jugador -->
-                        <Button Grid.Column="4" Style="{StaticResource HeaderAvatar}" Margin="12,0,0,0" Command="{Binding OpenAccountCommand}"
-                                ToolTip="{Binding PlayerName}" AutomationProperties.Name="Abrir cuenta">
-                            <Grid>
-                                <Ellipse Fill="{StaticResource AccentSoft}"
-                                         Visibility="{Binding HasPlayerAvatar, Converter={StaticResource InverseBoolToVisibility}}" />
-                                <TextBlock Text="{Binding PlayerInitials}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Visibility="{Binding HasPlayerAvatar, Converter={StaticResource InverseBoolToVisibility}}" />
-                                <Ellipse Visibility="{Binding HasPlayerAvatar, Converter={StaticResource BoolToVisibility}}">
-                                    <Ellipse.Fill>
-                                        <ImageBrush ImageSource="{Binding PlayerAvatar}" Stretch="UniformToFill" />
-                                    </Ellipse.Fill>
-                                </Ellipse>
-                            </Grid>
-                        </Button>
+                        <!-- Controles de la ventana: minimizar, maximizar/restaurar y cerrar -->
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                            <Button Style="{StaticResource WindowCaptionButton}" Content="{StaticResource IconMinimize}" Click="OnMinimizeClick"
+                                    ToolTip="Minimizar" AutomationProperties.Name="Minimizar" />
+                            <Button x:Name="MaximizeButton" Style="{StaticResource WindowCaptionButton}" Content="{StaticResource IconMaximize}"
+                                    Click="OnMaximizeClick" Margin="4,0,0,0" ToolTip="Maximizar" AutomationProperties.Name="Maximizar" />
+                            <Button Style="{StaticResource WindowCloseCaptionButton}" Content="{StaticResource IconClose}" Click="OnCloseClick"
+                                    Margin="4,0,0,0" ToolTip="Cerrar" AutomationProperties.Name="Cerrar" />
+                        </StackPanel>
                     </Grid>
 
-                    <!-- Semáforos: cerrar, minimizar y maximizar (encima de la barra lateral) -->
-                    <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center"
-                                HorizontalAlignment="Left" Background="Transparent">
-                        <Button Style="{StaticResource TrafficLightButton}" Background="{StaticResource LightClose}"
-                                Content="{StaticResource IconClose}" Click="OnCloseClick" ToolTip="Cerrar" AutomationProperties.Name="Cerrar" />
-                        <Button Style="{StaticResource TrafficLightButton}" Background="{StaticResource LightMinimize}"
-                                Content="{StaticResource IconMinimize}" Click="OnMinimizeClick" ToolTip="Minimizar" AutomationProperties.Name="Minimizar" />
-                        <Button x:Name="MaximizeButton" Style="{StaticResource TrafficLightButton}" Background="{StaticResource LightMaximize}"
-                                Content="{StaticResource IconMaximize}" Click="OnMaximizeClick" ToolTip="Maximizar" AutomationProperties.Name="Maximizar" />
+                    <!-- Marca: arriba a la izquierda, a la altura de la cabecera -->
+                    <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" Margin="24,0,14,0" VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Assets/icon.png" Width="24" Height="24"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock Text="Konnor Launcher" FontFamily="{StaticResource DisplayFont}" FontSize="15" FontWeight="SemiBold"
+                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding LauncherVersionText}" FontSize="12" Foreground="{StaticResource Ink3}"
+                                   Margin="8,1,0,0" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <!-- ═══ Barra lateral: Explorar, instancias, jugador y Opciones ═══
@@ -234,24 +208,14 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <!-- Marca -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,0,14,24">
-                            <Image Source="pack://application:,,,/Assets/icon.png" Width="24" Height="24"
-                                   RenderOptions.BitmapScalingMode="HighQuality" />
-                            <TextBlock Text="Konnor Launcher" FontFamily="{StaticResource DisplayFont}" FontSize="15" FontWeight="SemiBold"
-                                       Margin="10,0,0,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding LauncherVersionText}" FontSize="12" Foreground="{StaticResource Ink3}"
-                                       Margin="8,1,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-
                         <!-- Grupo Explorar: abre la página en esa pestaña -->
-                        <StackPanel Grid.Row="1" Margin="14,0,14,28">
+                        <StackPanel Grid.Row="1" Margin="14,10,14,28">
                             <TextBlock Text="Explorar" Style="{StaticResource SidebarGroupLabel}" />
                             <ItemsControl ItemsSource="{Binding SidebarBrowseTabs}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:BrowseTab}">
                                         <Button Command="{Binding DataContext.OpenBrowseTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}" AutomationProperties.Name="{Binding Label, StringFormat=Explorar {0}}">
+                                                CommandParameter="{Binding}" Margin="0,0,0,2" AutomationProperties.Name="{Binding Label, StringFormat=Explorar {0}}">
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource SidebarAction}">
                                                     <Style.Triggers>
@@ -293,6 +257,7 @@
                         <!-- Lista de instancias (estilo lista de chats) -->
                         <Grid Grid.Row="3">
                             <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
+                                     PreviewMouseLeftButtonUp="OnInstanceListClick" KeyDown="OnInstanceListKeyDown"
                                      Background="Transparent" BorderThickness="0" Padding="0"
                                      ItemContainerStyle="{StaticResource InstanceListItem}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -300,7 +265,12 @@
                                 <ListBox.Template>
                                     <ControlTemplate TargetType="ListBox">
                                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" Focusable="False">
-                                            <ItemsPresenter />
+                                            <StackPanel>
+                                                <ItemsPresenter />
+                                                <!-- Nueva instancia, justo debajo de la última -->
+                                                <Button Style="{StaticResource AddInstanceRow}" Command="{Binding NewInstanceCommand}"
+                                                        ToolTip="Nueva instancia" AutomationProperties.Name="Crear una instancia nueva" />
+                                            </StackPanel>
                                         </ScrollViewer>
                                     </ControlTemplate>
                                 </ListBox.Template>
@@ -350,8 +320,6 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                            <TextBlock Text="Todavía no hay instancias." Style="{StaticResource Hint}" Margin="24,8,14,0"
-                                       Visibility="{Binding HasInstances, Converter={StaticResource InverseBoolToVisibility}}" />
                         </Grid>
                         <!-- Pie: jugador y Opciones, separados de la lista por una línea a todo el ancho -->
                         <Border Grid.Row="4" BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0" Padding="14,10,14,14">
@@ -651,7 +619,7 @@
         </Grid>
 
         <!-- ── Capas modales: su cristal desenfoca la ventana entera ───────────────────── -->
-        <Grid c:GlassPanel.Backdrop="{Binding ElementName=MainContent}">
+        <Grid c:GlassPanel.Backdrop="{Binding ElementName=MainContent}" WindowChrome.IsHitTestVisibleInChrome="True">
             <views:InstanceEditorOverlay DataContext="{Binding Editor}"
                                          Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
             <views:OptionsOverlay DataContext="{Binding Options}"

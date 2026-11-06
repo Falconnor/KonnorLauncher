@@ -27,18 +27,17 @@
         <SolidColorBrush x:Key="OkStroke" Color="#4D27AE60" />
         <DropShadowEffect x:Key="PanelShadow" Color="#020617" BlurRadius="30" ShadowDepth="8" Direction="270" Opacity="0.45" />
 
-        <!-- ── Select: "Ordenar por: Relevancia ▾" (píldora tenue; abierta, con el borde del acento) ── -->
+        <!-- ── Select: "Ordenar por: Relevancia ▾", integrado con el fondo (sin caja) ── -->
         <Style x:Key="GlassSelect" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="{StaticResource Ink2}" />
             <Setter Property="FontSize" Value="13.5" />
             <Setter Property="Height" Value="34" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd" Background="{StaticResource PillGhost}" BorderBrush="Transparent" BorderThickness="1"
-                                CornerRadius="{StaticResource RadiusPill}" Padding="16,0,14,0">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource RadiusButton}" Padding="2,0,8,0">
                             <DockPanel>
                                 <TextBlock x:Name="Chevron" DockPanel.Dock="Right" Text="{StaticResource IconChevronDown}" Style="{StaticResource Icon}"
                                            FontSize="10" Margin="10,0,0,0" Foreground="{StaticResource Ink3}" RenderTransformOrigin="0.5,0.5" />
@@ -47,10 +46,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource PillGhostHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource Ink}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
                                 <Setter TargetName="Chevron" Property="RenderTransform"><Setter.Value><RotateTransform Angle="180" /></Setter.Value></Setter>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -70,19 +70,19 @@
             <Setter Property="Effect" Value="{StaticResource PanelShadow}" />
         </Style>
 
-        <!-- ── Pastilla de filtro (entorno, versión, cargador, contenido incluido); activa, con el acento ── -->
+        <!-- ── Filtro (entorno, versión, cargador, contenido incluido); activo, con el acento ── -->
         <Style x:Key="FilterPill" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Ink2}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Height" Value="30" />
             <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="{StaticResource PillGhost}" BorderBrush="Transparent" BorderThickness="1"
-                                CornerRadius="{StaticResource RadiusPill}" Padding="12,0">
+                                CornerRadius="{StaticResource RadiusButton}" Padding="12,0">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -108,6 +108,40 @@
         <ItemsPanelTemplate x:Key="WrapItems">
             <WrapPanel />
         </ItemsPanelTemplate>
+        <!-- Dos columnas del mismo ancho: los filtros quedan alineados -->
+        <ItemsPanelTemplate x:Key="TwoColumns">
+            <UniformGrid Columns="2" />
+        </ItemsPanelTemplate>
+
+        <!-- "Más cargadores ▾" / "Menos cargadores ▴" -->
+        <Style x:Key="MoreToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource Ink3}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="2,2,0,0" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingRow}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <TextBlock x:Name="Text" Text="Más cargadores" VerticalAlignment="Center" />
+                            <TextBlock x:Name="Chevron" Text="{StaticResource IconChevronDown}" Style="{StaticResource Icon}" FontSize="9"
+                                       Margin="6,1,0,0" RenderTransformOrigin="0.5,0.5" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Text" Property="Text" Value="Menos cargadores" />
+                                <Setter TargetName="Chevron" Property="RenderTransform"><Setter.Value><RotateTransform Angle="180" /></Setter.Value></Setter>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- ── Cabecera plegable de un grupo del panel de filtros ── -->
         <Style x:Key="GroupHeader" TargetType="ToggleButton">
@@ -140,7 +174,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Botón Instalar: píldora de contorno; con el ratón sobre la tarjeta, rellena del acento.
+        <!-- ── Botón Instalar: de contorno; con el ratón sobre la tarjeta, relleno del acento.
              Instalado: verde (estado "listo"). ── -->
         <Style x:Key="InstallButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
@@ -150,13 +184,13 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="MinWidth" Value="130" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.2"
-                                CornerRadius="{StaticResource RadiusPill}" Padding="18,0" RenderTransformOrigin="0.5,0.5">
+                                CornerRadius="{StaticResource RadiusButton}" Padding="18,0" RenderTransformOrigin="0.5,0.5">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -201,7 +235,7 @@
         <!-- ── Etiqueta de la tarjeta, con el color de su cargador ── -->
         <DataTemplate x:Key="CardTagTemplate" DataType="{x:Type vm:CardTag}">
             <Border x:Name="Bd" Background="{StaticResource InnerFill}" BorderBrush="{StaticResource InnerStroke}" BorderThickness="1"
-                    CornerRadius="{StaticResource RadiusPill}" Padding="9,2" Margin="0,0,6,0">
+                    CornerRadius="{StaticResource RadiusSmall}" Padding="9,2" Margin="0,0,6,0">
                 <TextBlock x:Name="Text" Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Ink2}" />
             </Border>
             <DataTemplate.Triggers>
@@ -249,7 +283,7 @@
             </Style.Triggers>
         </Style>
 
-        <!-- ── Paginación: botones redondos de 34 px; la página actual, en el acento ── -->
+        <!-- ── Paginación: cuadrados redondeados de 34 px; la página actual, en el acento ── -->
         <Style x:Key="PageButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Ink2}" />
             <Setter Property="Background" Value="Transparent" />
@@ -257,11 +291,11 @@
             <Setter Property="Width" Value="34" />
             <Setter Property="Height" Value="34" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="17">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -353,12 +387,10 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ═══ 1. Subcabecera: título de la vista y pestañas de tipo, subrayadas sobre una línea fina ═══ -->
+        <!-- ═══ 1. Subcabecera: pestañas de tipo, subrayadas sobre una línea fina (el título va en la cabecera) ═══ -->
         <Grid Grid.Row="0" Height="50">
             <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
             <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Text="Explorar" Style="{StaticResource ViewTitle}" FontSize="20" VerticalAlignment="Center"
-                           Margin="0,0,24,2" />
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly">
                     <ItemsControl ItemsSource="{Binding Tabs}" KeyboardNavigation.TabNavigation="Once">
                         <ItemsControl.ItemsPanel>
@@ -526,7 +558,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:FilterChip}">
                                                 <Border x:Name="Bd" Background="{StaticResource SelectedFill}" BorderBrush="{StaticResource SelectedStroke}" BorderThickness="1"
-                                                        CornerRadius="{StaticResource RadiusPill}"
+                                                        CornerRadius="{StaticResource RadiusButton}"
                                                         Height="30" Padding="12,0,4,0" Margin="0,0,6,0">
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock x:Name="Text" Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
@@ -685,12 +717,12 @@
                             </ScrollViewer>
 
                             <Border Background="{StaticResource MenuGlass}" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1"
-                                    CornerRadius="{StaticResource RadiusPill}" Padding="18,9"
+                                    CornerRadius="{StaticResource RadiusButton}" Padding="18,9"
                                     HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0" IsHitTestVisible="False"
                                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource AccentHover}" Margin="0,0,10,0" />
-                                    <TextBlock Text="Buscando en Modrinth…" FontSize="14" />
+                                    <TextBlock Text="Cargando…" FontSize="14" />
                                 </StackPanel>
                             </Border>
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420"
@@ -811,6 +843,54 @@
                         <!-- Secciones: pestañas subrayadas sobre una línea fina -->
                         <Grid DockPanel.Dock="Top" Height="40" Margin="0,14,0,14">
                             <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
+                            <!-- Versiones: filtrar por versión de Minecraft y por cargador -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,2"
+                                        Visibility="{Binding IsVersions, Converter={StaticResource BoolToVisibility}}">
+                                <Grid>
+                                    <ToggleButton x:Name="VersionFilterToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsVersionFilterOpen}"
+                                                  AutomationProperties.Name="Filtrar por versión de Minecraft">
+                                        <TextBlock>
+                                            <Run Text="Minecraft:" /> <Run Text="{Binding VersionFilterLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                        </TextBlock>
+                                    </ToggleButton>
+                                    <Popup IsOpen="{Binding IsVersionFilterOpen}" PlacementTarget="{Binding ElementName=VersionFilterToggle}" Placement="Bottom"
+                                           StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="150">
+                                        <Border Style="{StaticResource MenuPanel}">
+                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding VersionChoices}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:FilterChoice}">
+                                                            <Button Style="{StaticResource ListOption}" Content="{Binding Label}" CommandParameter="{Binding Value}"
+                                                                    Command="{Binding DataContext.ChooseVersionFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                                <Grid Margin="14,0,0,0">
+                                    <ToggleButton x:Name="LoaderFilterToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsLoaderFilterOpen}"
+                                                  AutomationProperties.Name="Filtrar por cargador">
+                                        <TextBlock>
+                                            <Run Text="Cargador:" /> <Run Text="{Binding LoaderFilterLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                        </TextBlock>
+                                    </ToggleButton>
+                                    <Popup IsOpen="{Binding IsLoaderFilterOpen}" PlacementTarget="{Binding ElementName=LoaderFilterToggle}" Placement="Bottom"
+                                           StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="150">
+                                        <Border Style="{StaticResource MenuPanel}">
+                                            <ItemsControl ItemsSource="{Binding LoaderChoices}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:FilterChoice}">
+                                                        <Button Style="{StaticResource ListOption}" Content="{Binding Label}" CommandParameter="{Binding Value}"
+                                                                Command="{Binding DataContext.ChooseLoaderFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="ProjectSections" Content="Descripción"
                                              IsChecked="{Binding IsDescription}" />
@@ -841,7 +921,7 @@
                                                                 AutomationProperties.Name="{Binding Number, StringFormat=Instalar la versión {0}}" />
                                                         <StackPanel>
                                                             <StackPanel Orientation="Horizontal">
-                                                                <Border x:Name="Type" CornerRadius="{StaticResource RadiusPill}" Padding="8,1" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                                <Border x:Name="Type" CornerRadius="{StaticResource RadiusSmall}" Padding="8,1" Margin="0,0,10,0" VerticalAlignment="Center"
                                                                         Background="{StaticResource OkFill}" BorderBrush="{StaticResource OkStroke}" BorderThickness="1">
                                                                     <TextBlock x:Name="TypeText" Text="{Binding TypeLabel}" FontSize="12" Foreground="{StaticResource Ok}" />
                                                                 </Border>
@@ -871,7 +951,7 @@
                                     </Border>
                                 </ScrollViewer>
                             </DockPanel>
-                            <TextBlock Text="Este proyecto no tiene versiones publicadas." Foreground="{StaticResource Ink2}"
+                            <TextBlock Text="{Binding VersionsEmptyText}" Foreground="{StaticResource Ink2}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -947,11 +1027,49 @@
                             Visibility="{Binding HasProject, Converter={StaticResource InverseBoolToVisibility}}" />
 
                     <Grid>
-                        <!-- Filtros -->
+                        <!-- Filtros: versión del juego, cargador y categoría primero -->
                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="16,8,6,0"
                                       Visibility="{Binding HasProject, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Margin="0,0,8,0">
+                                <!-- Versión del juego: dos columnas alineadas -->
+                                <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsVersionExpanded}" AutomationProperties.Name="Versión del juego">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Versión del juego" Style="{StaticResource GroupTitle}" />
+                                        <TextBlock Text="{Binding VersionActiveText}" Style="{StaticResource GroupActive}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <StackPanel Visibility="{Binding IsVersionExpanded, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8">
+                                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="176" VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding GameVersions}" ItemTemplate="{StaticResource FilterPillTemplate}"
+                                                      ItemsPanel="{StaticResource TwoColumns}" />
+                                    </ScrollViewer>
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding ShowSnapshots}" Margin="0,8,0,0" FontSize="13.5"
+                                              Content="Mostrar snapshots" Foreground="{StaticResource Ink2}" />
+                                </StackPanel>
+
+                                <!-- Cargador: los principales y, al desplegar, el resto -->
+                                <StackPanel Visibility="{Binding ShowLoaders, Converter={StaticResource BoolToVisibility}}">
+                                    <Border Height="1" Background="{StaticResource InnerStroke}" />
+                                    <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsLoaderExpanded}" AutomationProperties.Name="Cargador">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Cargador" Style="{StaticResource GroupTitle}" />
+                                            <TextBlock Text="{Binding LoaderActiveText}" Style="{StaticResource GroupActive}" />
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <StackPanel Margin="0,0,0,8" Visibility="{Binding IsLoaderExpanded, Converter={StaticResource BoolToVisibility}}">
+                                        <ItemsControl ItemsSource="{Binding MainLoaders}" ItemTemplate="{StaticResource FilterPillTemplate}"
+                                                      ItemsPanel="{StaticResource TwoColumns}" />
+                                        <ItemsControl ItemsSource="{Binding OtherLoaders}" ItemTemplate="{StaticResource FilterPillTemplate}"
+                                                      ItemsPanel="{StaticResource TwoColumns}"
+                                                      Visibility="{Binding ShowOtherLoaders, Converter={StaticResource BoolToVisibility}}" />
+                                        <ToggleButton Style="{StaticResource MoreToggle}" IsChecked="{Binding ShowOtherLoaders}"
+                                                      AutomationProperties.Name="Más cargadores"
+                                                      Visibility="{Binding HasOtherLoaders, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </StackPanel>
+
                                 <!-- Categoría -->
+                                <Border Height="1" Background="{StaticResource InnerStroke}" />
                                 <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsCategoryExpanded}" AutomationProperties.Name="Categoría">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Categoría" Style="{StaticResource GroupTitle}" />
@@ -959,7 +1077,6 @@
                                     </StackPanel>
                                 </ToggleButton>
                                 <StackPanel Visibility="{Binding IsCategoryExpanded, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8">
-                                    <TextBlock Text="Un clic incluye; otro, excluye." Style="{StaticResource Hint}" FontSize="12" Margin="2,0,0,6" />
                                     <ItemsControl ItemsSource="{Binding Categories}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:CategoryFilter}">
@@ -987,12 +1104,6 @@
                                                                     <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}" />
                                                                     <Setter TargetName="Mark" Property="Text" Value="{StaticResource IconCheck}" />
                                                                     <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Ink}" />
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding State}" Value="Excluded">
-                                                                    <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Danger}" />
-                                                                    <Setter TargetName="Mark" Property="Text" Value="{StaticResource IconClose}" />
-                                                                    <Setter TargetName="Mark" Property="Foreground" Value="{StaticResource Danger}" />
-                                                                    <Setter TargetName="Label" Property="Foreground" Value="#FCA5A5" />
                                                                 </DataTrigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
@@ -1034,37 +1145,6 @@
                                                   Visibility="{Binding IsEnvironmentExpanded, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
-                                <!-- Versión del juego -->
-                                <Border Height="1" Background="{StaticResource InnerStroke}" />
-                                <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsVersionExpanded}" AutomationProperties.Name="Versión del juego">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Versión del juego" Style="{StaticResource GroupTitle}" />
-                                        <TextBlock Text="{Binding VersionActiveText}" Style="{StaticResource GroupActive}" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <StackPanel Visibility="{Binding IsVersionExpanded, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8">
-                                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="176" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding GameVersions}" ItemTemplate="{StaticResource FilterPillTemplate}"
-                                                      ItemsPanel="{StaticResource WrapItems}" />
-                                    </ScrollViewer>
-                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding ShowSnapshots}" Margin="0,8,0,0" FontSize="13.5"
-                                              Content="Mostrar snapshots" Foreground="{StaticResource Ink2}" />
-                                </StackPanel>
-
-                                <!-- Cargador -->
-                                <StackPanel Visibility="{Binding ShowLoaders, Converter={StaticResource BoolToVisibility}}">
-                                    <Border Height="1" Background="{StaticResource InnerStroke}" />
-                                    <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsLoaderExpanded}" AutomationProperties.Name="Cargador">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Cargador" Style="{StaticResource GroupTitle}" />
-                                            <TextBlock Text="{Binding LoaderActiveText}" Style="{StaticResource GroupActive}" />
-                                        </StackPanel>
-                                    </ToggleButton>
-                                    <ItemsControl ItemsSource="{Binding Loaders}" ItemTemplate="{StaticResource FilterPillTemplate}"
-                                                  ItemsPanel="{StaticResource WrapItems}" Margin="0,0,0,8"
-                                                  Visibility="{Binding IsLoaderExpanded, Converter={StaticResource BoolToVisibility}}" />
-                                </StackPanel>
-
                                 <!-- Licencia (plegado) -->
                                 <Border Height="1" Background="{StaticResource InnerStroke}" />
                                 <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsLicenseExpanded}" AutomationProperties.Name="Licencia">
@@ -1090,7 +1170,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Background="{StaticResource InnerFill}" BorderBrush="{StaticResource InnerStroke}" BorderThickness="1"
-                                                    CornerRadius="{StaticResource RadiusPill}" Padding="9,2" Margin="0,0,6,6">
+                                                    CornerRadius="{StaticResource RadiusSmall}" Padding="9,2" Margin="0,0,6,6">
                                                 <TextBlock Text="{Binding}" FontSize="12.5" Foreground="{StaticResource Ink2}" />
                                             </Border>
                                         </DataTemplate>

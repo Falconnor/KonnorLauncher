@@ -45,7 +45,7 @@ public enum CategoryState
     Excluded,
 }
 
-/// <summary>Categoría del panel de filtros: cada clic pasa de nada → incluida → excluida → nada.</summary>
+/// <summary>Categoría del panel de filtros: un clic la incluye y otro la quita.</summary>
 public sealed partial class CategoryFilter(string value, string label, Action changed) : ObservableObject
 {
     public string Value { get; } = value;
@@ -62,13 +62,9 @@ public sealed partial class CategoryFilter(string value, string label, Action ch
         changed();
     }
 
+    /// <summary>Un clic la incluye; otro, la quita.</summary>
     [RelayCommand]
-    private void Cycle() => State = State switch
-    {
-        CategoryState.None => CategoryState.Included,
-        CategoryState.Included => CategoryState.Excluded,
-        _ => CategoryState.None,
-    };
+    private void Cycle() => State = State == CategoryState.Included ? CategoryState.None : CategoryState.Included;
 }
 
 /// <summary>Filtro activo mostrado como chip en la barra de herramientas (con su ✕).</summary>

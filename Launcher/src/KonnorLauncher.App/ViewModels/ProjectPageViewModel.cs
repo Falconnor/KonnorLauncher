@@ -9,6 +9,9 @@ using KonnorLauncher.Core.Modrinth;
 
 namespace KonnorLauncher.App.ViewModels;
 
+/// <summary>Opción de un filtro desplegable (Value null = sin filtro).</summary>
+public sealed record FilterChoice(string? Value, string Label);
+
 /// <summary>Versión de la lista de la página de un proyecto.</summary>
 public sealed partial class VersionRow : ObservableObject
 {
@@ -92,6 +95,46 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     [ObservableProperty] private string _section = "description";
     [ObservableProperty] private bool _isVersionsLoading;
 
+    // Filtros de la pestaña Versiones (null = todas)
+    public ObservableCollection<FilterChoice> VersionChoices { get; } = [];
+    public ObservableCollection<FilterChoice> LoaderChoices { get; } = [];
+    [ObservableProperty] private string? _versionFilter;
+    [ObservableProperty] private string? _loaderFilter;
+    [ObservableProperty] private bool _isVersionFilterOpen;
+    [ObservableProperty] private bool _isLoaderFilterOpen;
+
+    public string VersionFilterLabel => VersionFilter ?? "Todas";
+    public string LoaderFilterLabel => LoaderFilter is null ? "Todos" : BrowseText.Loader(LoaderFilter);
+    public string VersionsEmptyText => _allVersions.Count == 0
+        ? "Este proyecto no tiene versiones publicadas."
+        : "Ninguna versión coincide con los filtros.";
+
+    partial void OnVersionFilterChanged(string? value)
+    {
+        OnPropertyChanged(nameof(VersionFilterLabel));
+        RebuildVersions();
+    }
+
+    partial void OnLoaderFilterChanged(string? value)
+    {
+        OnPropertyChanged(nameof(LoaderFilterLabel));
+        RebuildVersions();
+    }
+
+    [RelayCommand]
+    private void ChooseVersionFilter(string? value)
+    {
+        IsVersionFilterOpen = false;
+        VersionFilter = value;
+    }
+
+    [RelayCommand]
+    private void ChooseLoaderFilter(string? value)
+    {
+        IsLoaderFilterOpen = false;
+        LoaderFilter = value;
+    }
+
     public bool HasGallery => Gallery.Count > 0;
     public bool HasLinks => Links.Count > 0;
     // Las pestañas de sección se enlazan en los dos sentidos: marcar una cambia la sección.
@@ -152,6 +195,7 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         try
         {
             _allVersions = (await _client.GetVersionsAsync(Card.Hit.ProjectId, ct: ct)).ToList();
+            BuildVersionChoices();
             RebuildVersions();
         }
         catch (ModrinthException)
@@ -164,13 +208,44 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         }
     }
 
-    /// <summary>Todas las versiones (al instalar una, el diálogo dice en qué instancias sirve).</summary>
+    /// <summary>
+    /// Las versiones que pasan los filtros (al instalar una, el diálogo dice en qué instancias sirve).
+    /// </summary>
     private void RebuildVersions()
     {
         Versions.Clear();
-        foreach (var version in _allVersions.Take(MaxVersions))
+        var matching = _allVersions.Where(v => (VersionFilter is null || v.GameVersions.Contains(VersionFilter))
+                                               && (LoaderFilter is null || v.Loaders.Contains(LoaderFilter)));
+        foreach (var version in matching.Take(MaxVersions))
             Versions.Add(new VersionRow(version, _installVersion));
         OnPropertyChanged(nameof(VersionsTabText));
+        OnPropertyChanged(nameof(VersionsEmptyText));
+    }
+
+    private static readonly string[] MainLoaderOrder = ["forge", "fabric", "neoforge", "quilt"];
+
+    /// <summary>
+    /// Opciones de los filtros: las versiones de Minecraft estables que aparecen en alguna versión (de la
+    /// más reciente a la más antigua) y sus cargadores (los principales primero).
+    /// </summary>
+    private void BuildVersionChoices()
+    {
+        VersionChoices.Clear();
+        VersionChoices.Add(new FilterChoice(null, "Todas"));
+        var releases = _allVersions.SelectMany(v => v.GameVersions).Distinct()
+            .Select(text => (Text: text, Parsed: Version.TryParse(text, out var parsed) ? parsed : null))
+            .Where(v => v.Parsed is not null)
+            .OrderByDescending(v => v.Parsed);
+        foreach (var (text, _) in releases)
+            VersionChoices.Add(new FilterChoice(text, text));
+
+        LoaderChoices.Clear();
+        LoaderChoices.Add(new FilterChoice(null, "Todos"));
+        var loaders = _allVersions.SelectMany(v => v.Loaders).Distinct().Where(BrowseText.IsPlayerLoader)
+            .OrderBy(l => Array.IndexOf(MainLoaderOrder, l) is var i and >= 0 ? i : MainLoaderOrder.Length)
+            .ThenBy(l => l, StringComparer.Ordinal);
+        foreach (var loader in loaders)
+            LoaderChoices.Add(new FilterChoice(loader, BrowseText.Loader(loader)));
     }
 
     private void BuildInfo(ProjectDetails details)

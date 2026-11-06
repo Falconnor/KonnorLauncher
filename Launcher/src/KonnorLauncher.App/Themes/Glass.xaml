@@ -8,7 +8,7 @@
          (LauncherBackEnd/Panel/static/panel.css), traducidos a WPF.
          Cristal oscuro con desenfoque alto sobre el fondo del launcher.
          Estilo "glass de escritorio": ventana de cristal azul pizarra, líneas
-         finas en lugar de huecos, botones píldora y pestañas subrayadas.
+         finas en lugar de huecos, botones de esquinas redondeadas y pestañas subrayadas.
          ═══════════════════════════════════════════════════════════════════ -->
 
     <!-- Tipografía: Segoe UI Variable en Windows 11, Segoe UI en Windows 10 -->
@@ -39,7 +39,6 @@
     <SolidColorBrush x:Key="SidebarTint" Color="#C4151925" />
     <SolidColorBrush x:Key="SidebarShade" Color="#26000000" />
     <SolidColorBrush x:Key="HeaderTint" Color="#14FFFFFF" />
-    <SolidColorBrush x:Key="WindowStroke" Color="#1FFFFFFF" />
     <!-- Líneas de 1 px que separan barra lateral, cabecera, filas y pies de tarjeta -->
     <SolidColorBrush x:Key="Hairline" Color="#14FFFFFF" />
     <SolidColorBrush x:Key="HairlineStrong" Color="#24FFFFFF" />
@@ -60,17 +59,13 @@
     <SolidColorBrush x:Key="OkSoft" Color="#1F4FD18B" />
     <SolidColorBrush x:Key="OkLine" Color="#5927AE60" />
     <SolidColorBrush x:Key="DangerTint" Color="#12FF6B6B" />
+    <!-- Cerrar la ventana, al pasar el ratón -->
+    <SolidColorBrush x:Key="CloseHover" Color="#E6E5484D" />
 
     <!-- Campo sin borde de la cabecera (búsqueda) -->
     <SolidColorBrush x:Key="FieldQuiet" Color="#1F000000" />
     <SolidColorBrush x:Key="FieldQuietHover" Color="#33000000" />
     <SolidColorBrush x:Key="AvatarRing" Color="#33FFFFFF" />
-    <SolidColorBrush x:Key="AvatarRingHover" Color="#66FFFFFF" />
-    <!-- Sombra de la ventana de cristal (sobre una capa opaca que queda tapada por el cristal) -->
-    <SolidColorBrush x:Key="WindowShadowFill" Color="#FF0B0E13" />
-    <DropShadowEffect x:Key="WindowShadow" BlurRadius="40" Opacity="0.45" ShadowDepth="8" Direction="270" Color="Black"
-                      RenderingBias="Performance" />
-
     <!-- Aurora del fondo: manchas de color saturado (de opaco a transparente) que tiñen el cristal -->
     <RadialGradientBrush x:Key="AuroraBlue">
         <GradientStop Color="#FF3A5BFF" Offset="0" />
@@ -91,7 +86,7 @@
 
     <!-- Acento y marca. Para volver al verde en toda la interfaz basta con poner los valores de Brand
          en Accent/AccentHover/AccentPress/AccentSoft.
-         - Accent (azul): interfaz general — botones píldora, insignias, selección, foco, interruptores.
+         - Accent (azul): interfaz general — botones, insignias, selección, foco, interruptores.
          - Brand (verde del launcher): solo JUGAR, barras de progreso y el estado "lista/actualizada". -->
     <SolidColorBrush x:Key="Accent" Color="#3478F6" />
     <SolidColorBrush x:Key="AccentHover" Color="#4A88FF" />
@@ -112,17 +107,11 @@
     <SolidColorBrush x:Key="LoaderNeoForge" Color="#F0A040" />
     <SolidColorBrush x:Key="LoaderQuilt" Color="#C77DFF" />
 
-    <!-- Semáforos de la ventana -->
-    <SolidColorBrush x:Key="LightClose" Color="#FF5F57" />
-    <SolidColorBrush x:Key="LightMinimize" Color="#FEBC2E" />
-    <SolidColorBrush x:Key="LightMaximize" Color="#28C840" />
-    <SolidColorBrush x:Key="LightInactive" Color="#4DFFFFFF" />
-    <SolidColorBrush x:Key="LightStroke" Color="#33000000" />
-    <SolidColorBrush x:Key="LightGlyph" Color="#99000000" />
-
     <CornerRadius x:Key="RadiusControl">10</CornerRadius>
-    <!-- Mayor que la mitad de cualquier alto: Border lo reduce y queda una píldora (o un círculo) -->
-    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+    <!-- Botones, campos de selección y filtros: rectángulos con las esquinas redondeadas (como Modrinth) -->
+    <CornerRadius x:Key="RadiusButton">10</CornerRadius>
+    <!-- Etiquetas pequeñas (cargador, tipo de versión...) -->
+    <CornerRadius x:Key="RadiusSmall">6</CornerRadius>
     <CornerRadius x:Key="RadiusRow">8</CornerRadius>
     <CornerRadius x:Key="RadiusGroup">12</CornerRadius>
     <CornerRadius x:Key="RadiusTile">7</CornerRadius>
@@ -150,7 +139,6 @@
     <sys:String x:Key="IconCheck">&#xE73E;</sys:String>
     <sys:String x:Key="IconSearch">&#xE721;</sys:String>
     <sys:String x:Key="IconCube">&#xF158;</sys:String>
-    <sys:String x:Key="IconBell">&#xEA8F;</sys:String>
     <sys:String x:Key="IconMaximize">&#xE922;</sys:String>
 
     <!-- Panel de cristal (estilo implícito: cualquier GlassPanel lo usa) -->
@@ -240,17 +228,7 @@
 
     <!-- ═══ Foco de teclado (común) ═══
          Anillo de 2 px del acento, solo al navegar con el teclado. Uno por radio para que siga la
-         forma del control: píldoras y círculos, controles de radio 10 y filas de radio 8. -->
-    <Style x:Key="FocusRingPill">
-        <Setter Property="Control.Template">
-            <Setter.Value>
-                <ControlTemplate>
-                    <Border Margin="-3" BorderBrush="{StaticResource Accent}" BorderThickness="2"
-                            CornerRadius="{StaticResource RadiusPill}" SnapsToDevicePixels="True" />
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
+         forma del control: botones y controles de radio 10, y filas de radio 8. -->
     <Style x:Key="FocusRing">
         <Setter Property="Control.Template">
             <Setter.Value>
@@ -284,11 +262,11 @@
     </Style>
 
     <!-- ═══ Botones ═══ -->
-    <!-- Base de todas las píldoras: forma, contenido y pulsación (escala 0.97). Los colores los ponen
+    <!-- Base de todos los botones: forma, contenido y pulsación (escala 0.97). Los colores los ponen
          los estilos de abajo con sus propios disparadores. -->
     <ControlTemplate x:Key="PillTemplate" TargetType="ButtonBase">
         <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource RadiusPill}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource RadiusButton}"
                 Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5" SnapsToDevicePixels="True">
             <Border.RenderTransform>
                 <ScaleTransform />
@@ -354,11 +332,11 @@
         <Setter Property="Padding" Value="22,0" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
         <Setter Property="Template" Value="{StaticResource PillTemplate}" />
     </Style>
 
-    <!-- Píldora rellena (acción principal): acento azul -->
+    <!-- Botón relleno (acción principal): acento azul -->
     <Style x:Key="PillButton" TargetType="ButtonBase" BasedOn="{StaticResource PillBase}">
         <Setter Property="Background" Value="{StaticResource Accent}" />
         <Setter Property="Foreground" Value="White" />
@@ -372,7 +350,7 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Píldora tenue, sin borde (acciones secundarias) -->
+    <!-- Botón tenue, sin borde (acciones secundarias) -->
     <Style x:Key="PillGhostButton" TargetType="ButtonBase" BasedOn="{StaticResource PillBase}">
         <Setter Property="Background" Value="{StaticResource PillGhost}" />
         <Style.Triggers>
@@ -385,7 +363,7 @@
     <!-- Estilos de siempre con el aspecto nuevo: todas las vistas cambian sin tocarlas.
          Mantienen el alto de 38 para no mover lo que ya está maquetado. -->
 
-    <!-- Secundario: píldora tenue con un borde muy fino -->
+    <!-- Secundario: botón tenue con un borde muy fino -->
     <Style x:Key="GlassButton" TargetType="ButtonBase" BasedOn="{StaticResource PillGhostButton}">
         <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -393,12 +371,12 @@
         <Setter Property="Padding" Value="18,0" />
     </Style>
 
-    <!-- Principal: píldora rellena del acento -->
+    <!-- Principal: relleno del acento -->
     <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
         <Setter Property="Height" Value="{StaticResource ControlHeight}" />
     </Style>
 
-    <!-- Destructivo: píldora con el rojo suave -->
+    <!-- Destructivo: con el rojo suave -->
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource GlassButton}">
         <Setter Property="Background" Value="{StaticResource DangerSoft}" />
         <Setter Property="BorderBrush" Value="{StaticResource DangerStroke}" />
@@ -440,7 +418,7 @@
         </Style.Triggers>
     </Style>
 
-    <!-- ═══ JUGAR: píldora grande con el verde del launcher (degradado vertical y brillo arriba) ═══ -->
+    <!-- ═══ JUGAR: botón grande con el verde del launcher (degradado vertical y brillo arriba) ═══ -->
     <LinearGradientBrush x:Key="PlayGradient" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#34C472" Offset="0" />
         <GradientStop Color="#219A54" Offset="1" />
@@ -457,7 +435,7 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="MinHeight" Value="48" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingPill}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -465,9 +443,9 @@
                         <Grid.RenderTransform>
                             <ScaleTransform />
                         </Grid.RenderTransform>
-                        <Border x:Name="Bd" Background="{StaticResource PlayGradient}" CornerRadius="{StaticResource RadiusPill}" />
+                        <Border x:Name="Bd" Background="{StaticResource PlayGradient}" CornerRadius="{StaticResource RadiusButton}" />
                         <!-- Brillo interior de 1 px en el borde superior -->
-                        <Border x:Name="Shine" CornerRadius="{StaticResource RadiusPill}" BorderThickness="0,1,0,0"
+                        <Border x:Name="Shine" CornerRadius="{StaticResource RadiusButton}" BorderThickness="0,1,0,0"
                                 BorderBrush="{StaticResource PlayShine}" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock x:Name="Glyph" Text="{StaticResource IconPlay}" FontFamily="{StaticResource IconFont}"
@@ -1051,15 +1029,6 @@
         <Setter Property="TextElement.FontSize" Value="11" />
         <Setter Property="TextElement.FontWeight" Value="SemiBold" />
     </Style>
-    <!-- Insignia pequeña sobre un icono (campana): 16 px, número de 10 px -->
-    <Style x:Key="BadgeSmall" TargetType="Border" BasedOn="{StaticResource Badge}">
-        <Setter Property="MinWidth" Value="16" />
-        <Setter Property="Height" Value="16" />
-        <Setter Property="Padding" Value="4,0" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="TextElement.FontSize" Value="10" />
-        <Setter Property="TextElement.FontWeight" Value="Bold" />
-    </Style>
     <!-- Punto de estado de una fila ("● Actualizada"): el color lo pone la vista (Ok, Accent...) -->
     <Style x:Key="StatusDot" TargetType="Ellipse">
         <Setter Property="Width" Value="7" />
@@ -1152,41 +1121,50 @@
         <Setter Property="Padding" Value="0,14,0,0" />
     </Style>
 
-    <!-- ═══ Semáforos de la ventana ═══
-         Círculo de 12 px del color del botón (Background) dentro de una zona de clic de 20 px (así
-         quedan separados 8 px). Al pasar el ratón por el grupo (el panel que los contiene) cada uno
-         muestra su glifo (Content); con la ventana inactiva se vuelven grises. -->
-    <Style x:Key="TrafficLightButton" TargetType="Button">
-        <Setter Property="Width" Value="20" />
-        <Setter Property="Height" Value="20" />
+    <!-- ═══ Controles de la ventana (minimizar, maximizar, cerrar) ═══
+         Cuadrados de cristal de 32 px (radio 10) con el glifo de Segoe Fluent; al pasar el ratón, el velo
+         de los botones tenues. Cerrar se vuelve rojo. No reciben el foco (como los de cualquier ventana). -->
+    <Style x:Key="WindowCaptionButton" TargetType="Button">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
         <Setter Property="Focusable" Value="False" />
-        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource Ink2}" />
         <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
-        <Setter Property="FontSize" Value="7" />
-        <Setter Property="Foreground" Value="{StaticResource LightGlyph}" />
+        <Setter Property="FontSize" Value="10" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Grid Background="Transparent">
-                        <Ellipse x:Name="Light" Width="12" Height="12" Fill="{TemplateBinding Background}"
-                                 Stroke="{StaticResource LightStroke}" StrokeThickness="0.5" />
-                        <ContentPresenter x:Name="Glyph" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Hidden" />
-                    </Grid>
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusButton}"
+                            RenderTransformOrigin="0.5,0.5">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
                     <ControlTemplate.Triggers>
-                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Panel}}" Value="True">
-                            <Setter TargetName="Glyph" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
-                            <Setter TargetName="Light" Property="Fill" Value="{StaticResource LightInactive}" />
-                            <Setter TargetName="Light" Property="Stroke" Value="Transparent" />
-                        </DataTrigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Light" Property="Opacity" Value="0.75" />
+                            <Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.94" ScaleY="0.94" /></Setter.Value></Setter>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <!-- Ventana inactiva: más tenues -->
+            <DataTrigger Binding="{Binding IsActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                <Setter Property="Foreground" Value="{StaticResource Ink3}" />
+            </DataTrigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PillGhostHover}" />
+                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="WindowCloseCaptionButton" TargetType="Button" BasedOn="{StaticResource WindowCaptionButton}">
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource CloseHover}" />
+                <Setter Property="Foreground" Value="White" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ═══ Menú contextual (⋯) ═══ cristal denso, radio 8, filas con fondo al pasar el ratón -->

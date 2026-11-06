@@ -11,7 +11,7 @@ namespace KonnorLauncher.App.Views;
 
 /// <summary>
 /// Ventana principal sin marco, de tamaño libre (como mínimo 1024×768, 4:3, o la pantalla si es menor). El código subyacente solo
-/// contiene lo puramente visual: arrastre, semáforos (cerrar/minimizar/maximizar), la búsqueda de la
+/// contiene lo puramente visual: arrastre, los controles de la ventana (minimizar/maximizar/cerrar), la búsqueda de la
 /// cabecera y las teclas Esc y /.
 /// </summary>
 public partial class MainWindow : Window
@@ -115,6 +115,26 @@ public partial class MainWindow : Window
             _viewModel.OpenBrowseCommand.Execute(null);
         // Cuando la página ya es visible (tras el cambio de pestaña) puede recibir el foco.
         Dispatcher.BeginInvoke(DispatcherPriority.Input, BrowsePage.FocusSearch);
+    }
+
+    /// <summary>
+    /// Sin pestaña "Instancias", se vuelve de Explorar con un clic en una instancia. Elegir otra ya lo
+    /// hace (cambia la selección); esto cubre la que ya estaba seleccionada.
+    /// </summary>
+    private void OnInstanceListClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_viewModel.IsBrowsing && e.OriginalSource is DependencyObject source
+                                  && ItemsControl.ContainerFromElement((ItemsControl)sender, source) is ListBoxItem)
+            _viewModel.CloseBrowseCommand.Execute(null);
+    }
+
+    private void OnInstanceListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && _viewModel.IsBrowsing && Keyboard.FocusedElement is ListBoxItem)
+        {
+            _viewModel.CloseBrowseCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();

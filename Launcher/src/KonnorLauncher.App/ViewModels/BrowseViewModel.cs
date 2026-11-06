@@ -77,6 +77,18 @@ public sealed partial class BrowseViewModel : ObservableObject
     public ObservableCollection<FilterOption> Environments { get; } = [];
     public ObservableCollection<FilterOption> GameVersions { get; } = [];
     public ObservableCollection<FilterOption> Loaders { get; } = [];
+
+    /// <summary>Forge, Fabric, NeoForge y Quilt (los que haya en la pestaña), siempre a la vista.</summary>
+    public ObservableCollection<FilterOption> MainLoaders { get; } = [];
+
+    /// <summary>El resto de cargadores, al desplegar "Más cargadores".</summary>
+    public ObservableCollection<FilterOption> OtherLoaders { get; } = [];
+
+    [ObservableProperty] private bool _showOtherLoaders;
+
+    public bool HasOtherLoaders => OtherLoaders.Count > 0;
+
+    private static readonly string[] MainLoaderOrder = ["forge", "fabric", "neoforge", "quilt"];
     public ObservableCollection<string> Worlds { get; } = [];
     public IRelayCommand<int> GoToPageCommand { get; }
 
@@ -240,10 +252,30 @@ public sealed partial class BrowseViewModel : ObservableObject
         var loaderType = ActiveType == ContentType.Server ? "modpack" : projectType;
         foreach (var tag in _loaderTags.Where(l => l.SupportedProjectTypes.Contains(loaderType) && IsPlayerLoader(l.Name)))
             Loaders.Add(new FilterOption(tag.Name, BrowseText.Loader(tag.Name), FiltersChanged));
+        SplitLoaders();
 
         OpenSourceOnly = false;
         OnPropertyChanged(nameof(ShowFeatures));
         OnPropertyChanged(nameof(ShowLoaders));
+    }
+
+    /// <summary>
+    /// Separa los cargadores principales del resto. Si la pestaña no tiene ninguno de los principales
+    /// (shaders: Iris, OptiFine...), todos se ven sin desplegar nada.
+    /// </summary>
+    private void SplitLoaders()
+    {
+        MainLoaders.Clear();
+        OtherLoaders.Clear();
+        var main = MainLoaderOrder.Select(name => Loaders.FirstOrDefault(l => l.Value == name)).OfType<FilterOption>().ToList();
+        if (main.Count == 0)
+            main = [.. Loaders];
+        foreach (var loader in main)
+            MainLoaders.Add(loader);
+        foreach (var loader in Loaders.Except(main))
+            OtherLoaders.Add(loader);
+        ShowOtherLoaders = false;
+        OnPropertyChanged(nameof(HasOtherLoaders));
     }
 
     /// <summary>Las de servidores y "categories" son las categorías; el resto, "contenido incluido".</summary>
