@@ -268,6 +268,35 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- Etiqueta pulsable de la columna de compatibilidad: muestra los archivos de esa versión o cargador -->
+        <Style x:Key="CompatChipButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Ring" BorderThickness="1" BorderBrush="Transparent" CornerRadius="7" Padding="1" Background="Transparent">
+                            <ContentPresenter x:Name="Content" Opacity="0.92" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Content" Property="Opacity" Value="1" />
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource InnerStroke}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Content" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter TargetName="Content" Property="Opacity" Value="1" />
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ── Tarjeta: contenedor agrupado (radio 12) que se aclara con el ratón ── -->
         <Style x:Key="ProjectCardBorder" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource GlassFill}" />
@@ -861,8 +890,17 @@
                                                 <ItemsControl ItemsSource="{Binding VersionChoices}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate DataType="{x:Type vm:FilterChoice}">
-                                                            <Button Style="{StaticResource ListOption}" Content="{Binding Label}" CommandParameter="{Binding Value}"
-                                                                    Command="{Binding DataContext.ChooseVersionFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                            <Button Style="{StaticResource ListOption}" CommandParameter="{Binding Value}"
+                                                                    Command="{Binding DataContext.ChooseVersionFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                                <TextBlock x:Name="Label" Text="{Binding Label}" />
+                                                            </Button>
+                                                            <DataTemplate.Triggers>
+                                                                <!-- Versiones de un grupo: sangradas y más tenues bajo "1.21.x" -->
+                                                                <DataTrigger Binding="{Binding IsChild}" Value="True">
+                                                                    <Setter TargetName="Label" Property="Margin" Value="14,0,0,0" />
+                                                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Ink2}" />
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
@@ -1169,16 +1207,30 @@
                                 <TextBlock Text="Minecraft" FontSize="12.5" Foreground="{StaticResource Ink3}" Margin="0,0,0,6" />
                                 <ItemsControl ItemsSource="{Binding GameVersionGroups}" ItemsPanel="{StaticResource WrapItems}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Background="{StaticResource InnerFill}" BorderBrush="{StaticResource InnerStroke}" BorderThickness="1"
-                                                    CornerRadius="{StaticResource RadiusSmall}" Padding="9,2" Margin="0,0,6,6">
-                                                <TextBlock Text="{Binding}" FontSize="12.5" Foreground="{StaticResource Ink2}" />
-                                            </Border>
+                                        <DataTemplate DataType="{x:Type vm:CompatChip}">
+                                            <Button Style="{StaticResource CompatChipButton}" CommandParameter="{Binding}"
+                                                    Command="{Binding DataContext.ShowGameVersionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    ToolTip="Ver los archivos para esta versión" AutomationProperties.Name="{Binding Value, StringFormat=Archivos para Minecraft {0}}">
+                                                <Border Background="{StaticResource InnerFill}" BorderBrush="{StaticResource InnerStroke}" BorderThickness="1"
+                                                        CornerRadius="{StaticResource RadiusSmall}" Padding="9,2">
+                                                    <TextBlock Text="{Binding Tag.Text}" FontSize="12.5" Foreground="{StaticResource Ink2}" />
+                                                </Border>
+                                            </Button>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 <TextBlock Text="Plataformas" FontSize="12.5" Foreground="{StaticResource Ink3}" Margin="0,8,0,6" />
-                                <ItemsControl ItemsSource="{Binding Loaders}" ItemTemplate="{StaticResource CardTagTemplate}" ItemsPanel="{StaticResource WrapItems}" />
+                                <ItemsControl ItemsSource="{Binding Loaders}" ItemsPanel="{StaticResource WrapItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:CompatChip}">
+                                            <Button Style="{StaticResource CompatChipButton}" CommandParameter="{Binding}"
+                                                    Command="{Binding DataContext.ShowLoaderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    ToolTip="Ver los archivos para este cargador" AutomationProperties.Name="{Binding Tag.Text, StringFormat=Archivos para {0}}">
+                                                <ContentPresenter Content="{Binding Tag}" ContentTemplate="{StaticResource CardTagTemplate}" Margin="0,0,-6,0" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                                 <TextBlock Text="Entorno" FontSize="12.5" Foreground="{StaticResource Ink3}" Margin="0,12,0,4" />
                                 <TextBlock Text="{Binding EnvironmentText}" FontSize="13.5" />
 

@@ -9,8 +9,8 @@ using KonnorLauncher.Core.Modrinth;
 
 namespace KonnorLauncher.App.ViewModels;
 
-/// <summary>Opción de un filtro desplegable (Value null = sin filtro).</summary>
-public sealed record FilterChoice(string? Value, string Label);
+/// <summary>Opción de un filtro desplegable (Value null = sin filtro). IsChild: versión dentro de un grupo "1.21.x".</summary>
+public sealed record FilterChoice(string? Value, string Label, bool IsChild = false);
 
 /// <summary>Versión de la lista de la página de un proyecto.</summary>
 public sealed partial class VersionRow : ObservableObject
@@ -53,6 +53,17 @@ public sealed partial class GalleryItem(GalleryImage image) : ObservableObject
     [ObservableProperty] private ImageSource? _source;
 }
 
+/// <summary>
+/// Versión de Minecraft o cargador de la columna de compatibilidad: al pulsarlo se ven sus archivos
+/// (pestaña Versiones filtrada). Value: "1.20.1", un grupo "1.21.x" o un cargador ("fabric").
+/// </summary>
+public sealed partial class CompatChip(string value, CardTag tag) : ObservableObject
+{
+    public string Value { get; } = value;
+    public CardTag Tag { get; } = tag;
+    [ObservableProperty] private bool _isActive;
+}
+
 /// <summary>Enlace de la columna de información (problemas, código, wiki, Discord, donaciones).</summary>
 public sealed record ProjectLink(string Label, string Icon, string Url);
 
@@ -90,8 +101,8 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     public ObservableCollection<VersionRow> Versions { get; } = [];
     public ObservableCollection<GalleryItem> Gallery { get; } = [];
     public ObservableCollection<ProjectLink> Links { get; } = [];
-    public ObservableCollection<CardTag> Loaders { get; } = [];
-    public ObservableCollection<string> GameVersionGroups { get; } = [];
+    public ObservableCollection<CompatChip> Loaders { get; } = [];
+    public ObservableCollection<CompatChip> GameVersionGroups { get; } = [];
 
     [ObservableProperty] private ProjectDetails? _details;
     [ObservableProperty] private bool _isLoading = true;
@@ -116,12 +127,15 @@ public sealed partial class ProjectPageViewModel : ObservableObject
 
     partial void OnVersionFilterChanged(string? value)
     {
+        MarkVersionChips();
         OnPropertyChanged(nameof(VersionFilterLabel));
         RebuildVersions();
     }
 
     partial void OnLoaderFilterChanged(string? value)
     {
+        foreach (var chip in Loaders)
+            chip.IsActive = chip.Value == value;
         OnPropertyChanged(nameof(LoaderFilterLabel));
         RebuildVersions();
     }
@@ -138,6 +152,31 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     {
         IsLoaderFilterOpen = false;
         LoaderFilter = value;
+    }
+
+    /// <summary>Columna de compatibilidad: muestra los archivos de esa versión (pulsar otra vez quita el filtro).</summary>
+    [RelayCommand]
+    private void ShowGameVersion(CompatChip chip)
+    {
+        VersionFilter = VersionFilter == chip.Value ? null : chip.Value;
+        Section = "versions";
+    }
+
+    /// <summary>Columna de compatibilidad: muestra los archivos de ese cargador (pulsar otra vez quita el filtro).</summary>
+    [RelayCommand]
+    private void ShowLoader(CompatChip chip)
+    {
+        LoaderFilter = LoaderFilter == chip.Value ? null : chip.Value;
+        Section = "versions";
+    }
+
+    /// <summary>Marca en la columna el grupo elegido (también si en el menú se eligió una de sus versiones).</summary>
+    private void MarkVersionChips()
+    {
+        var value = VersionFilter;
+        foreach (var chip in GameVersionGroups)
+            chip.IsActive = value is not null
+                            && (chip.Value == value || (!value.EndsWith(".x", StringComparison.Ordinal) && MatchesVersion(value, chip.Value)));
     }
 
     public bool HasGallery => Gallery.Count > 0;
@@ -221,7 +260,7 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     private void RebuildVersions()
     {
         Versions.Clear();
-        var matching = _allVersions.Where(v => (VersionFilter is null || v.GameVersions.Contains(VersionFilter))
+        var matching = _allVersions.Where(v => (VersionFilter is null || v.GameVersions.Any(g => MatchesVersion(g, VersionFilter)))
                                                && (LoaderFilter is null || v.Loaders.Contains(LoaderFilter)));
         foreach (var version in matching.Take(MaxVersions))
             Versions.Add(new VersionRow(version, _installVersion));
@@ -229,22 +268,32 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         OnPropertyChanged(nameof(VersionsEmptyText));
     }
 
+    /// <summary>"1.21.x" abarca 1.21, 1.21.1...; cualquier otra, solo esa versión.</summary>
+    public static bool MatchesVersion(string gameVersion, string filter) =>
+        filter.EndsWith(".x", StringComparison.Ordinal)
+            ? ReleaseVersion().IsMatch(gameVersion) && string.Join('.', gameVersion.Split('.').Take(2)) == filter[..^2]
+            : gameVersion == filter;
+
     private static readonly string[] MainLoaderOrder = ["forge", "fabric", "neoforge", "quilt"];
 
     /// <summary>
-    /// Opciones de los filtros: las versiones de Minecraft estables que aparecen en alguna versión (de la
-    /// más reciente a la más antigua) y sus cargadores (los principales primero).
+    /// Opciones de los filtros: las versiones de Minecraft compatibles agrupadas como en la columna lateral
+    /// ("1.21.x" y debajo 1.21.11, 1.21.10...), de la más reciente a la más antigua, y los cargadores
+    /// (los principales primero).
     /// </summary>
     private void BuildVersionChoices()
     {
         VersionChoices.Clear();
         VersionChoices.Add(new FilterChoice(null, "Todas"));
-        var releases = _allVersions.SelectMany(v => v.GameVersions).Distinct()
-            .Select(text => (Text: text, Parsed: Version.TryParse(text, out var parsed) ? parsed : null))
-            .Where(v => v.Parsed is not null)
-            .OrderByDescending(v => v.Parsed);
-        foreach (var (text, _) in releases)
-            VersionChoices.Add(new FilterChoice(text, text));
+        var gameVersions = _allVersions.SelectMany(v => v.GameVersions).Where(v => ReleaseVersion().IsMatch(v)).Distinct().ToList();
+        foreach (var group in GroupVersions(gameVersions))
+        {
+            VersionChoices.Add(new FilterChoice(group, group));
+            if (!group.EndsWith(".x", StringComparison.Ordinal))
+                continue;
+            foreach (var version in gameVersions.Where(v => MatchesVersion(v, group)).OrderByDescending(ParseVersion))
+                VersionChoices.Add(new FilterChoice(version, version, IsChild: true));
+        }
 
         LoaderChoices.Clear();
         LoaderChoices.Add(new FilterChoice(null, "Todos"));
@@ -259,11 +308,12 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     {
         Loaders.Clear();
         foreach (var loader in details.Loaders.Where(BrowseText.IsPlayerLoader))
-            Loaders.Add(new CardTag(BrowseText.Loader(loader), loader));
+            Loaders.Add(new CompatChip(loader, new CardTag(BrowseText.Loader(loader), loader)) { IsActive = loader == LoaderFilter });
 
         GameVersionGroups.Clear();
         foreach (var group in GroupVersions(details.GameVersions))
-            GameVersionGroups.Add(group);
+            GameVersionGroups.Add(new CompatChip(group, new CardTag(group, string.Empty)));
+        MarkVersionChips();
 
         Links.Clear();
         void Add(string label, string icon, string? url)
