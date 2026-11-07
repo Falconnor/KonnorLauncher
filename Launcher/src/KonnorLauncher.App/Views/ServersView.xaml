@@ -132,6 +132,47 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Ping: punto pequeño del color de la calidad, sin fondo (verde ≤ 80 ms, amarillo ≤ 120 ms, rojo más) -->
+        <SolidColorBrush x:Key="PingPoor" Color="#F87171" />
+        <Style x:Key="PingDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Margin" Value="0,1,6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{StaticResource PingPoor}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PingQuality}" Value="Good">
+                    <Setter Property="Fill" Value="{StaticResource Ok}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PingQuality}" Value="Fair">
+                    <Setter Property="Fill" Value="{StaticResource Warn}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="PingTemplate">
+            <StackPanel Orientation="Horizontal" Margin="0,0,14,0" ToolTip="Ping desde este equipo"
+                        Visibility="{Binding HasPing, Converter={StaticResource BoolToVisibility}}">
+                <Ellipse Style="{StaticResource PingDot}" />
+                <TextBlock Text="{Binding PingText}" FontSize="12.5" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Estrella: guardar en Favoritos (rellena y amarilla si ya está) -->
+        <Style x:Key="FavoriteButton" TargetType="Button" BasedOn="{StaticResource IconOnlyButton}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Content" Value="&#xE734;" />
+            <Setter Property="ToolTip" Value="Añadir a Favoritos" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                    <Setter Property="Content" Value="&#xE735;" />
+                    <Setter Property="Foreground" Value="{StaticResource Warn}" />
+                    <Setter Property="ToolTip" Value="Quitar de Favoritos" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="Meta" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="Foreground" Value="{StaticResource Ink3}" />
@@ -197,20 +238,20 @@
                         <TextBlock Text="No premium" VerticalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
-                <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="ServerTabs" IsChecked="{Binding IsSpanishTab}"
-                             AutomationProperties.Name="En español" ToolTip="Servidores en español, premium o no">
+                <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="ServerTabs" IsChecked="{Binding IsExploreTab}"
+                             AutomationProperties.Name="Explorar" ToolTip="Todos los servidores, premium o no">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
-                        <TextBlock Text="En español" VerticalAlignment="Center" />
+                        <TextBlock Text="Explorar" VerticalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="ServerTabs" IsChecked="{Binding IsMineTab}"
-                             AutomationProperties.Name="Mis servidores" ToolTip="Las direcciones que guardaste">
+                             AutomationProperties.Name="Favoritos" ToolTip="Los servidores que guardaste">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE734;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
-                        <TextBlock Text="Mis servidores" VerticalAlignment="Center" />
+                        <TextBlock Text="Favoritos" VerticalAlignment="Center" />
                     </StackPanel>
                 </RadioButton>
             </StackPanel>
@@ -242,8 +283,7 @@
                         <ContentControl Content="{Binding Region}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
                         <ContentControl Content="{Binding Version}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
                         <ContentControl Content="{Binding Category}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
-                        <ContentControl Content="{Binding Language}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False"
-                                        Visibility="{Binding ShowLanguageFilter, Converter={StaticResource BoolToVisibility}}" />
+                        <ContentControl Content="{Binding Language}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
                     </WrapPanel>
                 </DockPanel>
 
@@ -332,7 +372,8 @@
                                                                    Visibility="{Binding RegionText, Converter={StaticResource TextToVisibility}}" />
                                                         <TextBlock Text="{Binding LanguagesText}" Style="{StaticResource Meta}"
                                                                    Visibility="{Binding HasLanguages, Converter={StaticResource BoolToVisibility}}" />
-                                                        <TextBlock Text="{Binding Address}" Style="{StaticResource Meta}" />
+                                                        <TextBlock Text="{Binding Address}" Style="{StaticResource Meta}" Margin="0,0,10,0" />
+                                                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource PingTemplate}" Focusable="False" />
                                                     </WrapPanel>
                                                     <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,0" Focusable="False">
                                                         <ItemsControl.ItemsPanel>
@@ -371,6 +412,9 @@
                                                         <Button Style="{StaticResource CopyButton}"
                                                                 Command="{Binding DataContext.CopyAddressCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                 CommandParameter="{Binding}" AutomationProperties.Name="{Binding Address, StringFormat=Copiar {0}}" />
+                                                        <Button Style="{StaticResource FavoriteButton}"
+                                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Favorito {0}}" />
                                                         <Button Style="{StaticResource IconOnlyButton}" Width="32" Height="32" FontSize="13" Content="&#xE774;"
                                                                 Command="{Binding DataContext.OpenOnModrinthCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                 CommandParameter="{Binding}" ToolTip="Ver en Modrinth" AutomationProperties.Name="Ver en Modrinth" />
@@ -402,7 +446,7 @@
                 </Grid>
             </DockPanel>
 
-            <!-- ═══ Mis servidores ═══ -->
+            <!-- ═══ Favoritos ═══ -->
             <DockPanel Visibility="{Binding IsMine, Converter={StaticResource BoolToVisibility}}">
                 <!-- Añadir: dirección y nombre (opcional) -->
                 <Grid DockPanel.Dock="Top">
@@ -486,6 +530,7 @@
                                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                                     <Ellipse Style="{StaticResource OnlineDot}" />
                                                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink2}" />
+                                                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource PingTemplate}" Focusable="False" />
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Motd}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextTrimming="CharacterEllipsis"
                                                            Margin="0,4,0,0" Visibility="{Binding Motd, Converter={StaticResource TextToVisibility}}" />
@@ -513,7 +558,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                    <TextBlock Text="Añade la dirección de un servidor para tenerlo a mano y ver si está en línea." Foreground="{StaticResource Ink2}"
+                    <TextBlock Text="Añade la dirección de un servidor, o pulsa la estrella de uno de la lista, para tenerlo aquí y ver si está en línea." Foreground="{StaticResource Ink2}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420"
                                Visibility="{Binding HasNoSaved, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>

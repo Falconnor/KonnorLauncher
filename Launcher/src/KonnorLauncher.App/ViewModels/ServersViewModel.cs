@@ -110,11 +110,23 @@ public sealed partial class ServerCard(ServerListing server) : ObservableObject
     [ObservableProperty] private string? _error;
     [ObservableProperty] private bool _isCopied;
 
+    /// <summary>Está en Favoritos.</summary>
+    [ObservableProperty] private bool _isFavorite;
+
+    /// <summary>Ping desde este equipo (null: aún no medido o sin respuesta).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PingText), nameof(HasPing), nameof(PingQuality))]
+    private int? _pingMs;
+
+    public bool HasPing => PingMs is not null;
+    public string PingText => PingMs is { } ms ? $"{ms} ms" : string.Empty;
+    public PingQuality PingQuality => PingMs is { } ms ? ServerPing.Quality(ms) : PingQuality.Poor;
+
     public bool HasIcon => Icon is not null;
     partial void OnIconChanged(ImageSource? value) => OnPropertyChanged(nameof(HasIcon));
 }
 
-/// <summary>Servidor de «Mis servidores» con su estado en vivo.</summary>
+/// <summary>Servidor de Favoritos con su estado en vivo.</summary>
 public sealed partial class SavedServerCard(SavedServer saved, ServerAddress address) : ObservableObject
 {
     public SavedServer Saved { get; } = saved;
@@ -132,6 +144,15 @@ public sealed partial class SavedServerCard(SavedServer saved, ServerAddress add
     [ObservableProperty] private string? _error;
     [ObservableProperty] private bool _isCopied;
 
+    /// <summary>Ping desde este equipo (null: aún no medido o sin respuesta).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PingText), nameof(HasPing), nameof(PingQuality))]
+    private int? _pingMs;
+
+    public bool HasPing => PingMs is not null;
+    public string PingText => PingMs is { } ms ? $"{ms} ms" : string.Empty;
+    public PingQuality PingQuality => PingMs is { } ms ? ServerPing.Quality(ms) : PingQuality.Poor;
+
     public bool HasIcon => Icon is not null;
     partial void OnIconChanged(ImageSource? value) => OnPropertyChanged(nameof(HasIcon));
 }
@@ -145,8 +166,10 @@ public enum ServersTab
     /// <summary>Servidores en modo offline: se entra con las cuentas del launcher.</summary>
     NoPremium,
 
-    /// <summary>Servidores en español, premium o no.</summary>
-    Spanish,
+    /// <summary>Todos los servidores, premium o no.</summary>
+    Explore,
+
+    /// <summary>Favoritos: direcciones guardadas por el jugador.</summary>
     Mine,
 }
 
@@ -154,14 +177,20 @@ public enum ServersTab
 public sealed record ServerPlayRequest(string InstanceId, ServerAddress Address);
 
 /// <summary>
-/// Sección Servidores. «Descubrir»: el directorio de servidores de Modrinth con búsqueda, filtros y orden;
+/// Sección Servidores. Premium, No premium y Explorar: el directorio de servidores de Modrinth con búsqueda, filtros y orden;
 /// «Jugar» crea (o reutiliza) la instancia del servidor con su modpack o su versión, lo añade a la lista de
-/// servidores del juego y entra directo. «Mis servidores»: direcciones guardadas por el jugador con su
+/// servidores del juego y entra directo; la estrella lo guarda en Favoritos. Favoritos: direcciones guardadas con su
 /// estado en vivo; «Jugar» las añade a la instancia seleccionada y entra.
 /// </summary>
 public sealed partial class ServersViewModel : ObservableObject
 {
     private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(350);
+
+    /// <summary>Pings a la vez (cada uno abre una conexión y la cierra).</summary>
+    private static readonly SemaphoreSlim Pings = new(8, 8);
+
+    /// <summary>Direcciones en Favoritos (para la estrella de cada servidor).</summary>
+    private readonly HashSet<string> _favorites = [];
 
     private readonly ServerDirectoryClient _directory;
     private readonly ServerStatusClient _status;
@@ -228,12 +257,12 @@ public sealed partial class ServersViewModel : ObservableObject
     [ObservableProperty] private bool _hasMore;
     [ObservableProperty] private int _total;
 
-    // Mis servidores
+    // Favoritos
     [ObservableProperty] private string _newAddress = string.Empty;
     [ObservableProperty] private string _newName = string.Empty;
     [ObservableProperty] private string? _addError;
 
-    /// <summary>Instancia seleccionada en la barra lateral (a la que se añaden «Mis servidores» al jugar).</summary>
+    /// <summary>Instancia seleccionada en la barra lateral (a la que se añaden los Favoritos al jugar).</summary>
     [ObservableProperty] private InstanceItemViewModel? _targetInstance;
 
     public bool IsMine => Tab == ServersTab.Mine;
@@ -242,16 +271,13 @@ public sealed partial class ServersViewModel : ObservableObject
     // Pestañas de la barra superior (RadioButton: al marcar una se cambia de pestaña)
     public bool IsPremiumTab { get => Tab == ServersTab.Premium; set { if (value) Tab = ServersTab.Premium; } }
     public bool IsNoPremiumTab { get => Tab == ServersTab.NoPremium; set { if (value) Tab = ServersTab.NoPremium; } }
-    public bool IsSpanishTab { get => Tab == ServersTab.Spanish; set { if (value) Tab = ServersTab.Spanish; } }
+    public bool IsExploreTab { get => Tab == ServersTab.Explore; set { if (value) Tab = ServersTab.Explore; } }
     public bool IsMineTab { get => Tab == ServersTab.Mine; set { if (value) Tab = ServersTab.Mine; } }
-
-    /// <summary>En «En español» el idioma ya está elegido.</summary>
-    public bool ShowLanguageFilter => Tab != ServersTab.Spanish;
 
     public string SearchPlaceholder => Tab switch
     {
         ServersTab.Premium => "Buscar servidores premium",
-        ServersTab.Spanish => "Buscar servidores en español",
+        ServersTab.Explore => "Buscar servidores",
         _ => "Buscar servidores sin premium",
     };
     public bool IsEmpty => !IsLoading && Error is null && Servers.Count == 0;
@@ -265,7 +291,7 @@ public sealed partial class ServersViewModel : ObservableObject
     partial void OnTabChanged(ServersTab value)
     {
         foreach (var name in new[] { nameof(IsMine), nameof(IsDiscover), nameof(IsPremiumTab), nameof(IsNoPremiumTab),
-                     nameof(IsSpanishTab), nameof(IsMineTab), nameof(ShowLanguageFilter), nameof(SearchPlaceholder) })
+                     nameof(IsExploreTab), nameof(IsMineTab), nameof(SearchPlaceholder) })
             OnPropertyChanged(name);
         if (value == ServersTab.Mine)
             _ = LoadSavedAsync();
@@ -294,6 +320,8 @@ public sealed partial class ServersViewModel : ObservableObject
         if (_loaded)
             return;
         _loaded = true;
+        foreach (var saved in await Task.Run(_library.Saved))
+            _favorites.Add(saved.Address);
         _ = LoadVersionsAsync();
         await SearchAsync(TimeSpan.Zero);
     }
@@ -329,7 +357,7 @@ public sealed partial class ServersViewModel : ObservableObject
         GameVersion = Version.Value,
         Category = Category.Value,
         Region = Region.Value,
-        Language = Tab == ServersTab.Spanish ? "es" : Language.Value,
+        Language = Language.Value,
         OfflineMode = Tab switch
         {
             ServersTab.Premium => false,
@@ -409,15 +437,65 @@ public sealed partial class ServersViewModel : ObservableObject
             // La búsqueda por páginas puede repetir alguno si el orden cambia entre consultas
             if (Servers.Any(s => s.Server.ProjectId == server.ProjectId))
                 continue;
-            var card = new ServerCard(server);
+            var card = new ServerCard(server) { IsFavorite = _favorites.Contains(server.Address.ToString()) };
             Servers.Add(card);
             _ = LoadIconAsync(card);
+            _ = PingAsync(card.Server.Address, ms => card.PingMs = ms);
         }
 
         OnPropertyChanged(nameof(IsEmpty));
     }
 
     private async Task LoadIconAsync(ServerCard card) => card.Icon = await _icons.LoadAsync(card.Server.IconUrl);
+
+    /// <summary>Mide el ping (pocos a la vez) y lo entrega en el hilo de la interfaz.</summary>
+    private static async Task PingAsync(ServerAddress address, Action<int?> done)
+    {
+        await Pings.WaitAsync();
+        try
+        {
+            done(await ServerPing.MeasureAsync(address));
+        }
+        finally
+        {
+            Pings.Release();
+        }
+    }
+
+    // ── Favoritos desde la lista (estrella) ──────────────────────────────
+
+    /// <summary>Estrella: añade el servidor a Favoritos o lo quita si ya estaba.</summary>
+    [RelayCommand]
+    private void ToggleFavorite(ServerCard? card)
+    {
+        if (card is null)
+            return;
+        var address = card.Server.Address.ToString();
+        try
+        {
+            if (card.IsFavorite)
+            {
+                _library.Remove(address);
+                _favorites.Remove(address);
+                if (SavedServers.FirstOrDefault(s => s.Address == address) is { } saved)
+                    SavedServers.Remove(saved);
+            }
+            else
+            {
+                var saved = _library.Add(address, card.Name);
+                _favorites.Add(saved.Address);
+                if (_savedLoaded && SavedServers.All(s => s.Address != saved.Address))
+                    AddSavedCard(saved);
+            }
+
+            card.IsFavorite = !card.IsFavorite;
+            OnPropertyChanged(nameof(HasNoSaved));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            card.Error = $"No se pudo guardar en Favoritos: {ex.Message}";
+        }
+    }
 
     // ── Jugar a un servidor del directorio ───────────────────────────────
 
@@ -528,7 +606,7 @@ public sealed partial class ServersViewModel : ObservableObject
         }
     }
 
-    // ── Mis servidores ───────────────────────────────────────────────────
+    // ── Favoritos ────────────────────────────────────────────────────────
 
     private async Task LoadSavedAsync()
     {
@@ -552,6 +630,7 @@ public sealed partial class ServersViewModel : ObservableObject
             return null;
         var card = new SavedServerCard(server, address);
         SavedServers.Add(card);
+        _favorites.Add(server.Address);
         _ = CheckAsync(card);
         return card;
     }
@@ -566,6 +645,7 @@ public sealed partial class ServersViewModel : ObservableObject
     {
         card.IsChecking = true;
         card.StatusText = "Comprobando…";
+        _ = PingAsync(card.ServerAddress, ms => card.PingMs = ms);
         var status = await _status.GetAsync(card.ServerAddress);
         card.IsChecking = false;
         card.IsOnline = status?.Online;
@@ -616,6 +696,8 @@ public sealed partial class ServersViewModel : ObservableObject
             if (SavedServers.FirstOrDefault(s => s.Address == saved.Address) is { } existing)
                 SavedServers.Remove(existing);
             AddSavedCard(saved);
+            foreach (var server in Servers.Where(s => s.Address == saved.Address))
+                server.IsFavorite = true;
             NewAddress = string.Empty;
             NewName = string.Empty;
             OnPropertyChanged(nameof(HasNoSaved));
@@ -635,6 +717,9 @@ public sealed partial class ServersViewModel : ObservableObject
         {
             _library.Remove(card.Address);
             SavedServers.Remove(card);
+            _favorites.Remove(card.Address);
+            foreach (var server in Servers.Where(s => s.Address == card.Address))
+                server.IsFavorite = false;
             OnPropertyChanged(nameof(HasNoSaved));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -643,7 +728,7 @@ public sealed partial class ServersViewModel : ObservableObject
         }
     }
 
-    /// <summary>«Jugar» en Mis servidores: se añade a la instancia seleccionada y se entra.</summary>
+    /// <summary>«Jugar» en Favoritos: se añade a la instancia seleccionada y se entra.</summary>
     [RelayCommand]
     private async Task PlaySavedAsync(SavedServerCard? card)
     {

@@ -603,7 +603,7 @@
                             <views:SkinsView DataContext="{Binding Skins}" />
                         </Border>
 
-                        <!-- Servidores: directorio de Modrinth y Mis servidores (también ocupa el sitio de la barra de juego) -->
+                        <!-- Servidores: directorio de Modrinth y Favoritos (también ocupa el sitio de la barra de juego) -->
                         <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
                                 Visibility="{Binding IsServers, Converter={StaticResource BoolToVisibility}}">
                             <views:ServersView DataContext="{Binding Servers}" />

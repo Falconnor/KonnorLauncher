@@ -5,7 +5,7 @@ using KonnorLauncher.App.ViewModels;
 
 namespace KonnorLauncher.App.Views;
 
-/// <summary>Sección Servidores: directorio de Modrinth y «Mis servidores».</summary>
+/// <summary>Sección Servidores: directorio de Modrinth y Favoritos.</summary>
 public partial class ServersView : UserControl
 {
     /// <summary>Distancia al final de la lista a la que se piden más servidores.</summary>

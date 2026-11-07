@@ -353,9 +353,24 @@ public sealed partial class BrowseViewModel : ObservableObject
     private bool _selectingTab;
 
     /// <summary>Pestaña marcada por el jugador.</summary>
-    private void OnTabSelected(BrowseTab tab)
+    /// <summary>
+    /// Tiempo del subrayado de la pestaña (MotionNormal, 150 ms) y un poco más: los filtros y la lista se
+    /// rehacen cuando ya terminó. Si no, ese trabajo (cientos de pastillas y tarjetas) bloquea la interfaz
+    /// justo durante la animación y el cambio se ve a saltos.
+    /// </summary>
+    private static readonly TimeSpan TabAnimation = TimeSpan.FromMilliseconds(170);
+
+    private int _tabSwitch;
+
+    private async void OnTabSelected(BrowseTab tab)
     {
-        if (!_selectingTab && _tagsLoaded)
+        if (_selectingTab || !_tagsLoaded)
+            return;
+        // Varios cambios seguidos: solo cuenta el último
+        var current = ++_tabSwitch;
+        if (System.Windows.SystemParameters.ClientAreaAnimation)
+            await Task.Delay(TabAnimation);
+        if (current == _tabSwitch && tab.IsActive)
             SelectType(tab.Type, keepText: false);
     }
 

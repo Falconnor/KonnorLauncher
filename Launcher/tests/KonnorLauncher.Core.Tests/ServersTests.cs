@@ -202,6 +202,51 @@ public sealed class ServersTests : IAsyncLifetime
     [InlineData("data:image/png;base64,AAAA")] // no es un PNG
     public void Only_png_icons_are_accepted(string? icon) => ServerStatusClient.DecodeIcon(icon).ShouldBeNull();
 
+    // ── Ping ─────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(1, PingQuality.Good)]
+    [InlineData(80, PingQuality.Good)]
+    [InlineData(81, PingQuality.Fair)]
+    [InlineData(120, PingQuality.Fair)]
+    [InlineData(121, PingQuality.Poor)]
+    [InlineData(900, PingQuality.Poor)]
+    public void Ping_quality_thresholds(int ms, PingQuality expected) => ServerPing.Quality(ms).ShouldBe(expected);
+
+    [Fact]
+    public async Task Ping_measures_the_connection_to_a_listening_port()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+
+            var ms = await ServerPing.MeasureAsync(new ServerAddress("127.0.0.1", port), ct: TestContext.Current.CancellationToken);
+
+            ms.ShouldNotBeNull();
+            ms.Value.ShouldBeInRange(1, 1000);
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Ping_to_a_closed_port_is_null()
+    {
+        // Un puerto libre: se abre y se cierra para tener uno en el que nadie escucha
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        var ms = await ServerPing.MeasureAsync(new ServerAddress("127.0.0.1", port), TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        ms.ShouldBeNull();
+    }
+
     // ── servers.dat ──────────────────────────────────────────────────────
 
     [Fact]
