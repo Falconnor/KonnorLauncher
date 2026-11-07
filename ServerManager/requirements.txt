@@ -1,9 +1,0 @@
-PySide6-Essentials>=6.8
-requests>=2.32
-fastapi>=0.141
-uvicorn>=0.52
-passlib>=1.7.4
-# passlib no funciona con bcrypt 4.1 o superior.
-bcrypt==4.0.1
-PyJWT>=2.8
-SQLAlchemy>=2.0
