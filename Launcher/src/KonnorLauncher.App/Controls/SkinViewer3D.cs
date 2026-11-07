@@ -70,17 +70,18 @@ public sealed class SkinViewer3D : Grid
     private const double DegreesPerPixel = 0.8;
 
     /// <summary>
-    /// Fotogramas por segundo de la vista: 40 girando sola y 50 arrastrando (para que siga mejor al ratón).
-    /// Conviene que dividan exacto la frecuencia de la pantalla (a 200 Hz: 40 = 1 de cada 5 refrescos,
-    /// 50 = 1 de cada 4); si no, los fotogramas salen desiguales y se nota a tirones.
-    /// Lo que no cambia no se redibuja, así que la GPU trabaja menos que a la frecuencia de la pantalla.
+    /// Girando sola, unos 40 fotogramas por segundo: el giro y la respiración son lentos y se ven igual, y lo
+    /// que no cambia no se redibuja (menos trabajo para la GPU). Arrastrando no hay límite: se dibuja en
+    /// cada fotograma de WPF. WPF no dibuja a la frecuencia de la pantalla ni a ritmo fijo (en una de
+    /// 200 Hz, unos 75 por segundo con intervalos de 5 a 20 ms), así que limitar al arrastrar se notaba a
+    /// tirones.
     /// </summary>
-    private const double FramesPerSecond = 40;
+    private const double IdleFramesPerSecond = 40;
 
-    private const double DragFramesPerSecond = 50;
+    private static readonly TimeSpan IdleFrameInterval = TimeSpan.FromSeconds(1 / IdleFramesPerSecond);
 
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1 / FramesPerSecond);
-    private static readonly TimeSpan DragFrameInterval = TimeSpan.FromSeconds(1 / DragFramesPerSecond);
+    /// <summary>Margen para no perder un fotograma que llega un poco antes (medio refresco de 200 Hz).</summary>
+    private static readonly TimeSpan FrameTolerance = TimeSpan.FromMilliseconds(2.5);
 
     /// <summary>Rapidez de la vuelta a la posición inicial (mayor = más rápida).</summary>
     private const double ReturnSpeed = 7;
@@ -105,9 +106,10 @@ public sealed class SkinViewer3D : Grid
     private double _dragYaw;
     private double _dragPitch;
     private TimeSpan _lastFrame;
+
     private TimeSpan _nextFrame;
 
-    // Arrastrando: lo que pide el ratón se guarda y se aplica en el siguiente fotograma (como mucho 40 por segundo)
+    // Arrastrando: lo que pide el ratón se guarda y se aplica en el siguiente fotograma
     private double _targetYaw;
     private double _targetPitch;
     private bool _cameraPending;
@@ -165,17 +167,33 @@ public sealed class SkinViewer3D : Grid
         _lastFrame = TimeSpan.Zero; // al volver, sin saltos
     }
 
+    /// <summary>
+    /// Si en este fotograma de WPF toca dibujar. Arrastrando, siempre: no se salta ninguno. Girando sola,
+    /// unos 40 por segundo: se avanza por un reloj (cada 25 ms) con medio refresco de margen, así un
+    /// fotograma que llega unas décimas de milisegundo antes no se pierde.
+    /// </summary>
+    private bool IsFrameDue(TimeSpan time)
+    {
+        if (_dragStart is not null || _lastFrame == TimeSpan.Zero)
+        {
+            _nextFrame = time + IdleFrameInterval;
+            return true;
+        }
+
+        if (time < _nextFrame - FrameTolerance)
+            return false;
+        // Tras una pausa larga se vuelve a contar desde ahora (no se dibujan varios seguidos para recuperar)
+        _nextFrame = time - _nextFrame > IdleFrameInterval ? time + IdleFrameInterval : _nextFrame + IdleFrameInterval;
+        return true;
+    }
+
     // ── Animación: respiración y vuelta a la posición inicial ───────────────
 
     private void OnRendering(object? sender, EventArgs e)
     {
         var time = ((RenderingEventArgs)e).RenderingTime;
-        // 40 fotogramas por segundo: se avanza por un reloj (cada 25 ms) y no por el último fotograma, así a
-        // 60 Hz salen 40 de media y no 30. Si se quedó muy atrás (pausa), se vuelve a contar desde ahora.
-        if (_lastFrame != TimeSpan.Zero && time < _nextFrame)
+        if (!IsFrameDue(time))
             return;
-        var interval = _dragStart is null ? FrameInterval : DragFrameInterval;
-        _nextFrame = time - _nextFrame > interval ? time + interval : _nextFrame + interval;
         var elapsed = _lastFrame == TimeSpan.Zero ? 0 : Math.Min((time - _lastFrame).TotalSeconds, 0.1);
         _lastFrame = time;
         var t = time.TotalSeconds;
