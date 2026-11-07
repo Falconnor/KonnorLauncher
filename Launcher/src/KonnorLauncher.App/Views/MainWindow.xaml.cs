@@ -138,17 +138,18 @@ public partial class MainWindow : Window
         if (e.OriginalSource is not DependencyObject source
             || ItemsControl.ContainerFromElement((ItemsControl)sender, source) is not ListBoxItem { DataContext: InstanceItemViewModel item } container)
             return;
-        // Nunca cambia la selección. Las filas van pegadas: solo cuenta la franja central, así un clic en el
-        // borde entre dos no abre el menú de la vecina.
+        // Nunca cambia la selección. Las filas van pegadas: solo cuenta la zona central, así un clic en el
+        // borde entre dos (o pegado a los lados) no abre el menú de la vecina.
         e.Handled = true;
-        var y = e.GetPosition(container).Y;
-        if (y < RightClickEdge || y > container.ActualHeight - RightClickEdge)
+        var position = e.GetPosition(container);
+        if (position.Y < RightClickEdge || position.Y > container.ActualHeight - RightClickEdge
+            || position.X < RightClickEdge || position.X > container.ActualWidth - RightClickEdge)
             return;
         OpenInstanceMenu(container, item, PlacementMode.MousePoint);
     }
 
-    /// <summary>Margen arriba y abajo de cada fila en el que el clic derecho no abre el menú.</summary>
-    private const double RightClickEdge = 10;
+    /// <summary>Margen en cada borde de la fila (arriba, abajo y a los lados) en el que el clic derecho no abre el menú.</summary>
+    private const double RightClickEdge = 15;
 
     /// <summary>Tecla de menú (o Mayús+F10) sobre una instancia con el foco: el mismo menú, bajo la fila.</summary>
     private void OnInstanceListMenuKey(object sender, ContextMenuEventArgs e)
