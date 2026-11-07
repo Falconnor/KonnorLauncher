@@ -124,6 +124,8 @@
                     <ControlTemplate TargetType="Slider">
                         <Grid HorizontalAlignment="Center">
                             <Border Width="3" CornerRadius="1.5" Background="#1FFFFFFF" />
+                            <!-- Marca sutil en el centro (50 %: el zoom inicial) -->
+                            <Border Width="9" Height="1" Background="#40FFFFFF" VerticalAlignment="Center" IsHitTestVisible="False" />
                             <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="False">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Style="{StaticResource ZoomRail}" Command="Slider.DecreaseLarge" />
@@ -281,7 +283,7 @@
         </DockPanel>
 
         <!-- ─── Skin elegida ─── -->
-        <Border Grid.Column="1" Width="300" Margin="20,8,0,0" CornerRadius="{StaticResource RadiusGroup}"
+        <Border Grid.Column="1" Width="340" Margin="20,8,0,0" CornerRadius="{StaticResource RadiusGroup}"
                 Background="{StaticResource Group}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="18,14,18,18"
                 Visibility="{Binding HasSelected, Converter={StaticResource BoolToVisibility}}">
             <DockPanel>
@@ -332,10 +334,18 @@
                                         <Setter Property="Content" Value="Descargada" />
                                         <Setter Property="IsEnabled" Value="False" />
                                     </DataTrigger>
+                                    <!-- En Descargadas su lugar es para «Borrar skin» -->
+                                    <DataTrigger Binding="{Binding CanDeleteSelected}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
                     </Button>
+                    <!-- Borra la skin de Descargadas (solo ahí) -->
+                    <Button Style="{StaticResource DangerButton}" Height="34" FontSize="13.5" Margin="4,0,0,0" Content="Borrar skin"
+                            Command="{Binding DeleteDownloadedCommand}" AutomationProperties.Name="Borrar skin"
+                            Visibility="{Binding CanDeleteSelected, Converter={StaticResource BoolToVisibility}}" />
                     </UniformGrid>
                     <TextBlock Text="{Binding AppliedText}" Foreground="{StaticResource Ok}" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
                                Visibility="{Binding AppliedText, Converter={StaticResource TextToVisibility}}" />
@@ -350,10 +360,33 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Zoom de la vista 3D (se mantiene; con el botón pulsado manda la rueda) -->
-                <Slider DockPanel.Dock="Right" Style="{StaticResource ZoomSlider}" Margin="8,24,-6,24"
-                        Minimum="0.75" Maximum="1.9" Value="{Binding ViewerZoom}"
-                        ToolTip="Zoom" AutomationProperties.Name="Zoom de la skin" />
+                <!-- Zoom de la vista 3D (se mantiene; con el botón pulsado manda la rueda): la mitad del alto del
+                     recuadro, centrado, con + arriba, − abajo y una marca en el centro (el zoom inicial) -->
+                <Grid DockPanel.Dock="Right" Margin="8,12,-6,12" Width="14" Panel.ZIndex="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="1" Text="+" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
+                               Margin="0,0,0,4" IsHitTestVisible="False" />
+                    <!-- Con el ratón encima, la rueda también mueve el zoom; al cambiarlo aparece un momento el % -->
+                    <Slider x:Name="ZoomSlider" Grid.Row="2" Style="{StaticResource ZoomSlider}"
+                            Minimum="{x:Static vm:SkinsViewModel.MinViewerZoom}" Maximum="{x:Static vm:SkinsViewModel.MaxViewerZoom}"
+                            Value="{Binding ViewerZoom}" AutomationProperties.Name="Zoom de la skin"
+                            MouseWheel="OnZoomWheel" ValueChanged="OnZoomChanged" />
+                    <!-- % del zoom (100 % = el inicial), a la izquierda del tirador, sobre la vista 3D -->
+                    <Canvas Grid.Row="2" IsHitTestVisible="False">
+                        <Border x:Name="ZoomBadge" Canvas.Right="22" Opacity="0" Background="{StaticResource MenuGlass}"
+                                BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" CornerRadius="6" Padding="7,2">
+                            <TextBlock x:Name="ZoomBadgeText" FontSize="12" Foreground="{StaticResource Ink}" />
+                        </Border>
+                    </Canvas>
+                    <TextBlock Grid.Row="3" Text="−" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
+                               Margin="0,2,0,0" IsHitTestVisible="False" />
+                </Grid>
 
                 <!-- Vista 3D -->
                 <Border CornerRadius="{StaticResource RadiusGroup}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Margin="0,12,0,12" MinHeight="220">

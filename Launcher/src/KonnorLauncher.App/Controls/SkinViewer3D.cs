@@ -91,6 +91,7 @@ public sealed class SkinViewer3D : Grid
         ClipToBounds = true;
 
         var viewport = new Viewport3D { IsHitTestVisible = false, Camera = _camera };
+        RenderOptions.SetBitmapScalingMode(viewport, BitmapScalingMode.NearestNeighbor);
         var lights = new Model3DGroup();
         lights.Children.Add(new AmbientLight(Color.FromRgb(0xB8, 0xB8, 0xB8)));
         lights.Children.Add(new DirectionalLight(Color.FromRgb(0x60, 0x60, 0x60), new Vector3D(-0.35, -0.55, -1)));
@@ -316,6 +317,8 @@ public sealed class SkinViewer3D : Grid
         bitmap.Freeze();
         // Coordenadas de textura absolutas (0..1 = la imagen entera), no relativas a cada malla.
         var brush = new ImageBrush(bitmap) { ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) };
+        // Sin suavizar al ampliar: con zoom los píxeles siguen nítidos, como en el juego.
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.NearestNeighbor);
         brush.Freeze();
         return brush;
     }

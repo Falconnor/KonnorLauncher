@@ -70,6 +70,31 @@ public sealed class SkinLibrary
         return entry;
     }
 
+    /// <summary>
+    /// Borra la skin descargada (su archivo y su entrada). La skin del jugador es una copia aparte: si
+    /// estaba en uso, se sigue usando. Devuelve false si no estaba.
+    /// </summary>
+    public bool Remove(string texture)
+    {
+        if (!MineSkinClient.IsTextureHash(texture))
+            return false;
+        lock (_sync)
+        {
+            var index = ReadIndex();
+            var removed = index.RemoveAll(s => s.Texture == texture) > 0;
+            var file = TexturePath(texture);
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+                removed = true;
+            }
+
+            if (removed && File.Exists(IndexPath))
+                WriteIndex(index);
+            return removed;
+        }
+    }
+
     private List<DownloadedSkin> ReadIndex()
     {
         try

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -126,6 +127,48 @@ public partial class MainWindow : Window
         if (_viewModel.IsAwayFromInstance && e.OriginalSource is DependencyObject source
                                   && ItemsControl.ContainerFromElement((ItemsControl)sender, source) is ListBoxItem)
             _viewModel.CloseBrowseCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Clic derecho en una instancia: su menú (Jugar, Abrir carpeta, Editar, Eliminar) junto al ratón, sin
+    /// cambiar la selección (no se pierde lo que se está viendo).
+    /// </summary>
+    private void OnInstanceListRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement((ItemsControl)sender, source) is not ListBoxItem { DataContext: InstanceItemViewModel item } container)
+            return;
+        // Nunca cambia la selección. Las filas van pegadas: solo cuenta la franja central, así un clic en el
+        // borde entre dos no abre el menú de la vecina.
+        e.Handled = true;
+        var y = e.GetPosition(container).Y;
+        if (y < RightClickEdge || y > container.ActualHeight - RightClickEdge)
+            return;
+        OpenInstanceMenu(container, item, PlacementMode.MousePoint);
+    }
+
+    /// <summary>Margen arriba y abajo de cada fila en el que el clic derecho no abre el menú.</summary>
+    private const double RightClickEdge = 10;
+
+    /// <summary>Tecla de menú (o Mayús+F10) sobre una instancia con el foco: el mismo menú, bajo la fila.</summary>
+    private void OnInstanceListMenuKey(object sender, ContextMenuEventArgs e)
+    {
+        e.Handled = true;
+        // Con el ratón ya lo abrió OnInstanceListRightClick (sin teclado, CursorLeft y CursorTop valen -1)
+        if (e.CursorLeft >= 0 || e.CursorTop >= 0)
+            return;
+        if (Keyboard.FocusedElement is ListBoxItem { DataContext: InstanceItemViewModel item } container)
+            OpenInstanceMenu(container, item, PlacementMode.Bottom);
+    }
+
+    private void OpenInstanceMenu(ListBoxItem container, InstanceItemViewModel item, PlacementMode placement)
+    {
+        var menu = (ContextMenu)FindResource("InstanceMenu");
+        menu.DataContext = _viewModel;
+        menu.Tag = item;
+        menu.PlacementTarget = container;
+        menu.Placement = placement;
+        menu.IsOpen = true;
     }
 
     private void OnInstanceListKeyDown(object sender, KeyEventArgs e)

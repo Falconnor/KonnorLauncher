@@ -85,7 +85,21 @@
             </Style.Triggers>
         </Style>
 
-
+        <!-- Menú de una instancia (clic derecho en la lista). Tag = la instancia; DataContext = la ventana. -->
+        <ContextMenu x:Key="InstanceMenu" x:Shared="False">
+            <MenuItem Header="Jugar" Icon="{StaticResource IconPlay}" IsEnabled="{Binding IsIdle}"
+                      Command="{Binding PlayInstanceCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="Abrir carpeta" Icon="{StaticResource IconFolder}"
+                      Command="{Binding OpenInstanceFolderCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="Editar instancia" Icon="{StaticResource IconSettings}" IsEnabled="{Binding IsIdle}"
+                      Command="{Binding EditInstanceCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+            <MenuItem Header="Eliminar instancia" Icon="{StaticResource IconDelete}" IsEnabled="{Binding IsIdle}" Foreground="#FCA5A5"
+                      Command="{Binding DeleteInstanceFromMenuCommand}"
+                      CommandParameter="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+        </ContextMenu>
     </Window.Resources>
 
     <Grid>
@@ -221,6 +235,7 @@
                         <Grid Grid.Row="3">
                             <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"
                                      PreviewMouseLeftButtonUp="OnInstanceListClick" KeyDown="OnInstanceListKeyDown"
+                                     PreviewMouseRightButtonDown="OnInstanceListRightClick" ContextMenuOpening="OnInstanceListMenuKey"
                                      Background="Transparent" BorderThickness="0" Padding="0"
                                      ItemContainerStyle="{StaticResource InstanceListItem}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"

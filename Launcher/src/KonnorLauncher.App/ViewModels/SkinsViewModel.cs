@@ -91,7 +91,15 @@ public sealed partial class SkinsViewModel : ObservableObject
     [ObservableProperty] private string? _selectedError;
     [ObservableProperty] private string? _appliedText;
 
-    public const double DefaultViewerZoom = 1.15;
+    /// <summary>Zoom inicial: un 15 % y otro 15 % más cerca que el del visor (1,15 × 1,15). Es el centro del deslizador.</summary>
+    public const double DefaultViewerZoom = 1.32;
+
+    /// <summary>Límites del deslizador de zoom (su centro es <see cref="DefaultViewerZoom"/>).</summary>
+    public const double MinViewerZoom = 0.75;
+    public const double MaxViewerZoom = 1.89;
+
+    /// <summary>En Descargadas, el segundo botón borra la skin en vez de descargarla.</summary>
+    public bool CanDeleteSelected => IsDownloaded && IsSelectedDownloaded;
 
     /// <summary>Páginas que se piden seguidas si una no trae ninguna skin nueva (populares repite muchas).</summary>
     private const int MaxEmptyPages = 3;
@@ -146,8 +154,11 @@ public sealed partial class SkinsViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLatest));
         OnPropertyChanged(nameof(IsPopular));
         OnPropertyChanged(nameof(IsDownloaded));
+        OnPropertyChanged(nameof(CanDeleteSelected));
         _ = SearchAsync(TimeSpan.Zero);
     }
+
+    partial void OnIsSelectedDownloadedChanged(bool value) => OnPropertyChanged(nameof(CanDeleteSelected));
 
     [RelayCommand]
     private void SetTab(string tab) => Tab = tab switch
@@ -448,6 +459,37 @@ public sealed partial class SkinsViewModel : ObservableObject
         finally
         {
             IsDownloading = false;
+        }
+    }
+
+    /// <summary>Borra la skin elegida de Descargadas (si es la del jugador, la sigue usando: es una copia aparte).</summary>
+    [RelayCommand]
+    private async Task DeleteDownloadedAsync()
+    {
+        if (Selected is not { } card || !IsSelectedDownloaded)
+            return;
+        try
+        {
+            await Task.Run(() => _library.Remove(card.Skin.Texture));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "No se pudo borrar la skin {Texture}", card.Skin.Texture);
+            SelectedError = "No se pudo borrar la skin: " + ex.Message;
+            return;
+        }
+
+        IsSelectedDownloaded = false;
+        if (IsDownloaded)
+        {
+            // Fuera de la lista y se cierra su ficha
+            // (la elegida puede ser la tarjeta de otra pestaña con la misma textura)
+            if (Skins.FirstOrDefault(c => c.Skin.Texture == card.Skin.Texture) is { } shown)
+                Skins.Remove(shown);
+            _seenTextures.Remove(card.Skin.Texture);
+            CloseSelected();
+            OnPropertyChanged(nameof(EmptyText));
+            OnPropertyChanged(nameof(IsEmpty));
         }
     }
 

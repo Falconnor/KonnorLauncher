@@ -79,6 +79,31 @@ public sealed class SkinLibraryTests : IDisposable
         library.LoadAll().Single().Name.ShouldBeNull();
     }
 
+    [Fact]
+    public void Removed_skin_loses_its_file_and_entry_and_the_rest_stay()
+    {
+        var library = Library();
+        library.Add(_dir.Write("cache/a.png", "A"), HashA, "A", slim: false, uuid: null);
+        library.Add(_dir.Write("cache/b.png", "B"), HashB, "B", slim: false, uuid: null);
+
+        library.Remove(HashA).ShouldBeTrue();
+
+        File.Exists(library.TexturePath(HashA)).ShouldBeFalse();
+        Library().LoadAll().Select(s => s.Texture).ShouldBe([HashB]);
+        library.Remove(HashA).ShouldBeFalse(); // ya no estaba
+    }
+
+    [Fact]
+    public void Remove_with_an_invalid_texture_touches_nothing()
+    {
+        var library = Library();
+        library.Add(_dir.Write("cache/a.png", "A"), HashA, "A", slim: false, uuid: null);
+
+        library.Remove("../" + SkinLibrary.IndexFileName).ShouldBeFalse();
+
+        library.LoadAll().Count.ShouldBe(1);
+    }
+
     [Theory]
     [InlineData("../../fuera")]
     [InlineData("ABC")]

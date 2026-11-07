@@ -163,7 +163,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isProgressVisible;
     [ObservableProperty] private double _progressValue;
     [ObservableProperty] private string _playButtonText = PlayText;
-    [ObservableProperty] private bool _isPlaying;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsIdle))]
+    private bool _isPlaying;
+
+    /// <summary>Sin una partida en marcha (el menú de la instancia solo deja jugar o eliminar así).</summary>
+    public bool IsIdle => !IsPlaying;
     [ObservableProperty] private bool _isPlayEnabled;
 
     // ══════════════════════════════════════════════════════════════════
@@ -321,12 +326,31 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void NewInstance() => Editor.OpenForNew();
 
+    /// <summary>Edita <paramref name="item"/> (desde el menú de la instancia) o la seleccionada.</summary>
     [RelayCommand]
-    private void EditInstance()
+    private void EditInstance(InstanceItemViewModel? item)
     {
-        if (SelectedInstance is { } selected && !IsPlaying)
+        if ((item ?? SelectedInstance) is { } selected && !IsPlaying)
             Editor.OpenForEdit(selected.Model);
     }
+
+    // ── Menú de la instancia (clic derecho en la lista) ─────────────────────
+
+    /// <summary>Jugar: la selecciona (vuelve a su panel) y juega como con el botón JUGAR.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task PlayInstanceAsync(InstanceItemViewModel? item)
+    {
+        if (item is null || IsPlaying)
+            return;
+        SelectedInstance = item;
+        CloseBrowse();
+        await PlayAsync();
+    }
+
+    /// <summary>Eliminar: pide confirmación como el botón del editor.</summary>
+    [RelayCommand]
+    private Task DeleteInstanceFromMenuAsync(InstanceItemViewModel? item) =>
+        item is null ? Task.CompletedTask : DeleteInstanceAsync(item.Model);
 
     /// <summary>
     /// "Eliminar instancia" (desde el editor): confirma, borra la carpeta y cierra el editor.
@@ -358,10 +382,11 @@ public sealed partial class MainViewModel : ObservableObject
         ReloadInstances(null);
     }
 
+    /// <summary>Abre la carpeta de <paramref name="item"/> (desde el menú de la instancia) o de la seleccionada.</summary>
     [RelayCommand]
-    private void OpenInstanceFolder()
+    private void OpenInstanceFolder(InstanceItemViewModel? item)
     {
-        if (SelectedInstance is not { } selected)
+        if ((item ?? SelectedInstance) is not { } selected)
             return;
         var dir = _store.GetDirectory(selected.Id);
         try
