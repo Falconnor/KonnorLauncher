@@ -14,3 +14,6 @@ desktop.ini
 
 # Accesos directos de Windows (guardan rutas de cada PC)
 *.lnk
+
+# Lista de pruebas (documento local)
+PRUEBAS.md
