@@ -44,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject
         OptionsViewModel options,
         AccountViewModel account,
         BrowseViewModel browse,
+        SkinsViewModel skins,
         UsernamePromptViewModel usernamePrompt,
         InstanceEditorViewModel editor,
         ConfirmViewModel confirm,
@@ -60,6 +61,7 @@ public sealed partial class MainViewModel : ObservableObject
         Options = options;
         Account = account;
         Browse = browse;
+        Skins = skins;
         UsernamePrompt = usernamePrompt;
         Editor = editor;
         Confirm = confirm;
@@ -88,6 +90,21 @@ public sealed partial class MainViewModel : ObservableObject
         };
         Editor.DeleteRequested += async (_, instance) => await DeleteInstanceAsync(instance);
 
+        // Barra lateral: Mods, Skins (en lugar de Modpacks), Paquetes de recursos y Shaders.
+        SidebarLinks =
+        [
+            new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Mod)),
+            new SidebarLink("Skins", ""),
+            new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.ResourcePack)),
+            new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Shader)),
+        ];
+        foreach (var tab in Browse.Tabs)
+            tab.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(BrowseTab.IsActive))
+                    UpdateSidebar();
+            };
+
         // La versión se toma del ensamblado para no tener que cambiarla a mano.
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         LauncherVersionText = $"v{version?.ToString(3) ?? "1.0.0"}";
@@ -99,6 +116,7 @@ public sealed partial class MainViewModel : ObservableObject
     public OptionsViewModel Options { get; }
     public AccountViewModel Account { get; }
     public BrowseViewModel Browse { get; }
+    public SkinsViewModel Skins { get; }
     public UsernamePromptViewModel UsernamePrompt { get; }
     public InstanceEditorViewModel Editor { get; }
     public ConfirmViewModel Confirm { get; }
@@ -112,9 +130,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Se está viendo "Explorar contenido" en lugar de la instancia.</summary>
     [ObservableProperty] private bool _isBrowsing;
 
+    /// <summary>Se está viendo la sección Skins.</summary>
+    [ObservableProperty] private bool _isSkins;
+
+    /// <summary>Se ve otra página (Explorar o Skins) en lugar de la instancia.</summary>
+    public bool IsAwayFromInstance => IsBrowsing || IsSkins;
+
+    /// <summary>Título de la cabecera: el de la página que se ve.</summary>
+    public string ViewTitle => IsSkins ? "Skins" : IsBrowsing ? "Explorar" : string.Empty;
+
     private bool _reloading;
 
-    public bool ShowInstancePanel => HasInstances && !IsBrowsing;
+    public bool ShowInstancePanel => HasInstances && !IsAwayFromInstance;
 
     /// <summary>Instancias con una actualización del servidor pendiente (contador de la barra lateral).</summary>
     public int UpdateCount => Instances.Count(i => i.HasUpdate);
@@ -127,7 +154,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HasUpdates));
     }
 
-    public bool ShowEmptyPanel => !HasInstances && !IsBrowsing;
+    public bool ShowEmptyPanel => !HasInstances && !IsAwayFromInstance;
     [ObservableProperty] private string _playerName = string.Empty;
     [ObservableProperty] private string _playerInitials = "?";
     [ObservableProperty] private System.Windows.Media.ImageSource? _playerAvatar;
@@ -209,8 +236,25 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnIsBrowsingChanged(bool value)
     {
+        if (value)
+            IsSkins = false;
+        OnViewChanged();
+    }
+
+    partial void OnIsSkinsChanged(bool value)
+    {
+        if (value)
+            IsBrowsing = false;
+        OnViewChanged();
+    }
+
+    private void OnViewChanged()
+    {
         OnPropertyChanged(nameof(ShowInstancePanel));
         OnPropertyChanged(nameof(ShowEmptyPanel));
+        OnPropertyChanged(nameof(IsAwayFromInstance));
+        OnPropertyChanged(nameof(ViewTitle));
+        UpdateSidebar();
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -224,34 +268,49 @@ public sealed partial class MainViewModel : ObservableObject
         await Browse.OpenAsync();
     }
 
-    /// <summary>Accesos de la barra lateral a las pestañas más usadas de Explorar.</summary>
-    public IReadOnlyList<BrowseTab> SidebarBrowseTabs =>
-    [
-        .. new[] { ContentType.Mod, ContentType.Modpack, ContentType.ResourcePack, ContentType.Shader }
-            .Select(type => Browse.Tabs.First(t => t.Type == type)),
-    ];
+    /// <summary>Accesos de la barra lateral: pestañas de Explorar y la sección Skins.</summary>
+    public IReadOnlyList<SidebarLink> SidebarLinks { get; }
+
+    /// <summary>Marca en la barra lateral la página que se está viendo.</summary>
+    private void UpdateSidebar()
+    {
+        foreach (var link in SidebarLinks)
+            link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : IsSkins;
+    }
 
     [RelayCommand]
-    private async Task OpenBrowseTabAsync(BrowseTab? tab)
+    private async Task OpenSidebarLinkAsync(SidebarLink? link)
     {
-        if (tab is null)
+        if (link is null)
             return;
-        IsBrowsing = true;
-        await Browse.OpenAsync(tab.Type);
+        if (link.Tab is { } tab)
+        {
+            IsBrowsing = true;
+            await Browse.OpenAsync(tab.Type);
+            return;
+        }
+
+        IsSkins = true;
+        await Skins.OpenAsync();
     }
 
     [RelayCommand]
     private void CloseBrowse()
     {
-        Browse.CloseTopmost();
+        if (IsBrowsing)
+            Browse.CloseTopmost();
         IsBrowsing = false;
+        IsSkins = false;
     }
 
     partial void OnSelectedInstanceChanged(InstanceItemViewModel? value)
     {
         // Elegir una instancia en la barra lateral vuelve a su panel.
         if (!_reloading && value is not null)
+        {
             IsBrowsing = false;
+            IsSkins = false;
+        }
         if (value is not null && value.Id != _settings.Properties.Get(LauncherSettings.KeySelectedInstance))
             _settings.Properties.Set(LauncherSettings.KeySelectedInstance, value.Id);
         if (!IsPlaying)
@@ -423,4 +482,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Carpeta de datos (instancias y archivos compartidos) para el pie de la barra lateral.</summary>
     public string DataDir => LauncherPaths.DataDir;
+}
+
+/// <summary>Acceso de la barra lateral: una pestaña de Explorar o (sin pestaña) la sección Skins.</summary>
+public sealed partial class SidebarLink : ObservableObject
+{
+    public SidebarLink(BrowseTab tab)
+    {
+        Tab = tab;
+        Label = tab.Label;
+        Icon = tab.Icon;
+    }
+
+    public SidebarLink(string label, string icon)
+    {
+        Label = label;
+        Icon = icon;
+    }
+
+    public BrowseTab? Tab { get; }
+    public string Label { get; }
+    public string Icon { get; }
+
+    /// <summary>Es la página que se está viendo.</summary>
+    [ObservableProperty] private bool _isCurrent;
 }

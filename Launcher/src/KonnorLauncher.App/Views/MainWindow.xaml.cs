@@ -59,6 +59,10 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
         }
+        else if (_viewModel.IsSkins && !AnyOverlayOpen() && _viewModel.Skins.CloseTopmost())
+        {
+            e.Handled = true;
+        }
         else if (_viewModel.UsernamePrompt.IsOpen)
         {
             _viewModel.UsernamePrompt.CancelCommand.Execute(null);
@@ -114,19 +118,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Sin pestaña "Instancias", se vuelve de Explorar con un clic en una instancia. Elegir otra ya lo
+    /// Sin pestaña "Instancias", se vuelve de Explorar (o de Skins) con un clic en una instancia. Elegir otra ya lo
     /// hace (cambia la selección); esto cubre la que ya estaba seleccionada.
     /// </summary>
     private void OnInstanceListClick(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel.IsBrowsing && e.OriginalSource is DependencyObject source
+        if (_viewModel.IsAwayFromInstance && e.OriginalSource is DependencyObject source
                                   && ItemsControl.ContainerFromElement((ItemsControl)sender, source) is ListBoxItem)
             _viewModel.CloseBrowseCommand.Execute(null);
     }
 
     private void OnInstanceListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && _viewModel.IsBrowsing && Keyboard.FocusedElement is ListBoxItem)
+        if (e.Key == Key.Enter && _viewModel.IsAwayFromInstance && Keyboard.FocusedElement is ListBoxItem)
         {
             _viewModel.CloseBrowseCommand.Execute(null);
             e.Handled = true;

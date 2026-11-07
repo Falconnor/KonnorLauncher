@@ -139,9 +139,9 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- Título de la vista: "Explorar" mientras se ve Explorar -->
-                        <TextBlock Grid.Column="0" Text="Explorar" Style="{StaticResource ViewTitle}" FontSize="20" VerticalAlignment="Center"
-                                   Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- Título de la vista: "Explorar" o "Skins" mientras se ven -->
+                        <TextBlock Grid.Column="0" Text="{Binding ViewTitle}" Style="{StaticResource ViewTitle}" FontSize="20" VerticalAlignment="Center"
+                                   Visibility="{Binding IsAwayFromInstance, Converter={StaticResource BoolToVisibility}}" />
 
                         <!-- Controles de la ventana: minimizar, maximizar/restaurar y cerrar -->
                         <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center"
@@ -175,26 +175,22 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <!-- Grupo Explorar: abre la página en esa pestaña -->
+                        <!-- Grupo Explorar: abre la página en esa pestaña (o la sección Skins) -->
                         <StackPanel Grid.Row="1" Margin="14,10,14,28">
                             <TextBlock Text="Explorar" Style="{StaticResource SidebarGroupLabel}" />
-                            <ItemsControl ItemsSource="{Binding SidebarBrowseTabs}" Focusable="False">
+                            <ItemsControl ItemsSource="{Binding SidebarLinks}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:BrowseTab}">
-                                        <Button Command="{Binding DataContext.OpenBrowseTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    <DataTemplate DataType="{x:Type vm:SidebarLink}">
+                                        <Button Command="{Binding DataContext.OpenSidebarLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" Margin="0,0,0,2" AutomationProperties.Name="{Binding Label, StringFormat=Explorar {0}}">
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource SidebarAction}">
                                                     <Style.Triggers>
-                                                        <!-- Marcado: es la pestaña que se está viendo en Explorar -->
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding IsActive}" Value="True" />
-                                                                <Condition Binding="{Binding DataContext.IsBrowsing, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
-                                                            </MultiDataTrigger.Conditions>
+                                                        <!-- Marcado: es la página que se está viendo -->
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                             <Setter Property="Background" Value="{StaticResource RowSelected}" />
                                                             <Setter Property="Foreground" Value="{StaticResource Ink}" />
-                                                        </MultiDataTrigger>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
@@ -547,6 +543,12 @@
                         <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
                                 Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVisibility}}">
                             <views:BrowseView x:Name="BrowsePage" DataContext="{Binding Browse}" />
+                        </Border>
+
+                        <!-- Skins: galería de MineSkin (también ocupa el sitio de la barra de juego) -->
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                                Visibility="{Binding IsSkins, Converter={StaticResource BoolToVisibility}}">
+                            <views:SkinsView DataContext="{Binding Skins}" />
                         </Border>
 
                         <!-- Barra de juego: estado, progreso y JUGAR, separada por una línea fina (solo con una instancia a la vista) -->

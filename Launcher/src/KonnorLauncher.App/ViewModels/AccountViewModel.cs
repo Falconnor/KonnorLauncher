@@ -259,6 +259,33 @@ public sealed partial class AccountViewModel : ObservableObject
         Saved?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Usa como skin del jugador un archivo ya validado (de la galería de Skins): se copia a la carpeta
+    /// de datos y se guarda junto con su modelo. Devuelve el error, o null si se aplicó.
+    /// </summary>
+    public string? ApplySkin(string path, bool slim)
+    {
+        try
+        {
+            Directory.CreateDirectory(LauncherPaths.PlayerDir);
+            File.Copy(path, SkinPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            _logger.LogError(ex, "No se pudo guardar la skin");
+            return $"No se pudo guardar la skin: {ex.Message}";
+        }
+
+        _settings.Properties.SetMany(
+        [
+            new(LauncherSettings.KeyPlayerSkin, SkinPath),
+            new(LauncherSettings.KeyPlayerSkinModel, slim ? "slim" : "classic"),
+        ]);
+        _logger.LogInformation("Skin cambiada desde la galería");
+        Saved?.Invoke(this, EventArgs.Empty);
+        return null;
+    }
+
     /// <summary>Cancelar, ✕ o Esc: cierra sin guardar.</summary>
     [RelayCommand]
     private void Cancel() => IsOpen = false;

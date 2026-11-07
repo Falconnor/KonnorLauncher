@@ -13,6 +13,7 @@ using KonnorLauncher.Core.Launching;
 using KonnorLauncher.Core.Loaders;
 using KonnorLauncher.Core.Modrinth;
 using KonnorLauncher.Core.Paths;
+using KonnorLauncher.Core.Players;
 using KonnorLauncher.Core.Versions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -133,6 +134,17 @@ public partial class App : Application
             c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         });
 
+        // Galería de skins (MineSkin) y sus texturas: también piden identificar el programa.
+        services.AddHttpClient(MineSkinClient.HttpClientName, c =>
+        {
+            c.Timeout = Timeout.InfiniteTimeSpan;
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+        });
+
         // Modrinth: pide identificar el programa en el User-Agent (sin datos del jugador).
         services.AddHttpClient(ModrinthClient.HttpClientName, c =>
         {
@@ -158,6 +170,7 @@ public partial class App : Application
         services.AddSingleton<PlayWorkflow>();
         services.AddSingleton(sp => new ModrinthClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ModrinthClient>>()));
         services.AddSingleton<ContentInstaller>();
+        services.AddSingleton(sp => new MineSkinClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<MineSkinClient>>()));
         services.AddSingleton<IconLoader>();
 
         // UI.
@@ -166,6 +179,7 @@ public partial class App : Application
         services.AddSingleton<AccountViewModel>();
         services.AddSingleton<InstallDialogViewModel>();
         services.AddSingleton<BrowseViewModel>();
+        services.AddSingleton<SkinsViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
         services.AddSingleton<ConfirmViewModel>();

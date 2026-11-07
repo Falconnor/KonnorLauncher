@@ -94,8 +94,8 @@
                                     </Ellipse.Fill>
                                 </Ellipse>
                                 <c:SkinViewer3D Skin="{Binding Skin}" Slim="{Binding IsSlim}" Margin="0,8,0,16"
-                                                ToolTip="Arrastra para girar" AutomationProperties.Name="Vista 3D de la skin" />
-                                <TextBlock Text="Arrastra para girar" Style="{StaticResource Hint}" FontSize="11.5"
+                                                AutomationProperties.Name="Vista 3D de la skin" />
+                                <TextBlock Text="Mantén pulsado para girar · rueda para acercar" Style="{StaticResource Hint}" FontSize="11.5"
                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" IsHitTestVisible="False" />
                             </Grid>
                         </Border>

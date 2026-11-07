@@ -109,6 +109,14 @@ public static class PlayerImages
         }
     }
 
+    /// <summary>Píxeles BGRA a imagen (congelada: se puede crear fuera del hilo de la interfaz).</summary>
+    public static BitmapSource ToBitmap(SkinComposer.Pixels pixels)
+    {
+        var bitmap = BitmapSource.Create(pixels.Width, pixels.Height, 96, 96, PixelFormats.Bgra32, null, pixels.Bgra, pixels.Width * 4);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
     private static SkinComposer.Pixels Decode(Uri uri)
     {
         var image = new BitmapImage();

@@ -9,8 +9,10 @@ using KonnorLauncher.Core.Players;
 namespace KonnorLauncher.App.Controls;
 
 /// <summary>
-/// Visor 3D de una skin de Minecraft: el jugador con sus capas base y exteriores, girando despacio.
-/// Se arrastra con el ratón para girarlo. La textura debe venir ya normalizada a 64×64
+/// Visor 3D de una skin de Minecraft: el jugador con sus capas base y exteriores, girando despacio y
+/// respirando. Con el botón pulsado se para el giro, se orienta libremente (aunque el ratón salga del
+/// recuadro) y la rueda acerca o aleja; al soltar, la inclinación y el zoom vuelven a los iniciales y
+/// sigue girando. La textura debe venir ya normalizada a 64×64
 /// (<see cref="SkinTexture.Normalize"/>). Las coordenadas de cada caja siguen el diseño de las skins
 /// del juego: arriba, abajo, lado derecho, frente, lado izquierdo y espalda.
 /// </summary>
@@ -36,64 +38,144 @@ public sealed class SkinViewer3D : Grid
         set => SetValue(SlimProperty, value);
     }
 
+    // Posición inicial (a la que se vuelve al soltar) y límites del giro y del zoom
+    private const double RestYaw = -28;
+    private const double RestPitch = 0;
+    private const double RestDistance = 76;
     private const double IdleDegreesPerSecond = 24;
-    private static readonly TimeSpan IdleResumeDelay = TimeSpan.FromSeconds(2.5);
+    private const double MinDistance = 36;
+    private const double MaxDistance = 120;
+    private const double DegreesPerPixel = 0.8;
+
+    /// <summary>Rapidez de la vuelta a la posición inicial (mayor = más rápida).</summary>
+    private const double ReturnSpeed = 7;
+
+    /// <summary>Centro del giro y punto al que mira la cámara: la mitad del jugador.</summary>
+    private static readonly Point3D Center = new(0, 16, 0);
 
     private readonly ModelVisual3D _visual = new();
-    private readonly AxisAngleRotation3D _rotation = new(new Vector3D(0, 1, 0), -28);
+    private readonly PerspectiveCamera _camera = new() { UpDirection = new Vector3D(0, 1, 0), FieldOfView = 30 };
+    private readonly AxisAngleRotation3D _yaw = new(new Vector3D(0, 1, 0), RestYaw);
+    private readonly AxisAngleRotation3D _pitch = new(new Vector3D(1, 0, 0), RestPitch);
+
+    // Respiración: brazos que se balancean un poco y pecho que sube y baja
+    private readonly AxisAngleRotation3D _rightArmSway = new(new Vector3D(0, 0, 1), 0);
+    private readonly AxisAngleRotation3D _rightArmSwing = new(new Vector3D(1, 0, 0), 0);
+    private readonly AxisAngleRotation3D _leftArmSway = new(new Vector3D(0, 0, 1), 0);
+    private readonly AxisAngleRotation3D _leftArmSwing = new(new Vector3D(1, 0, 0), 0);
+    private readonly TranslateTransform3D _chest = new();
+
+    private double _distance = RestDistance;
     private Point? _dragStart;
-    private double _dragAngle;
-    private DateTime _lastInteraction = DateTime.MinValue;
+    private double _dragYaw;
+    private double _dragPitch;
     private TimeSpan _lastFrame;
+    private Window? _window;
 
     public SkinViewer3D()
     {
         Background = Brushes.Transparent; // para recibir el ratón en toda la superficie
-        Cursor = Cursors.SizeWE;
         ClipToBounds = true;
 
-        var viewport = new Viewport3D
-        {
-            IsHitTestVisible = false,
-            Camera = new PerspectiveCamera(new Point3D(0, 19, 76), new Vector3D(0, -3, -76), new Vector3D(0, 1, 0), 30),
-        };
+        var viewport = new Viewport3D { IsHitTestVisible = false, Camera = _camera };
         var lights = new Model3DGroup();
         lights.Children.Add(new AmbientLight(Color.FromRgb(0xB8, 0xB8, 0xB8)));
         lights.Children.Add(new DirectionalLight(Color.FromRgb(0x60, 0x60, 0x60), new Vector3D(-0.35, -0.55, -1)));
         viewport.Children.Add(new ModelVisual3D { Content = lights });
-        _visual.Transform = new RotateTransform3D(_rotation);
+        var view = new Transform3DGroup();
+        view.Children.Add(new RotateTransform3D(_yaw, Center));
+        view.Children.Add(new RotateTransform3D(_pitch, Center));
+        _visual.Transform = view;
         viewport.Children.Add(_visual);
         Children.Add(viewport);
+        UpdateCamera();
 
         MouseLeftButtonDown += OnMouseDown;
         MouseMove += OnMouseMove;
-        MouseLeftButtonUp += OnMouseUp;
+        MouseLeftButtonUp += (_, _) => EndDrag();
+        MouseWheel += OnMouseWheel;
         LostMouseCapture += (_, _) => _dragStart = null;
-        IsVisibleChanged += (_, e) =>
+        // Solo se anima mientras se ve (visible y con el launcher sin minimizar): si no, no consume nada.
+        IsVisibleChanged += (_, _) => UpdateAnimation();
+        Loaded += (_, _) =>
         {
-            // Solo se anima mientras se ve: así no consume nada con el panel cerrado.
-            CompositionTarget.Rendering -= OnRendering;
-            if (e.NewValue is true)
-                CompositionTarget.Rendering += OnRendering;
+            _window = Window.GetWindow(this);
+            if (_window is not null)
+                _window.StateChanged += OnWindowStateChanged;
+            UpdateAnimation();
         };
-        Unloaded += (_, _) => CompositionTarget.Rendering -= OnRendering;
+        Unloaded += (_, _) =>
+        {
+            if (_window is not null)
+                _window.StateChanged -= OnWindowStateChanged;
+            _window = null;
+            CompositionTarget.Rendering -= OnRendering;
+        };
     }
 
-    // ── Giro ────────────────────────────────────────────────────────────────
+    private void OnWindowStateChanged(object? sender, EventArgs e) => UpdateAnimation();
+
+    private void UpdateAnimation()
+    {
+        CompositionTarget.Rendering -= OnRendering;
+        if (IsVisible && _window is not { WindowState: WindowState.Minimized })
+            CompositionTarget.Rendering += OnRendering;
+        _lastFrame = TimeSpan.Zero; // al volver, sin saltos
+    }
+
+    // ── Animación: respiración y vuelta a la posición inicial ───────────────
 
     private void OnRendering(object? sender, EventArgs e)
     {
         var time = ((RenderingEventArgs)e).RenderingTime;
-        var elapsed = _lastFrame == TimeSpan.Zero ? 0 : (time - _lastFrame).TotalSeconds;
+        var elapsed = _lastFrame == TimeSpan.Zero ? 0 : Math.Min((time - _lastFrame).TotalSeconds, 0.1);
         _lastFrame = time;
-        if (_dragStart is null && DateTime.UtcNow - _lastInteraction > IdleResumeDelay && elapsed is > 0 and < 0.25)
-            _rotation.Angle = (_rotation.Angle + IdleDegreesPerSecond * elapsed) % 360;
+        var t = time.TotalSeconds;
+
+        // Respiración (como el jugador quieto en el juego): brazos un poco hacia fuera y adelante/atrás,
+        // pecho que sube y baja
+        var sway = 3 + 3 * Math.Cos(t * 1.8);
+        var swing = 3.4 * Math.Sin(t * 1.35);
+        _rightArmSway.Angle = -sway;
+        _leftArmSway.Angle = sway;
+        _rightArmSwing.Angle = swing;
+        _leftArmSwing.Angle = -swing;
+        _chest.OffsetY = 0.18 * (1 + Math.Sin(t * 1.8));
+
+        // Sin arrastrar: gira despacio y la inclinación y el zoom vuelven suavemente a los iniciales
+        if (_dragStart is null && elapsed > 0)
+        {
+            var k = 1 - Math.Exp(-ReturnSpeed * elapsed);
+            _yaw.Angle = (_yaw.Angle + IdleDegreesPerSecond * elapsed) % 360;
+            _pitch.Angle += (NearestRestPitch() - _pitch.Angle) * k;
+            var distance = _distance + (RestDistance - _distance) * k;
+            if (Math.Abs(distance - _distance) > 0.001)
+            {
+                _distance = distance;
+                UpdateCamera();
+            }
+        }
     }
+
+    /// <summary>La inclinación inicial más cercana (si se dieron vueltas en vertical, no se deshacen todas).</summary>
+    private double NearestRestPitch() => RestPitch + Math.Round((_pitch.Angle - RestPitch) / 360) * 360;
+
+    private void UpdateCamera()
+    {
+        // La cámara mira al centro desde delante y un poco por encima, a la distancia del zoom
+        var direction = new Vector3D(0, -3, -76);
+        direction.Normalize();
+        _camera.Position = Center - direction * _distance;
+        _camera.LookDirection = direction * _distance;
+    }
+
+    // ── Ratón ───────────────────────────────────────────────────────────────
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(this);
-        _dragAngle = _rotation.Angle;
+        _dragYaw = _yaw.Angle;
+        _dragPitch = _pitch.Angle;
         CaptureMouse();
         e.Handled = true; // que no arrastre la ventana
     }
@@ -102,18 +184,33 @@ public sealed class SkinViewer3D : Grid
     {
         if (_dragStart is not { } start)
             return;
-        _rotation.Angle = _dragAngle + (e.GetPosition(this).X - start.X) * 0.8;
-        _lastInteraction = DateTime.UtcNow;
+        // Con el botón pulsado sigue girando aunque el ratón salga del recuadro (está capturado)
+        var position = e.GetPosition(this);
+        _yaw.Angle = _dragYaw + (position.X - start.X) * DegreesPerPixel;
+        _pitch.Angle = _dragPitch + (position.Y - start.Y) * DegreesPerPixel;
     }
 
-    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    /// <summary>Rueda con el botón pulsado: acerca o aleja.</summary>
+    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_dragStart is null)
+            return; // sin pulsar, la rueda desplaza la página como siempre
+        _distance = Math.Clamp(_distance * Math.Pow(0.9, e.Delta / 120.0), MinDistance, MaxDistance);
+        UpdateCamera();
+        e.Handled = true;
+    }
+
+    private void EndDrag()
     {
         _dragStart = null;
-        _lastInteraction = DateTime.UtcNow;
-        ReleaseMouseCapture();
+        if (IsMouseCaptured)
+            ReleaseMouseCapture();
     }
 
     // ── Modelo ──────────────────────────────────────────────────────────────
+
+    /// <summary>Caja: posición mínima, tamaño, origen en la textura (base y exterior), grosor de la capa exterior y su movimiento.</summary>
+    private readonly record struct Part(int X, int Y, int Z, int W, int H, int D, int U, int V, int OuterU, int OuterV, double Inflate, Transform3D Move);
 
     private void Rebuild()
     {
@@ -124,30 +221,52 @@ public sealed class SkinViewer3D : Grid
         }
 
         var material = new DiffuseMaterial(CreateBrush(skin));
-        var inner = new MeshGeometry3D();
-        var outer = new MeshGeometry3D();
+        material.Freeze();
         var arm = Slim ? 3 : 4;
 
-        // Caja: posición mínima (x, y, z), tamaño (ancho, alto, fondo), origen en la textura y si es capa exterior.
+        // Cada parte con su movimiento; la capa base y la exterior comparten el de su parte.
+        var still = Transform3D.Identity;
+        var rightArm = ArmTransform(_rightArmSway, _rightArmSwing, new Point3D(-4 - arm / 2.0, 22, 0));
+        var leftArm = ArmTransform(_leftArmSway, _leftArmSwing, new Point3D(4 + arm / 2.0, 22, 0));
+
         // El jugador mira hacia +Z; su lado derecho queda a la izquierda de la pantalla (-X).
-        AddBox(inner, -4, 24, -4, 8, 8, 8, 0, 0);                // cabeza
-        AddBox(outer, -4, 24, -4, 8, 8, 8, 32, 0, 0.5);          // sombrero
-        AddBox(inner, -4, 12, -2, 8, 12, 4, 16, 16);              // cuerpo
-        AddBox(outer, -4, 12, -2, 8, 12, 4, 16, 32, 0.25);        // chaqueta
-        AddBox(inner, -4 - arm, 12, -2, arm, 12, 4, 40, 16);      // brazo derecho
-        AddBox(outer, -4 - arm, 12, -2, arm, 12, 4, 40, 32, 0.25);
-        AddBox(inner, 4, 12, -2, arm, 12, 4, 32, 48);             // brazo izquierdo
-        AddBox(outer, 4, 12, -2, arm, 12, 4, 48, 48, 0.25);
-        AddBox(inner, -4, 0, -2, 4, 12, 4, 0, 16);                // pierna derecha
-        AddBox(outer, -4, 0, -2, 4, 12, 4, 0, 32, 0.25);
-        AddBox(inner, 0, 0, -2, 4, 12, 4, 16, 48);                // pierna izquierda
-        AddBox(outer, 0, 0, -2, 4, 12, 4, 0, 48, 0.25);
+        Part[] parts =
+        [
+            new(-4, 24, -4, 8, 8, 8, 0, 0, 32, 0, 0.5, _chest),                // cabeza y sombrero
+            new(-4, 12, -2, 8, 12, 4, 16, 16, 16, 32, 0.25, _chest),           // cuerpo y chaqueta
+            new(-4 - arm, 12, -2, arm, 12, 4, 40, 16, 40, 32, 0.25, rightArm), // brazo derecho
+            new(4, 12, -2, arm, 12, 4, 32, 48, 48, 48, 0.25, leftArm),         // brazo izquierdo
+            new(-4, 0, -2, 4, 12, 4, 0, 16, 0, 32, 0.25, still),               // pierna derecha
+            new(0, 0, -2, 4, 12, 4, 16, 48, 0, 48, 0.25, still),               // pierna izquierda
+        ];
 
         var group = new Model3DGroup();
-        group.Children.Add(new GeometryModel3D(inner, material));
-        group.Children.Add(new GeometryModel3D(outer, material)); // después: su transparencia deja ver la base
-        group.Freeze();
+        // Primero todas las capas base y después las exteriores: su transparencia deja ver la base.
+        foreach (var outer in new[] { false, true })
+        {
+            foreach (var part in parts)
+            {
+                var mesh = new MeshGeometry3D();
+                if (outer)
+                    AddBox(mesh, part.X, part.Y, part.Z, part.W, part.H, part.D, part.OuterU, part.OuterV, part.Inflate);
+                else
+                    AddBox(mesh, part.X, part.Y, part.Z, part.W, part.H, part.D, part.U, part.V);
+                mesh.Freeze();
+                group.Children.Add(new GeometryModel3D(mesh, material) { Transform = part.Move });
+            }
+        }
+
         _visual.Content = group;
+    }
+
+    /// <summary>Brazo: se balancea desde el hombro y sube y baja con el pecho.</summary>
+    private Transform3DGroup ArmTransform(AxisAngleRotation3D sway, AxisAngleRotation3D swing, Point3D shoulder)
+    {
+        var transform = new Transform3DGroup();
+        transform.Children.Add(new RotateTransform3D(sway, shoulder));
+        transform.Children.Add(new RotateTransform3D(swing, shoulder));
+        transform.Children.Add(_chest);
+        return transform;
     }
 
     /// <summary>
