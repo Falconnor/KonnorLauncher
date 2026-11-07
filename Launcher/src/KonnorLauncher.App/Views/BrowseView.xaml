@@ -20,9 +20,13 @@
         <SolidColorBrush x:Key="GlassEdgeHover" Color="#24FFFFFF" />
         <SolidColorBrush x:Key="InnerFill" Color="#0AFFFFFF" />
         <SolidColorBrush x:Key="InnerStroke" Color="#14FFFFFF" />
-        <!-- Selección y estados activos: el acento (azul). El verde queda para "instalado" y los avisos de éxito. -->
-        <SolidColorBrush x:Key="SelectedFill" Color="#263478F6" />
-        <SolidColorBrush x:Key="SelectedStroke" Color="#993478F6" />
+        <!-- Selección y estados activos: gris claro, como la fila elegida de la barra lateral (sin azul ni borde
+             marcado). El verde queda para "instalado" y los avisos de éxito. -->
+        <SolidColorBrush x:Key="SelectedFill" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="SelectedStroke" Color="#00FFFFFF" />
+        <!-- Más claro: para lo que ya tiene fondo gris en reposo (pastillas, número de página, botón Instalar) -->
+        <SolidColorBrush x:Key="SelectedFillStrong" Color="#38FFFFFF" />
+        <SolidColorBrush x:Key="HoverFillStrong" Color="#26FFFFFF" />
         <SolidColorBrush x:Key="OkFill" Color="#1427AE60" />
         <SolidColorBrush x:Key="OkStroke" Color="#4D27AE60" />
         <DropShadowEffect x:Key="PanelShadow" Color="#020617" BlurRadius="30" ShadowDepth="8" Direction="270" Opacity="0.45" />
@@ -90,8 +94,7 @@
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource PillGhostHover}" />
                             </Trigger>
                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SelectedFill}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource SelectedStroke}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource SelectedFillStrong}" />
                                 <Setter Property="Foreground" Value="{StaticResource Ink}" />
                             </DataTrigger>
                         </ControlTemplate.Triggers>
@@ -174,7 +177,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Botón Instalar: de contorno; con el ratón sobre la tarjeta, relleno del acento.
+        <!-- ── Botón Instalar: de contorno; con el ratón sobre la tarjeta, relleno gris claro (más claro sobre el botón).
              Instalado: verde (estado "listo"). ── -->
         <Style x:Key="InstallButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
@@ -204,14 +207,14 @@
             <Style.Triggers>
                 <!-- Con el ratón sobre la tarjeta (o la fila) -->
                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Accent}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="Background" Value="{StaticResource HoverFillStrong}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource HoverFillStrong}" />
+                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
                 </DataTrigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource AccentHover}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource AccentHover}" />
-                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="Background" Value="{StaticResource SelectedFillStrong}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource SelectedFillStrong}" />
+                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="Transparent" />
@@ -289,7 +292,7 @@
                             </Trigger>
                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                 <Setter TargetName="Content" Property="Opacity" Value="1" />
-                                <Setter TargetName="Ring" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Ring" Property="Background" Value="{StaticResource SelectedFillStrong}" />
                             </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -341,12 +344,12 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <!-- Número de página: la actual, en el acento -->
+        <!-- Número de página: la actual, en gris claro (como la fila elegida de la barra lateral) -->
         <Style x:Key="PageNumberButton" TargetType="Button" BasedOn="{StaticResource PageButton}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource Accent}" />
-                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="Background" Value="{StaticResource SelectedFillStrong}" />
+                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>

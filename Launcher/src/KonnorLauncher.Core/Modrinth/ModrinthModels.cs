@@ -10,7 +10,6 @@ public enum ContentType
     ResourcePack,
     DataPack,
     Shader,
-    Server,
 }
 
 public static class ContentTypes
@@ -23,12 +22,11 @@ public static class ContentTypes
         ContentType.ResourcePack => "resourcepack",
         ContentType.DataPack => "datapack",
         ContentType.Shader => "shader",
-        ContentType.Server => "minecraft_java_server",
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
 
-    /// <summary>Los modpacks y los servidores crean una instancia; el resto se instala en una existente.</summary>
-    public static bool CreatesInstance(this ContentType type) => type is ContentType.Modpack or ContentType.Server;
+    /// <summary>Los modpacks crean una instancia; el resto se instala en una existente.</summary>
+    public static bool CreatesInstance(this ContentType type) => type is ContentType.Modpack;
 
     /// <summary>Carpeta de la instancia donde se instala (los data packs van en un mundo).</summary>
     public static string? Folder(this ContentType type) => type switch

@@ -45,6 +45,7 @@ public sealed partial class MainViewModel : ObservableObject
         AccountViewModel account,
         BrowseViewModel browse,
         SkinsViewModel skins,
+        ServersViewModel servers,
         UsernamePromptViewModel usernamePrompt,
         InstanceEditorViewModel editor,
         ConfirmViewModel confirm,
@@ -62,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
         Account = account;
         Browse = browse;
         Skins = skins;
+        Servers = servers;
         UsernamePrompt = usernamePrompt;
         Editor = editor;
         Confirm = confirm;
@@ -89,13 +91,16 @@ public sealed partial class MainViewModel : ObservableObject
             NotifyUpdates();
         };
         Editor.DeleteRequested += async (_, instance) => await DeleteInstanceAsync(instance);
+        // Servidores: una instancia nueva aparece en la lista; «Jugar» la selecciona y entra al servidor.
+        Servers.InstanceCreated += (_, _) => ReloadInstances(SelectedInstance?.Id);
+        Servers.PlayRequested += async (_, request) => await PlayOnServerAsync(request);
 
-        // Barra lateral: Mods, Skins (en lugar de Modpacks), Paquetes de recursos y Shaders.
+        // Barra lateral: Mods, Skins (en lugar de Modpacks), Servidores (en lugar de Paquetes de recursos) y Shaders.
         SidebarLinks =
         [
             new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Mod)),
-            new SidebarLink("Skins", ""),
-            new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.ResourcePack)),
+            _skinsLink,
+            _serversLink,
             new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Shader)),
         ];
         foreach (var tab in Browse.Tabs)
@@ -117,6 +122,11 @@ public sealed partial class MainViewModel : ObservableObject
     public AccountViewModel Account { get; }
     public BrowseViewModel Browse { get; }
     public SkinsViewModel Skins { get; }
+    public ServersViewModel Servers { get; }
+
+    // Accesos de la barra lateral que no son pestañas de Explorar
+    private readonly SidebarLink _skinsLink = new("Skins", "");
+    private readonly SidebarLink _serversLink = new("Servidores", "");
     public UsernamePromptViewModel UsernamePrompt { get; }
     public InstanceEditorViewModel Editor { get; }
     public ConfirmViewModel Confirm { get; }
@@ -133,11 +143,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Se está viendo la sección Skins.</summary>
     [ObservableProperty] private bool _isSkins;
 
+    /// <summary>Se está viendo la sección Servidores.</summary>
+    [ObservableProperty] private bool _isServers;
+
     /// <summary>Se ve otra página (Explorar o Skins) en lugar de la instancia.</summary>
-    public bool IsAwayFromInstance => IsBrowsing || IsSkins;
+    public bool IsAwayFromInstance => IsBrowsing || IsSkins || IsServers;
 
     /// <summary>Título de la cabecera: el de la página que se ve.</summary>
-    public string ViewTitle => IsSkins ? "Skins" : IsBrowsing ? "Explorar" : string.Empty;
+    public string ViewTitle => IsSkins ? "Skins" : IsServers ? "Servidores" : IsBrowsing ? "Explorar" : string.Empty;
 
     private bool _reloading;
 
@@ -242,14 +255,33 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnIsBrowsingChanged(bool value)
     {
         if (value)
+        {
             IsSkins = false;
+            IsServers = false;
+        }
+
         OnViewChanged();
     }
 
     partial void OnIsSkinsChanged(bool value)
     {
         if (value)
+        {
             IsBrowsing = false;
+            IsServers = false;
+        }
+
+        OnViewChanged();
+    }
+
+    partial void OnIsServersChanged(bool value)
+    {
+        if (value)
+        {
+            IsBrowsing = false;
+            IsSkins = false;
+        }
+
         OnViewChanged();
     }
 
@@ -280,7 +312,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateSidebar()
     {
         foreach (var link in SidebarLinks)
-            link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : IsSkins;
+            link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : link == _serversLink ? IsServers : IsSkins;
     }
 
     [RelayCommand]
@@ -295,6 +327,13 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (link == _serversLink)
+        {
+            IsServers = true;
+            await Servers.OpenAsync();
+            return;
+        }
+
         IsSkins = true;
         await Skins.OpenAsync();
     }
@@ -306,6 +345,7 @@ public sealed partial class MainViewModel : ObservableObject
             Browse.CloseTopmost();
         IsBrowsing = false;
         IsSkins = false;
+        IsServers = false;
     }
 
     partial void OnSelectedInstanceChanged(InstanceItemViewModel? value)
@@ -315,7 +355,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             IsBrowsing = false;
             IsSkins = false;
+            IsServers = false;
         }
+
+        Servers.TargetInstance = value;
         if (value is not null && value.Id != _settings.Properties.Get(LauncherSettings.KeySelectedInstance))
             _settings.Properties.Set(LauncherSettings.KeySelectedInstance, value.Id);
         if (!IsPlaying)
@@ -428,6 +471,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     // AllowConcurrentExecutions: el estado del botón lo controla IsPlayEnabled; si no, el comando
     // lo deshabilitaría mientras el overlay de nombre está abierto.
+    /// <summary>Servidor al que entra la próxima partida (lo pone la sección Servidores).</summary>
+    private Core.Servers.ServerAddress? _pendingJoin;
+
+    /// <summary>
+    /// «Jugar» en Servidores: selecciona la instancia del servidor (vuelve a su panel, donde se ve el
+    /// progreso) y juega entrando directamente al servidor.
+    /// </summary>
+    private async Task PlayOnServerAsync(ServerPlayRequest request)
+    {
+        if (IsPlaying)
+            return;
+        if (Instances.All(i => i.Id != request.InstanceId))
+            ReloadInstances(request.InstanceId);
+        if (Instances.FirstOrDefault(i => i.Id == request.InstanceId) is not { } item)
+            return;
+        SelectedInstance = item;
+        CloseBrowse();
+        _pendingJoin = request.Address;
+        await PlayAsync();
+        _pendingJoin = null; // si no llegó a jugar (nombre cancelado...), la próxima partida va al menú
+    }
+
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task PlayAsync()
     {
@@ -458,7 +523,9 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             // 3. Verificar → cargador → instalar → lanzar → esperar (todo fuera del hilo de UI).
-            result = await Task.Run(() => _workflow.RunAsync(instance, progress));
+            var join = _pendingJoin;
+            _pendingJoin = null;
+            result = await Task.Run(() => _workflow.RunAsync(instance, progress, joinServer: join));
         }
         catch (Exception ex)
         {

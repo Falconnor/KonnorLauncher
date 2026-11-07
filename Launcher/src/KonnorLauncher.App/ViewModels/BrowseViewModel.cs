@@ -11,8 +11,8 @@ namespace KonnorLauncher.App.ViewModels;
 
 /// <summary>
 /// Página "Explorar contenido": busca en Modrinth por tipo (modpacks, mods, paquetes de recursos, data
-/// packs, shaders y servidores), con filtros, orden y paginación, e instala en la instancia elegida.
-/// Los modpacks y los servidores se instalan como una instancia nueva.
+/// packs y shaders), con filtros, orden y paginación, e instala en la instancia elegida.
+/// Los modpacks se instalan como una instancia nueva. Los servidores tienen su propia sección.
 /// </summary>
 public sealed partial class BrowseViewModel : ObservableObject
 {
@@ -77,7 +77,6 @@ public sealed partial class BrowseViewModel : ObservableObject
             new BrowseTab(ContentType.ResourcePack, "Paquetes de recursos", "", OnTabSelected),
             new BrowseTab(ContentType.DataPack, "Data packs", "", OnTabSelected),
             new BrowseTab(ContentType.Shader, "Shaders", "", OnTabSelected),
-            new BrowseTab(ContentType.Server, "Servidores", "", OnTabSelected),
         ];
         GoToPageCommand = new RelayCommand<int>(page => { Page = page; ScheduleSearch(resetPage: false, immediate: true); });
     }
@@ -399,8 +398,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         BuildGameVersions(selected: []);
 
         Loaders.Clear();
-        var loaderType = ActiveType == ContentType.Server ? "modpack" : projectType;
-        foreach (var tag in _loaderTags.Where(l => l.SupportedProjectTypes.Contains(loaderType) && IsPlayerLoader(l.Name)))
+        foreach (var tag in _loaderTags.Where(l => l.SupportedProjectTypes.Contains(projectType) && IsPlayerLoader(l.Name)))
             Loaders.Add(new FilterOption(tag.Name, BrowseText.Loader(tag.Name), FiltersChanged));
         SplitLoaders();
 
@@ -428,8 +426,8 @@ public sealed partial class BrowseViewModel : ObservableObject
         OnPropertyChanged(nameof(HasOtherLoaders));
     }
 
-    /// <summary>Las de servidores y "categories" son las categorías; el resto, "contenido incluido".</summary>
-    private static bool IsMainHeader(string header) => header is "categories" || header.StartsWith("minecraft_server", StringComparison.Ordinal);
+    /// <summary>Las de "categories" son las categorías; el resto, "contenido incluido".</summary>
+    private static bool IsMainHeader(string header) => header is "categories";
 
     /// <summary>Cargadores del filtro: los de un jugador; los data packs ya tienen su pestaña.</summary>
     private static bool IsPlayerLoader(string name) => BrowseText.IsPlayerLoader(name) && name != "datapack";

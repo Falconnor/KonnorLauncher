@@ -120,7 +120,6 @@ public sealed class ModrinthTests : IAsyncLifetime
         ]);
         query.Offset.ShouldBe(40);
         query.ToQueryString().ShouldContain("index=relevance");
-        new SearchQuery { Type = ContentType.Server }.BuildFacets()[0].ShouldBe(["project_type:minecraft_java_server"]);
     }
 
     [Fact]

@@ -60,9 +60,11 @@ public sealed class PlayWorkflow
 
     /// <summary>
     /// Ejecuta el flujo completo para <paramref name="instance"/> y espera a que el juego se cierre.
-    /// Al terminar guarda en la instancia la versión lanzada y la fecha de la partida.
+    /// Al terminar guarda en la instancia la versión lanzada y la fecha de la partida. Con
+    /// <paramref name="joinServer"/>, el juego entra directamente a ese servidor.
     /// </summary>
-    public async Task<PlayResult> RunAsync(GameInstance instance, IProgress<LauncherProgress>? progress, CancellationToken ct = default)
+    public async Task<PlayResult> RunAsync(GameInstance instance, IProgress<LauncherProgress>? progress, CancellationToken ct = default,
+        Servers.ServerAddress? joinServer = null)
     {
         // launcher.properties (nombre, RAM, Java) se relee en cada partida por si se editó a mano.
         _settings.Properties.Reload();
@@ -122,6 +124,7 @@ public sealed class PlayWorkflow
             JavaPathSetting = _settings.JavaPath,
             Uuid = _settings.PlayerUuid,
             AccessToken = _settings.PlayerAccessToken,
+            JoinServer = joinServer,
         };
         var path = layout.ToMinecraftPath();
 

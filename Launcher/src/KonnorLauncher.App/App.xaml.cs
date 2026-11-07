@@ -14,6 +14,7 @@ using KonnorLauncher.Core.Loaders;
 using KonnorLauncher.Core.Modrinth;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Players;
+using KonnorLauncher.Core.Servers;
 using KonnorLauncher.Core.Versions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -145,6 +146,17 @@ public partial class App : Application
             AutomaticDecompression = System.Net.DecompressionMethods.All,
         });
 
+        // Estado en vivo de «Mis servidores» (mcstatus.io).
+        services.AddHttpClient(ServerStatusClient.HttpClientName, c =>
+        {
+            c.Timeout = Timeout.InfiniteTimeSpan;
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+        });
+
         // Modrinth: pide identificar el programa en el User-Agent (sin datos del jugador).
         services.AddHttpClient(ModrinthClient.HttpClientName, c =>
         {
@@ -173,6 +185,10 @@ public partial class App : Application
         services.AddSingleton(sp => new MineSkinClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<MineSkinClient>>()));
         services.AddSingleton(sp => new SkinLibrary(System.IO.Path.Combine(LauncherPaths.PlayerDir, "skins"), sp.GetRequiredService<ILogger<SkinLibrary>>()));
         services.AddSingleton<IconLoader>();
+        // Servidores: directorio de Modrinth (v3), estado en vivo y lo que recuerda el launcher (Mis servidores).
+        services.AddSingleton(sp => new ServerDirectoryClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerDirectoryClient>>()));
+        services.AddSingleton(sp => new ServerStatusClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerStatusClient>>()));
+        services.AddSingleton(sp => new ServerLibrary(LauncherPaths.DataDir, sp.GetRequiredService<ILogger<ServerLibrary>>()));
 
         // UI.
         services.AddSingleton<IDialogService, DialogService>();
@@ -181,6 +197,7 @@ public partial class App : Application
         services.AddSingleton<InstallDialogViewModel>();
         services.AddSingleton<BrowseViewModel>();
         services.AddSingleton<SkinsViewModel>();
+        services.AddSingleton<ServersViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
         services.AddSingleton<ConfirmViewModel>();

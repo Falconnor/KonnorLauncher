@@ -76,7 +76,7 @@ public sealed class ContentInstaller
             "Esta instancia no tiene cargador de mods (es vanilla). Elige una con Fabric, Forge, NeoForge o Quilt.",
         ContentType.ResourcePack or ContentType.Shader when instance.IsPacksLocked =>
             "El servidor de esta instancia protege sus paquetes de recursos y de shaders.",
-        ContentType.Modpack or ContentType.Server => "Los modpacks se instalan como una instancia nueva.",
+        ContentType.Modpack => "Los modpacks se instalan como una instancia nueva.",
         _ => null,
     };
 
@@ -337,7 +337,8 @@ public sealed class ContentInstaller
         }
     }
 
-    private string UniqueName(string title)
+    /// <summary>Nombre de instancia que no se repite: «Título», «Título (2)»... (recortado al máximo admitido).</summary>
+    public string UniqueName(string title)
     {
         var baseName = string.Join(' ', title.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (baseName.Length == 0)

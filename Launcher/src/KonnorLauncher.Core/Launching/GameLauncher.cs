@@ -36,6 +36,9 @@ public sealed record LaunchRequest
 
     /// <summary>Carpetas de una instancia. Si está, tiene prioridad sobre las tres rutas anteriores.</summary>
     public InstanceLayout? Layout { get; init; }
+
+    /// <summary>Servidor al que el juego entra directamente al abrirse (sección Servidores); null = al menú.</summary>
+    public Servers.ServerAddress? JoinServer { get; init; }
 }
 
 /// <summary>
@@ -160,6 +163,12 @@ public sealed class GameLauncher
         };
         if (java.OverridePath is not null)
             option.JavaPath = java.OverridePath;
+        // Entrar directo a un servidor al abrir el juego (CmlLib usa quick play en las versiones que lo tienen)
+        if (request.JoinServer is { } server)
+        {
+            option.ServerIp = server.Host;
+            option.ServerPort = server.Port;
+        }
 
         var process = await launcher.BuildProcessAsync(request.VersionId, option, ct).ConfigureAwait(false);
         process.StartInfo.WorkingDirectory = request.GameDir; // el juego corre dentro de su carpeta
