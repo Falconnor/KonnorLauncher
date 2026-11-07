@@ -17,7 +17,7 @@ namespace KonnorLauncher.App.ViewModels;
 public sealed partial class BrowseViewModel : ObservableObject
 {
     /// <summary>Espera tras el último cambio antes de buscar (así no se busca a cada tecla).</summary>
-    private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(350);
+    private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(250);
 
     private readonly ModrinthClient _client;
     private readonly ContentInstaller _installer;
@@ -30,6 +30,33 @@ public sealed partial class BrowseViewModel : ObservableObject
     private IReadOnlyList<LoaderTag> _loaderTags = [];
     private IReadOnlyList<GameVersionTag> _versionTags = [];
     private bool _tagsLoaded;
+    private Task? _tagsTask;
+
+    /// <summary>
+    /// Páginas de resultados ya pedidas, por consulta exacta: la primera de Mods se pide al abrir el
+    /// launcher y, al mostrar una página, la siguiente. Se guarda la tarea, no el resultado: si se abre
+    /// Explorar mientras aún se descarga, se espera a esa misma petición en lugar de repetirla.
+    /// </summary>
+    private readonly Dictionary<string, (DateTime At, Task<SearchPage> Page)> _pageCache = [];
+    private static readonly TimeSpan PageCacheLifetime = TimeSpan.FromMinutes(5);
+    private const int PageCacheSize = 40;
+
+    /// <summary>
+    /// Página de proyectos ya pedidos (detalles y versiones): al pasar el ratón por una tarjeta se piden
+    /// por adelantado, y al abrirla se usan las mismas peticiones.
+    /// </summary>
+    private readonly Dictionary<string, (DateTime At, Task<ProjectDetails> Details, Task<IReadOnlyList<ProjectVersion>> Versions)> _projectCache = [];
+    private const int ProjectCacheSize = 30;
+
+    /// <summary>La primera página de la última sesión: se muestra al instante y se actualiza por detrás.</summary>
+    private static string SavedFirstPageFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, "explorar-primera-pagina.json");
+
+    private sealed record SavedPage(string Query, SearchPage Page);
+
+    /// <summary>Las listas de filtros (categorías, cargadores y versiones) de la última sesión.</summary>
+    private static string SavedTagsFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, "explorar-filtros.json");
+
+    private sealed record SavedTags(IReadOnlyList<CategoryTag> Categories, IReadOnlyList<LoaderTag> Loaders, IReadOnlyList<GameVersionTag> Versions);
     private bool _suspend; // mientras se reconstruyen los filtros no se lanza una búsqueda por cada cambio
     private TaskCompletionSource<string?>? _worldChoice;
 
@@ -163,12 +190,7 @@ public sealed partial class BrowseViewModel : ObservableObject
             IsLoading = true;
             try
             {
-                var categories = _client.GetCategoriesAsync();
-                var loaders = _client.GetLoadersAsync();
-                var versions = _client.GetGameVersionsAsync();
-                await Task.WhenAll(categories, loaders, versions);
-                (_categoryTags, _loaderTags, _versionTags) = (categories.Result, loaders.Result, versions.Result);
-                _tagsLoaded = true;
+                await LoadTagsAsync();
             }
             catch (Exception ex)
             {
@@ -181,6 +203,134 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
 
         SelectType(ActiveType, keepText: true);
+    }
+
+    /// <summary>Listas de categorías, cargadores y versiones (una sola petición aunque se pidan a la vez).</summary>
+    private Task LoadTagsAsync()
+    {
+        if (_tagsLoaded)
+            return Task.CompletedTask;
+        if (_tagsTask is { IsFaulted: false, IsCanceled: false } running)
+            return running;
+        return _tagsTask = LoadAsync();
+
+        async Task LoadAsync()
+        {
+            // Las de la última sesión, al instante; las nuevas se piden por detrás para la próxima búsqueda
+            if (await ReadSavedTagsAsync() is { } saved)
+            {
+                (_categoryTags, _loaderTags, _versionTags) = (saved.Categories, saved.Loaders, saved.Versions);
+                _tagsLoaded = true;
+                _ = RefreshTagsAsync();
+                return;
+            }
+
+            await FetchTagsAsync();
+        }
+    }
+
+    private async Task FetchTagsAsync()
+    {
+        var categories = _client.GetCategoriesAsync();
+        var loaders = _client.GetLoadersAsync();
+        var versions = _client.GetGameVersionsAsync();
+        await Task.WhenAll(categories, loaders, versions);
+        (_categoryTags, _loaderTags, _versionTags) = (categories.Result, loaders.Result, versions.Result);
+        _tagsLoaded = true;
+        await SaveAsync(SavedTagsFile, new SavedTags(_categoryTags, _loaderTags, _versionTags));
+    }
+
+    private async Task RefreshTagsAsync()
+    {
+        try
+        {
+            await FetchTagsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation("No se pudieron actualizar las listas de filtros de Explorar: {Message}", ex.Message);
+        }
+    }
+
+    private static async Task<SavedTags?> ReadSavedTagsAsync()
+    {
+        try
+        {
+            if (!File.Exists(SavedTagsFile))
+                return null;
+            await using var stream = File.OpenRead(SavedTagsFile);
+            var saved = await System.Text.Json.JsonSerializer.DeserializeAsync<SavedTags>(stream);
+            return saved is { Categories.Count: > 0, Loaders.Count: > 0, Versions.Count: > 0 } ? saved : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Al abrir el launcher, en segundo plano: las listas de filtros y la primera página de la pestaña con
+    /// la que se abre Explorar (con sus iconos), y por detrás la segunda. Sin conexión no pasa nada:
+    /// Explorar lo pedirá al abrirse, como siempre.
+    /// </summary>
+    public async Task PrefetchAsync()
+    {
+        try
+        {
+            await LoadTagsAsync();
+            var query = BuildQuery() with { Page = 1 };
+            var key = query.ToQueryString();
+            var saved = await ReadSavedFirstPageAsync(key);
+            if (saved is not null && !_pageCache.ContainsKey(key))
+                _pageCache[key] = (DateTime.UtcNow, Task.FromResult(saved));
+
+            // La copia nueva: sustituye a la guardada y queda guardada para la próxima vez
+            var fresh = await _client.SearchAsync(query, CancellationToken.None);
+            _pageCache[key] = (DateTime.UtcNow, Task.FromResult(fresh));
+            await SaveFirstPageAsync(key, fresh);
+            foreach (var hit in fresh.Hits)
+                _ = _icons.LoadAsync(hit.IconUrl);
+            if (query.Limit < fresh.TotalHits)
+                Prefetch(query with { Page = 2 }, thenNext: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation("No se pudo adelantar la primera página de Explorar: {Message}", ex.Message);
+        }
+    }
+
+    private static async Task<SearchPage?> ReadSavedFirstPageAsync(string key)
+    {
+        try
+        {
+            if (!File.Exists(SavedFirstPageFile))
+                return null;
+            await using var stream = File.OpenRead(SavedFirstPageFile);
+            var saved = await System.Text.Json.JsonSerializer.DeserializeAsync<SavedPage>(stream);
+            return saved is not null && saved.Query == key ? saved.Page : null; // otra pestaña u orden: no sirve
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static Task SaveFirstPageAsync(string key, SearchPage page) => SaveAsync(SavedFirstPageFile, new SavedPage(key, page));
+
+    /// <summary>Guarda una copia en la caché del disco (si falla no pasa nada: la próxima vez se pide).</summary>
+    private static async Task SaveAsync<T>(string file, T value)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var tmp = file + ".tmp";
+            await using (var stream = File.Create(tmp))
+                await System.Text.Json.JsonSerializer.SerializeAsync(stream, value);
+            File.Move(tmp, file, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+        }
     }
 
     /// <summary>Abre la página en una pestaña concreta (los accesos de la barra lateral).</summary>
@@ -463,7 +613,8 @@ public sealed partial class BrowseViewModel : ObservableObject
             IsLoading = true;
             Error = null;
             OnPropertyChanged(nameof(IsEmpty));
-            var page = await _client.SearchAsync(BuildQuery(), ct);
+            var query = BuildQuery();
+            var page = await GetPageAsync(query).WaitAsync(ct);
             ct.ThrowIfCancellationRequested();
 
             Results.Clear();
@@ -477,6 +628,10 @@ public sealed partial class BrowseViewModel : ObservableObject
             TotalHits = page.TotalHits;
             RebuildPages();
             ResultsReplaced?.Invoke(this, EventArgs.Empty);
+
+            // La siguiente página, lista antes de pedirla
+            if (query.Offset + query.Limit < page.TotalHits)
+                Prefetch(query with { Page = query.Page + 1 }, thenNext: false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -499,6 +654,48 @@ public sealed partial class BrowseViewModel : ObservableObject
     }
 
     private async Task LoadIconAsync(ProjectCard card) => card.Icon = await _icons.LoadAsync(card.Hit.IconUrl);
+
+    /// <summary>
+    /// La página de esa consulta: la de la caché si es reciente; si no, se pide. Las peticiones no se
+    /// cancelan con la búsqueda que las pidió (otra puede estar esperándolas); si fallan, se olvidan.
+    /// </summary>
+    private Task<SearchPage> GetPageAsync(SearchQuery query)
+    {
+        var key = query.ToQueryString();
+        if (_pageCache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.At < PageCacheLifetime
+                                                        && !cached.Page.IsFaulted && !cached.Page.IsCanceled)
+            return cached.Page;
+
+        if (_pageCache.Count >= PageCacheSize)
+        {
+            foreach (var old in _pageCache.Where(e => DateTime.UtcNow - e.Value.At >= PageCacheLifetime || e.Value.Page.IsFaulted)
+                         .Select(e => e.Key).ToList())
+                _pageCache.Remove(old);
+            if (_pageCache.Count >= PageCacheSize)
+                _pageCache.Remove(_pageCache.MinBy(e => e.Value.At).Key);
+        }
+
+        var task = _client.SearchAsync(query, CancellationToken.None);
+        _pageCache[key] = (DateTime.UtcNow, task);
+        return task;
+    }
+
+    /// <summary>Descarga una página (y sus iconos) para tenerla lista; los errores se ignoran.</summary>
+    private async void Prefetch(SearchQuery query, bool thenNext)
+    {
+        try
+        {
+            var page = await GetPageAsync(query);
+            foreach (var hit in page.Hits)
+                _ = _icons.LoadAsync(hit.IconUrl);
+            if (thenNext && query.Offset + query.Limit < page.TotalHits)
+                Prefetch(query with { Page = query.Page + 1 }, thenNext: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("Página de Explorar no adelantada: {Message}", ex.Message);
+        }
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // INSTALAR
@@ -636,8 +833,37 @@ public sealed partial class BrowseViewModel : ObservableObject
         _projectLoad?.Cancel();
         var cts = _projectLoad = new CancellationTokenSource();
         Notice = null;
-        Project = new ProjectPageViewModel(card, _client, _icons, InstallVersionAsync);
+        var (details, versions) = GetProjectData(card.Hit.ProjectId);
+        Project = new ProjectPageViewModel(card, details, versions, _icons, InstallVersionAsync);
         _ = Project.LoadAsync(cts.Token);
+    }
+
+    /// <summary>Ratón encima de una tarjeta un momento: su página se pide ya, para abrirla al instante.</summary>
+    public void PrefetchProject(ProjectCard card)
+    {
+        var (details, versions) = GetProjectData(card.Hit.ProjectId);
+        _ = details.ContinueWith(t =>
+        {
+            if (t.IsCompletedSuccessfully)
+                foreach (var image in t.Result.Gallery.OrderByDescending(g => g.Featured).ThenBy(g => g.Ordering).Take(4))
+                    _ = _icons.LoadAsync(image.Url, decodeWidth: 640);
+        }, TaskScheduler.Default);
+        _ = versions.ContinueWith(_ => { }, TaskScheduler.Default); // los errores se ven al abrir la página
+    }
+
+    /// <summary>Detalles y versiones de un proyecto: los ya pedidos si son recientes; si no, se piden (a la vez).</summary>
+    private (Task<ProjectDetails> Details, Task<IReadOnlyList<ProjectVersion>> Versions) GetProjectData(string projectId)
+    {
+        if (_projectCache.TryGetValue(projectId, out var cached) && DateTime.UtcNow - cached.At < PageCacheLifetime
+                                                                 && !cached.Details.IsFaulted && !cached.Versions.IsFaulted)
+            return (cached.Details, cached.Versions);
+
+        if (_projectCache.Count >= ProjectCacheSize)
+            _projectCache.Remove(_projectCache.MinBy(e => e.Value.At).Key);
+        var details = _client.GetProjectAsync(projectId, CancellationToken.None);
+        var versions = _client.GetVersionsAsync(projectId, ct: CancellationToken.None);
+        _projectCache[projectId] = (DateTime.UtcNow, details, versions);
+        return (details, versions);
     }
 
     [RelayCommand]

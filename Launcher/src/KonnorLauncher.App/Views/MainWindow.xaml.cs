@@ -11,8 +11,7 @@ namespace KonnorLauncher.App.Views;
 
 /// <summary>
 /// Ventana principal sin marco, de tamaño libre (como mínimo 1024×768, 4:3, o la pantalla si es menor). El código subyacente solo
-/// contiene lo puramente visual: arrastre, los controles de la ventana (minimizar/maximizar/cerrar), la búsqueda de la
-/// cabecera y las teclas Esc y /.
+/// contiene lo puramente visual: arrastre, los controles de la ventana (minimizar/maximizar/cerrar) y las teclas Esc y /.
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -105,9 +104,6 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
     }
-
-    /// <summary>La búsqueda de la cabecera no busca por sí misma: abre Explorar con el foco en su caja.</summary>
-    private void OnHeaderSearchClick(object sender, RoutedEventArgs e) => OpenSearch();
 
     private void OpenSearch()
     {

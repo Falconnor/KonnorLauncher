@@ -67,14 +67,19 @@ public sealed partial class ProjectPageViewModel : ObservableObject
     /// <summary>Versiones que se muestran (las más recientes): algunos proyectos tienen miles.</summary>
     private const int MaxVersions = 150;
 
-    private readonly ModrinthClient _client;
+    private readonly Task<ProjectDetails> _detailsTask;
+    private readonly Task<IReadOnlyList<ProjectVersion>> _versionsTask;
     private readonly IconLoader _icons;
     private readonly Func<VersionRow, Task> _installVersion;
 
-    public ProjectPageViewModel(ProjectCard card, ModrinthClient client, IconLoader icons, Func<VersionRow, Task> installVersion)
+    /// <param name="details">Detalles del proyecto (ya pedidos: pueden estar listos si se pasó el ratón por la tarjeta).</param>
+    /// <param name="versions">Sus versiones, pedidas a la vez que los detalles.</param>
+    public ProjectPageViewModel(ProjectCard card, Task<ProjectDetails> details, Task<IReadOnlyList<ProjectVersion>> versions,
+        IconLoader icons, Func<VersionRow, Task> installVersion)
     {
         Card = card;
-        _client = client;
+        _detailsTask = details;
+        _versionsTask = versions;
         _icons = icons;
         _installVersion = installVersion;
     }
@@ -157,9 +162,11 @@ public sealed partial class ProjectPageViewModel : ObservableObject
 
     public async Task LoadAsync(CancellationToken ct)
     {
+        // Las versiones llegan a la vez que los detalles (antes se pedían después)
+        var versionsLoad = LoadVersionsAsync(ct);
         try
         {
-            var details = await _client.GetProjectAsync(Card.Hit.ProjectId, ct);
+            var details = await _detailsTask.WaitAsync(ct);
             Details = details;
             DescriptionHtml = MarkdownPage.Render(details.Body, details.Title);
             BuildInfo(details);
@@ -173,7 +180,7 @@ public sealed partial class ProjectPageViewModel : ObservableObject
             OnPropertyChanged(nameof(HasGallery));
             OnPropertyChanged(nameof(GalleryTabText));
             IsLoading = false;
-            await LoadVersionsAsync(ct);
+            await versionsLoad;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -194,7 +201,7 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         IsVersionsLoading = true;
         try
         {
-            _allVersions = (await _client.GetVersionsAsync(Card.Hit.ProjectId, ct: ct)).ToList();
+            _allVersions = (await _versionsTask.WaitAsync(ct)).ToList();
             BuildVersionChoices();
             RebuildVersions();
         }

@@ -22,6 +22,8 @@
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <!-- Iconos de Modrinth (WebP) sin depender de la extensión WebP de la Store de Windows -->
+    <PackageVersion Include="SkiaSharp" Version="4.155.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>

@@ -44,7 +44,10 @@ public sealed class ModrinthClient
     public Task<SearchPage> SearchAsync(SearchQuery query, CancellationToken ct = default) =>
         GetAsync<SearchPage>("/search?" + query.ToQueryString(), ct);
 
-    /// <summary>Versiones de un proyecto, de la más reciente a la más antigua.</summary>
+    /// <summary>
+    /// Versiones de un proyecto, de la más reciente a la más antigua. Sin las notas de cambios: el
+    /// launcher no las muestra y en proyectos grandes son más de la mitad de la respuesta.
+    /// </summary>
     public Task<IReadOnlyList<ProjectVersion>> GetVersionsAsync(string projectId, IEnumerable<string>? loaders = null,
         IEnumerable<string>? gameVersions = null, CancellationToken ct = default)
     {
@@ -53,7 +56,8 @@ public sealed class ModrinthClient
             query.Add("loaders=" + Uri.EscapeDataString(JsonSerializer.Serialize(l)));
         if (gameVersions?.ToList() is { Count: > 0 } g)
             query.Add("game_versions=" + Uri.EscapeDataString(JsonSerializer.Serialize(g)));
-        var path = $"/project/{Uri.EscapeDataString(projectId)}/version" + (query.Count > 0 ? "?" + string.Join('&', query) : string.Empty);
+        query.Add("include_changelog=false");
+        var path = $"/project/{Uri.EscapeDataString(projectId)}/version?" + string.Join('&', query);
         return GetAsync<IReadOnlyList<ProjectVersion>>(path, ct);
     }
 

@@ -47,7 +47,8 @@ public sealed class ModrinthTests : IAsyncLifetime
             query.Add("loaders=" + Escaped(loaders));
         if (game is not null)
             query.Add("game_versions=" + Escaped([game]));
-        return $"/project/{project}/version" + (query.Count > 0 ? "?" + string.Join('&', query) : string.Empty);
+        query.Add("include_changelog=false");
+        return $"/project/{project}/version?" + string.Join('&', query);
     }
 
     /// <summary>Publica un archivo y devuelve su entrada de versión (con SHA-512 o SHA-1).</summary>

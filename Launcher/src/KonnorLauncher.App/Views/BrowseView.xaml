@@ -602,6 +602,7 @@
                                         <DataTemplate DataType="{x:Type vm:ProjectCard}">
                                             <!-- Toda la tarjeta abre la página del proyecto; el botón Instalar va por su cuenta -->
                                             <Button Command="{Binding DataContext.OpenProjectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    MouseEnter="OnCardMouseEnter" MouseLeave="OnCardMouseLeave"
                                                     CommandParameter="{Binding}" Cursor="Hand" Margin="0,0,0,12" FocusVisualStyle="{StaticResource FocusRing}"
                                                     Foreground="{StaticResource Ink}"
                                                     AutomationProperties.Name="{Binding Title}" ToolTip="{Binding Title, StringFormat=Ver la página de {0}}">

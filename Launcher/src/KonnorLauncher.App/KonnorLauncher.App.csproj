@@ -37,10 +37,18 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\KonnorLauncher.Core\KonnorLauncher.Core.csproj" />
   </ItemGroup>
+
+  <!-- SkiaSharp trae el .pdb de su librería nativa (unos 96 MB): no se publica -->
+  <Target Name="QuitarPdbNativos" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

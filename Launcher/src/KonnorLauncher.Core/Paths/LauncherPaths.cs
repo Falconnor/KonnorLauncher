@@ -37,6 +37,15 @@ public sealed class LauncherPaths
     public static string DataDir =>
         Environment.GetEnvironmentVariable("KONNOR_DATA_DIR") is { Length: > 0 } custom ? Path.GetFullPath(custom) : AppDataDir;
 
+    /// <summary>
+    /// Caché que se puede borrar sin perder nada (iconos de Modrinth, la primera página de Explorar):
+    /// %LOCALAPPDATA%\KonnorLauncher\cache, o dentro de <c>KONNOR_DATA_DIR</c> si está definida.
+    /// </summary>
+    public static string CacheDir =>
+        Environment.GetEnvironmentVariable("KONNOR_DATA_DIR") is { Length: > 0 } custom
+            ? Path.Combine(Path.GetFullPath(custom), "cache")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KonnorLauncher", "cache");
+
     /// <summary>Cuenta del jugador: su skin y su foto de perfil (copias, por si se borra el original).</summary>
     public static string PlayerDir => Path.Combine(DataDir, "player");
 

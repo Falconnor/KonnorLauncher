@@ -85,29 +85,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Búsqueda de la cabecera: lleva a Explorar con el foco en su caja de búsqueda -->
-        <Style x:Key="HeaderSearch" TargetType="Button">
-            <Setter Property="Width" Value="320" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Cursor" Value="IBeam" />
-            <Setter Property="Foreground" Value="{StaticResource Ink3}" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingRow}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{StaticResource FieldQuiet}" CornerRadius="8" Padding="12,0">
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource FieldQuietHover}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
     </Window.Resources>
 
@@ -165,16 +142,6 @@
                         <!-- Título de la vista: "Explorar" mientras se ve Explorar -->
                         <TextBlock Grid.Column="0" Text="Explorar" Style="{StaticResource ViewTitle}" FontSize="20" VerticalAlignment="Center"
                                    Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVisibility}}" />
-
-                        <!-- Búsqueda -->
-                        <Button Grid.Column="2" Style="{StaticResource HeaderSearch}" Click="OnHeaderSearchClick"
-                                WindowChrome.IsHitTestVisibleInChrome="True"
-                                ToolTip="Buscar en Modrinth (tecla /)" AutomationProperties.Name="Buscar contenido">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{StaticResource IconSearch}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,10,0" />
-                                <TextBlock Text="Buscar mods, modpacks, shaders…" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </Button>
 
                         <!-- Controles de la ventana: minimizar, maximizar/restaurar y cerrar -->
                         <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center"

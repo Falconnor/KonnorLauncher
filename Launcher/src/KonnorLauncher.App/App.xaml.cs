@@ -100,10 +100,10 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
-        // La lista de versiones de Mojang y los manifests de las instancias sincronizadas se piden en
-        // segundo plano para no retrasar el arranque.
+        // La lista de versiones de Mojang, los manifests de las instancias sincronizadas y la primera página
+        // de Explorar (así se abre al instante) se piden en segundo plano para no retrasar el arranque.
         var main = _host.Services.GetRequiredService<MainViewModel>();
-        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync());
+        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync(), main.Browse.PrefetchAsync());
     }
 
     /// <summary>Registro de servicios (Core + ViewModels + vistas).</summary>
@@ -140,6 +140,12 @@ public partial class App : Application
             // Formato que pide Modrinth (usuario/proyecto/versión); .NET no lo acepta como "producto", así que va sin validar.
             c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
                 $"Falconnor/KonnorLauncher/{typeof(App).Assembly.GetName().Version?.ToString(3)} (github.com/Falconnor/KonnorLauncher)");
+        })
+        // Respuestas comprimidas (gzip/brotli): una página de resultados pasa de 37 KB a 8 KB y las
+        // versiones de un mod grande, de más de 1 MB a unos 200 KB.
+        .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.SocketsHttpHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
         });
 
         // Core. Las instancias viven en %APPDATA%\KonnorLauncher\instances.
