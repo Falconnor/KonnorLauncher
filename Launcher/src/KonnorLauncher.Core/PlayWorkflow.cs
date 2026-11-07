@@ -114,6 +114,13 @@ public sealed class PlayWorkflow
             }
         }
 
+        // auto_join del servidor: si no se pidió otro servidor, el juego entra directamente al suyo.
+        if (joinServer is null && instance.SyncWithServer && Servers.ServerAddress.TryParse(instance.ServerAutoJoin, out var autoJoin))
+        {
+            joinServer = autoJoin;
+            _logger.LogInformation("El servidor de la instancia pide entrar directamente a {Address}", autoJoin);
+        }
+
         var request = new LaunchRequest
         {
             GameDir = layout.GameDir,

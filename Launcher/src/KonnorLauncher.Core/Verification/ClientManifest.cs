@@ -38,12 +38,14 @@ public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnly
 /// <c>released</c> (instancias liberadas: el jugador puede desactivar la sincronización) y
 /// <c>lock_server_url</c> (el jugador no puede cambiar la dirección del servidor; reversible) y
 /// <c>protect_packs</c> (los paquetes de recursos y de shaders se instalan siempre y se protegen).
+/// <c>auto_join</c> y <c>server_address</c>: al jugar, el juego entra directamente a ese servidor de Minecraft
+/// (<see cref="AutoJoinAddress"/>; null si no se pide o la dirección no es válida).
 /// <c>minecraft</c> (opcional): si está, <c>versions</c>, <c>libraries</c> y <c>assets</c> no vienen del
 /// servidor, los instala el launcher.
 /// </summary>
 public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks,
     bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null, bool? LockServerUrl = null,
-    bool? ProtectPacks = null, ManifestGame? Game = null);
+    bool? ProtectPacks = null, ManifestGame? Game = null, string? AutoJoinAddress = null);
 
 /// <summary>Resultado de una verificación.</summary>
 /// <param name="Success">true = el juego puede iniciarse.</param>

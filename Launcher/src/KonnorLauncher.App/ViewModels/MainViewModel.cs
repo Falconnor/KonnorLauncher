@@ -46,6 +46,7 @@ public sealed partial class MainViewModel : ObservableObject
         BrowseViewModel browse,
         SkinsViewModel skins,
         ServersViewModel servers,
+        HostingViewModel hosting,
         UsernamePromptViewModel usernamePrompt,
         InstanceEditorViewModel editor,
         ConfirmViewModel confirm,
@@ -64,6 +65,7 @@ public sealed partial class MainViewModel : ObservableObject
         Browse = browse;
         Skins = skins;
         Servers = servers;
+        Hosting = hosting;
         UsernamePrompt = usernamePrompt;
         Editor = editor;
         Confirm = confirm;
@@ -94,14 +96,27 @@ public sealed partial class MainViewModel : ObservableObject
         // Servidores: una instancia nueva aparece en la lista; «Jugar» la selecciona y entra al servidor.
         Servers.InstanceCreated += (_, _) => ReloadInstances(SelectedInstance?.Id);
         Servers.PlayRequested += async (_, request) => await PlayOnServerAsync(request);
+        // Hosting → «Añadir mod»: Mods de Explorar para ese servidor; al volver, su contenido.
+        Hosting.AddModsRequested += async (_, target) =>
+        {
+            IsBrowsing = true;
+            await Browse.OpenForServerAsync(target);
+        };
+        Browse.ServerContentChanged += (_, id) => Hosting.RefreshServerContent(id);
+        Browse.ReturnToServerRequested += (_, id) =>
+        {
+            IsHosting = true;
+            Hosting.ShowServerContent(id);
+        };
 
-        // Barra lateral: Mods, Skins (en lugar de Modpacks), Servidores (en lugar de Paquetes de recursos) y Shaders.
+        // Barra lateral: Mods, Skins (en lugar de Modpacks), Servidores (en lugar de Paquetes de recursos)
+        // y Hosting (en lugar de Shaders: los shaders siguen en la pestaña de Explorar).
         SidebarLinks =
         [
             new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Mod)),
             _skinsLink,
             _serversLink,
-            new SidebarLink(Browse.Tabs.First(t => t.Type == ContentType.Shader)),
+            _hostingLink,
         ];
         foreach (var tab in Browse.Tabs)
             tab.PropertyChanged += (_, e) =>
@@ -123,10 +138,12 @@ public sealed partial class MainViewModel : ObservableObject
     public BrowseViewModel Browse { get; }
     public SkinsViewModel Skins { get; }
     public ServersViewModel Servers { get; }
+    public HostingViewModel Hosting { get; }
 
     // Accesos de la barra lateral que no son pestañas de Explorar
     private readonly SidebarLink _skinsLink = new("Skins", "");
     private readonly SidebarLink _serversLink = new("Servidores", "");
+    private readonly SidebarLink _hostingLink = new("Hosting", "");
     public UsernamePromptViewModel UsernamePrompt { get; }
     public InstanceEditorViewModel Editor { get; }
     public ConfirmViewModel Confirm { get; }
@@ -146,11 +163,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Se está viendo la sección Servidores.</summary>
     [ObservableProperty] private bool _isServers;
 
+    /// <summary>Se está viendo la sección Hosting (servidores alojados en este equipo).</summary>
+    [ObservableProperty] private bool _isHosting;
+
     /// <summary>Se ve otra página (Explorar o Skins) en lugar de la instancia.</summary>
-    public bool IsAwayFromInstance => IsBrowsing || IsSkins || IsServers;
+    public bool IsAwayFromInstance => IsBrowsing || IsSkins || IsServers || IsHosting;
 
     /// <summary>Título de la cabecera: el de la página que se ve.</summary>
-    public string ViewTitle => IsSkins ? "Skins" : IsServers ? "Servidores" : IsBrowsing ? "Explorar" : string.Empty;
+    public string ViewTitle => IsSkins ? "Skins" : IsServers ? "Servidores" : IsHosting ? "Hosting" : IsBrowsing ? "Explorar" : string.Empty;
 
     private bool _reloading;
 
@@ -258,6 +278,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             IsSkins = false;
             IsServers = false;
+            IsHosting = false;
         }
 
         OnViewChanged();
@@ -269,6 +290,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             IsBrowsing = false;
             IsServers = false;
+            IsHosting = false;
         }
 
         OnViewChanged();
@@ -280,6 +302,19 @@ public sealed partial class MainViewModel : ObservableObject
         {
             IsBrowsing = false;
             IsSkins = false;
+            IsHosting = false;
+        }
+
+        OnViewChanged();
+    }
+
+    partial void OnIsHostingChanged(bool value)
+    {
+        if (value)
+        {
+            IsBrowsing = false;
+            IsSkins = false;
+            IsServers = false;
         }
 
         OnViewChanged();
@@ -312,7 +347,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateSidebar()
     {
         foreach (var link in SidebarLinks)
-            link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : link == _serversLink ? IsServers : IsSkins;
+            link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : link == _serversLink ? IsServers : link == _hostingLink ? IsHosting : IsSkins;
     }
 
     [RelayCommand]
@@ -334,6 +369,13 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (link == _hostingLink)
+        {
+            IsHosting = true;
+            await Hosting.OpenAsync();
+            return;
+        }
+
         IsSkins = true;
         await Skins.OpenAsync();
     }
@@ -346,6 +388,7 @@ public sealed partial class MainViewModel : ObservableObject
         IsBrowsing = false;
         IsSkins = false;
         IsServers = false;
+        IsHosting = false;
     }
 
     partial void OnSelectedInstanceChanged(InstanceItemViewModel? value)
@@ -356,6 +399,7 @@ public sealed partial class MainViewModel : ObservableObject
             IsBrowsing = false;
             IsSkins = false;
             IsServers = false;
+            IsHosting = false;
         }
 
         Servers.TargetInstance = value;

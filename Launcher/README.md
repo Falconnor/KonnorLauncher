@@ -29,6 +29,7 @@ src/
     Modrinth/                  ← búsqueda e instalación de contenido de Modrinth (Explorar)
     Players/                   ← skins: validación, galería de MineSkin y skins descargadas
     Servers/                   ← directorio de servidores, estado en vivo, ping, servers.dat y Favoritos
+    Hosting/                   ← servidores alojados en este equipo y publicación de su cliente (Kestrel)
   KonnorLauncher.App/          ← interfaz WPF (MVVM), assets y launcher.properties por defecto
     Controls/GlassPanel.cs     ← panel de cristal: desenfoca lo que hay detrás (WPF no tiene backdrop-filter)
     Themes/Glass.xaml          ← estilos glassmorphism (mismos tokens que el panel del servidor)
@@ -86,6 +87,9 @@ meta/                  ← compartido entre instancias (como en Modrinth)
 player/                ← skin y foto de perfil del jugador
   skins/               ← skins descargadas (sin aplicar) y su índice downloaded.json
 servers.json           ← Favoritos de la sección Servidores y la instancia creada para cada servidor
+hosting/<id>/          ← un servidor de la sección Hosting: konnor-server.json, server.jar, world, mods o plugins...
+  cliente/             ← archivos que reciben los jugadores además de los mods (config, resourcepacks...)
+  .konnor/             ← manifest publicado y caché de hashes
 ```
 
 Los iconos de Modrinth y las texturas de la galería de skins se guardan en una caché aparte,
@@ -124,9 +128,10 @@ Los iconos de Modrinth y las texturas de la galería de skins se guardan en una 
 
 La variable `KONNOR_DATA_DIR` cambia la carpeta de datos (útil para pruebas o una instalación portátil).
 
-## Explorar, Skins y Servidores
+## Explorar, Skins, Servidores y Hosting
 
-La barra lateral da acceso a tres secciones además de las instancias:
+La barra lateral da acceso a cuatro secciones además de las instancias (Hosting ocupa el lugar que
+tenía Shaders; los shaders siguen en la pestaña Shaders de Explorar):
 
 - **Explorar (Mods, Shaders y el resto de pestañas)**: busca en [Modrinth](https://modrinth.com) modpacks,
   mods, paquetes de recursos, data packs y shaders, con filtros (versión, cargador, categoría, entorno)
@@ -151,6 +156,74 @@ La barra lateral da acceso a tres secciones además de las instancias:
   servidor. En Favoritos, Jugar lo añade a la instancia seleccionada. Cada servidor muestra el ping
   desde este equipo (tiempo de abrir la conexión): verde hasta 80 ms, amarillo hasta 120 ms y rojo
   por encima. Los servidores que solo publican su puerto con un registro SRV pueden no mostrar ping.
+- **Hosting**: crear y gestionar servidores de Minecraft en este equipo. Reúne en el launcher lo que
+  hacían ServerManager (crear, descargar e iniciar servidores) y LauncherBackEnd (publicar el cliente
+  para la sincronización), sin necesitar Python ni esos proyectos. Ver [Hosting](#hosting).
+
+## Hosting
+
+**Crear servidor**: nombre, software, versión de Minecraft y del cargador (o build de Paper), memoria,
+puerto, MOTD, si solo admite cuentas premium y la aceptación del EULA de Minecraft. El launcher lo
+descarga e instala con las fuentes oficiales:
+
+| Software | Instalación |
+|---|---|
+| Vanilla | `server.jar` de Mojang (comprobado con su SHA-1) |
+| Paper | API Fill v3 de PaperMC (comprobado con su SHA-256) |
+| Fabric | Lanzador de servidor de `meta.fabricmc.net` y el `server.jar` de Mojang |
+| Quilt | Instalador oficial (`install server … --download-server`) |
+| Forge / NeoForge | Instalador oficial (`--installServer`); se arranca con su `win_args.txt` |
+
+El Java no se busca en el sistema: es el de Mojang que corresponde a la versión (el mismo que usa el
+juego, en `meta/runtime`), y CmlLib lo descarga si falta. Los servidores nuevos aceptan cuentas sin
+conexión (`online-mode=false`) y empiezan sin lista blanca.
+
+**Mis servidores** lista los servidores con su estado, jugadores conectados, tiempo activo y dirección.
+Cada servidor tiene su página:
+
+- **Consola**: la salida del servidor en vivo (avisos en amarillo, errores en rojo) y un campo de
+  comandos con historial (flechas arriba y abajo). Iniciar, detener (con `stop`, que guarda el
+  mundo), reiniciar y forzar el cierre.
+- **Configuración**: `server.properties` (MOTD, puerto, jugadores, distancia, dificultad, modo de
+  juego, premium, lista blanca, vuelo, extremo, semilla) conservando el resto del archivo y sus
+  comentarios; memoria e inicio automático al abrir el launcher; reinstalar y eliminar. PvP y bloques
+  de comandos solo aparecen en las versiones que todavía los tienen en `server.properties` (desde la
+  26.1 son reglas del juego).
+- **Jugadores**: todos los que entraron alguna vez (los archivos de `playerdata` del mundo y sus nombres
+  de `usercache.json`), con un punto verde si están conectados y gris si no; operador, expulsar y
+  banear, y acciones por nombre (operador, lista blanca, desbanear).
+- **Contenido**: mods o plugins (activar o desactivar, quitar) y accesos a las carpetas del servidor,
+  del mundo y del cliente. **Añadir mod** (**Añadir plugin** en Paper, **Explorar contenido** en Vanilla)
+  abre Explorar para ese servidor: a la derecha de las pestañas se avisa «Instalando en …» y todas las
+  pestañas instalan en él, con la versión de Minecraft del servidor (y, en mods y modpacks, su cargador y
+  el entorno «Servidor») marcados y bloqueados, para que no aparezca nada incompatible:
+
+  | Pestaña | Destino |
+  |---|---|
+  | Mods | `mods` (o `plugins` en Paper), con sus dependencias |
+  | Modpacks | Los archivos del servidor y `overrides` + `server-overrides` en el servidor; los de solo cliente y `client-overrides` en la carpeta del cliente (los reciben los jugadores) |
+  | Paquetes de recursos y Shaders | Carpeta del cliente (`resourcepacks`, `shaderpacks`): los reciben los jugadores al sincronizar |
+  | Data packs | `datapacks` del mundo del servidor |
+
+  Lo que el servidor no puede cargar (mods en Vanilla, modpacks en Paper o Vanilla) se avisa al abrir la
+  pestaña. **Desde un archivo…** copia un `.jar` del equipo.
+- **Sincronización**: lo que hacía LauncherBackEnd. Un servidor HTTP (Kestrel, dentro del launcher)
+  publica `client_manifest.json` con la versión y el cargador del servidor, sus mods y lo que haya en
+  la carpeta `cliente`, con la misma política que el panel (borrar lo no autorizado, requerir conexión,
+  bloquear la dirección, paquetes obligatorios) y además **unirse automáticamente** (activado por
+  defecto): el manifest publica `auto_join` y `server_address`, y el launcher de cada jugador entra
+  directamente al servidor al pulsar JUGAR. Con **paquetes de recursos obligatorios**, el servidor de
+  Minecraft también exige el primer `.zip` de `cliente/resourcepacks` (`resource-pack`,
+  `resource-pack-sha1` y `require-resource-pack` en `server.properties`, descargado de la propia
+  sincronización); un paquete puesto a mano se respeta. La **dirección pública** (opcional, un dominio o
+  IP fija) se usa para las dos cosas; vacía, la IP pública detectada. Solo se sirven los archivos del
+  manifest, y este se regenera solo cuando la carpeta deja de cambiar unos segundos. Paper y Vanilla
+  publican el juego sin cargador.
+
+La cabecera muestra la dirección de internet (consultada a `api.ipify.org`) y la de la red local.
+**Abrir el router** abre la página del router (la puerta de enlace) para redirigir los puertos a este
+equipo: cada router es distinto y pide su contraseña, así que no se intenta hacer automáticamente. Al
+cerrar el launcher con servidores en marcha, se pide confirmación y se detienen guardando sus mundos.
 
 ## Configuración (`launcher.properties`)
 

@@ -263,7 +263,10 @@ public sealed class ModrinthTests : IAsyncLifetime
     // ── Modpacks ─────────────────────────────────────────────────────────
 
     /// <summary>Publica un .mrpack con el índice y los overrides indicados.</summary>
-    private void PublishModpack(string project, object[] files, params (string Path, string Content)[] entries)
+    private void PublishModpack(string project, object[] files, params (string Path, string Content)[] entries) =>
+        PublishModpackFor("1.20.1", project, files, entries);
+
+    private void PublishModpackFor(string minecraft, string project, object[] files, params (string Path, string Content)[] entries)
     {
         using var stream = new MemoryStream();
         using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -272,7 +275,7 @@ public sealed class ModrinthTests : IAsyncLifetime
             {
                 formatVersion = 1,
                 game = "minecraft",
-                dependencies = new Dictionary<string, string> { ["minecraft"] = "1.20.1", ["fabric-loader"] = "0.15.11" },
+                dependencies = new Dictionary<string, string> { ["minecraft"] = minecraft, ["fabric-loader"] = "0.15.11" },
                 files,
             };
             using (var writer = new StreamWriter(zip.CreateEntry("modrinth.index.json").Open()))
@@ -287,7 +290,7 @@ public sealed class ModrinthTests : IAsyncLifetime
         MapJson(VersionsPath(project, null, null), new[] { Version("p1", project, File(project + ".mrpack", stream.ToArray())) });
     }
 
-    private object PackFile(string path, byte[] content, string client = "required")
+    private object PackFile(string path, byte[] content, string client = "required", string server = "required")
     {
         var served = Guid.NewGuid().ToString("N");
         _server.Map("/files/" + served, content);
@@ -295,7 +298,7 @@ public sealed class ModrinthTests : IAsyncLifetime
         {
             path,
             hashes = new { sha1 = Convert.ToHexStringLower(SHA1.HashData(content)), sha512 = Convert.ToHexStringLower(SHA512.HashData(content)) },
-            env = new { client, server = "required" },
+            env = new { client, server },
             downloads = new[] { $"{_server.BaseUrl}/files/{served}" },
             fileSize = content.Length,
         };
@@ -358,5 +361,120 @@ public sealed class ModrinthTests : IAsyncLifetime
         ContentInstaller.IsSafeFileName("sodium-0.6.jar").ShouldBeTrue();
         ContentInstaller.IsSafeFileName("..").ShouldBeFalse();
         ContentInstaller.IsSafeFileName("a\\b.jar").ShouldBeFalse();
+    }
+
+    // ── Hosting: instalar en un servidor ─────────────────────────────────
+
+    [Fact]
+    public void Paper_servers_search_plugins()
+    {
+        var facets = new SearchQuery { Type = ContentType.Mod, Loaders = ["paper", "spigot", "bukkit"], ProjectTypeOverride = "plugin" }.BuildFacets();
+        facets[0].ShouldBe(["project_type:plugin"]);
+        facets.ShouldContain(f => f.SequenceEqual(new[] { "categories:paper", "categories:spigot", "categories:bukkit" }));
+        new SearchQuery { Type = ContentType.Mod }.BuildFacets()[0].ShouldBe(["project_type:mod"]);
+    }
+
+    private static KonnorLauncher.Core.Hosting.HostedServer Server(KonnorLauncher.Core.Hosting.ServerSoftware software = KonnorLauncher.Core.Hosting.ServerSoftware.Fabric) =>
+        new() { Id = "srv", Name = "Srv", Software = software, MinecraftVersion = "1.21.1", LoaderVersion = "0.16.9" };
+
+    [Fact]
+    public async Task Server_install_goes_to_its_folder_with_dependencies()
+    {
+        var serverDir = _dir.Combine("hosting", "srv");
+        MapJson(VersionsPath("lithium", ["fabric"], "1.21.1"), new[]
+        {
+            Version("l1", "lithium", File("lithium.jar", "lithium"u8.ToArray()), deps: [new { project_id = "fabric-api", dependency_type = "required" }]),
+        });
+        MapJson(VersionsPath("fabric-api", ["fabric"], "1.21.1"), new[] { Version("f1", "fabric-api", File("fabric-api.jar", "api"u8.ToArray())) });
+
+        var result = await CreateInstaller().InstallIntoServerAsync(Server(), serverDir, Path.Combine(serverDir, "cliente"), "lithium", ContentType.Mod,
+            ct: TestContext.Current.CancellationToken);
+
+        result.FileName.ShouldBe("lithium.jar");
+        result.Dependencies.ShouldBe(["fabric-api.jar"]);
+        System.IO.File.ReadAllText(Path.Combine(serverDir, "mods", "lithium.jar")).ShouldBe("lithium");
+        System.IO.File.Exists(Path.Combine(serverDir, "mods", "fabric-api.jar")).ShouldBeTrue();
+        ContentInstaller.InstalledProjects(serverDir).ShouldBe(["lithium", "fabric-api"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task Server_install_sends_each_type_to_its_place()
+    {
+        var serverDir = _dir.Combine("hosting", "srv");
+        var clientDir = Path.Combine(serverDir, "cliente");
+        System.IO.Directory.CreateDirectory(serverDir);
+        System.IO.File.WriteAllText(Path.Combine(serverDir, "server.properties"), "level-name=mundo\n");
+        MapJson(VersionsPath("pack", ["minecraft"], "1.21.1"), new[] { Version("r1", "pack", File("pack.zip", "rp"u8.ToArray())) });
+        MapJson(VersionsPath("dp", ["datapack"], "1.21.1"), new[] { Version("d1", "dp", File("dp.zip", "dp"u8.ToArray())) });
+        MapJson(VersionsPath("shader", null, "1.21.1"), new[] { Version("s1", "shader", File("shader.zip", "sh"u8.ToArray())) });
+        var installer = CreateInstaller();
+
+        await installer.InstallIntoServerAsync(Server(), serverDir, clientDir, "pack", ContentType.ResourcePack, ct: TestContext.Current.CancellationToken);
+        await installer.InstallIntoServerAsync(Server(), serverDir, clientDir, "dp", ContentType.DataPack, ct: TestContext.Current.CancellationToken);
+        await installer.InstallIntoServerAsync(Server(), serverDir, clientDir, "shader", ContentType.Shader, ct: TestContext.Current.CancellationToken);
+
+        System.IO.File.Exists(Path.Combine(clientDir, "resourcepacks", "pack.zip")).ShouldBeTrue(); // lo reciben los jugadores
+        System.IO.File.Exists(Path.Combine(clientDir, "shaderpacks", "shader.zip")).ShouldBeTrue();
+        System.IO.File.Exists(Path.Combine(serverDir, "mundo", "datapacks", "dp.zip")).ShouldBeTrue(); // en el mundo del servidor
+    }
+
+    [Fact]
+    public async Task Server_install_rejects_another_loader_and_what_the_server_cannot_load()
+    {
+        var serverDir = _dir.Combine("hosting", "forge");
+        MapJson("/version/v9", Version("v9", "sodium", File("sodium.jar", "x"u8.ToArray()))); // solo Fabric
+        var forge = Server(KonnorLauncher.Core.Hosting.ServerSoftware.Forge);
+
+        await Should.ThrowAsync<ModrinthException>(() => CreateInstaller().InstallIntoServerAsync(forge, serverDir, serverDir + "/cliente", "sodium",
+            ContentType.Mod, ct: TestContext.Current.CancellationToken, versionId: "v9"));
+        Directory.Exists(Path.Combine(serverDir, "mods")).ShouldBeFalse();
+
+        var vanilla = Server(KonnorLauncher.Core.Hosting.ServerSoftware.Vanilla);
+        ContentInstaller.ServerBlockReason(vanilla, ContentType.Mod).ShouldNotBeNull();
+        ContentInstaller.ServerBlockReason(vanilla, ContentType.Modpack).ShouldNotBeNull();
+        ContentInstaller.ServerBlockReason(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Paper), ContentType.Modpack).ShouldNotBeNull();
+        ContentInstaller.ServerBlockReason(vanilla, ContentType.DataPack).ShouldBeNull();
+        ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Quilt), ContentType.Mod).ShouldBe(["quilt", "fabric"]);
+        ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Paper), ContentType.Mod).ShouldBe(["paper", "spigot", "bukkit"]);
+        await Should.ThrowAsync<ModrinthException>(() => CreateInstaller().InstallIntoServerAsync(vanilla, serverDir, serverDir + "/cliente", "sodium",
+            ContentType.Mod, ct: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Modpack_on_a_server_splits_server_and_client_files()
+    {
+        var serverDir = _dir.Combine("hosting", "srv");
+        var clientDir = Path.Combine(serverDir, "cliente");
+        PublishModpackFor("1.21.1", "pack",
+            [
+                PackFile("mods/comun.jar", "comun"u8.ToArray()),
+                PackFile("mods/solo-cliente.jar", "cliente"u8.ToArray(), server: "unsupported"),
+                PackFile("mods/solo-servidor.jar", "servidor"u8.ToArray(), client: "unsupported"),
+            ],
+            ("overrides/config/a.toml", "a=1"), ("server-overrides/config/a.toml", "a=servidor"), ("client-overrides/options.txt", "opciones"));
+
+        var count = await CreateInstaller().InstallModpackIntoServerAsync(Server(), serverDir, clientDir, "pack", ct: TestContext.Current.CancellationToken);
+
+        count.ShouldBe(3);
+        System.IO.File.Exists(Path.Combine(serverDir, "mods", "comun.jar")).ShouldBeTrue();
+        System.IO.File.Exists(Path.Combine(serverDir, "mods", "solo-servidor.jar")).ShouldBeTrue();
+        System.IO.File.Exists(Path.Combine(serverDir, "mods", "solo-cliente.jar")).ShouldBeFalse();
+        System.IO.File.Exists(Path.Combine(clientDir, "mods", "solo-cliente.jar")).ShouldBeTrue(); // lo reciben los jugadores
+        System.IO.File.ReadAllText(Path.Combine(serverDir, "config", "a.toml")).ShouldBe("a=servidor"); // server-overrides tiene prioridad
+        System.IO.File.ReadAllText(Path.Combine(clientDir, "options.txt")).ShouldBe("opciones");
+    }
+
+    [Fact]
+    public async Task Modpack_for_another_version_or_touching_server_files_is_rejected()
+    {
+        var serverDir = _dir.Combine("hosting", "srv");
+        PublishModpack("viejo", [PackFile("mods/x.jar", "x"u8.ToArray())]); // 1.21.1 en Modrinth, pero el índice dice 1.20.1
+        await Should.ThrowAsync<ModrinthException>(() => CreateInstaller().InstallModpackIntoServerAsync(Server(), serverDir, serverDir + "/cliente", "viejo",
+            ct: TestContext.Current.CancellationToken));
+
+        PublishModpackFor("1.21.1", "malo", [PackFile("eula.txt", "eula=true"u8.ToArray())]);
+        await Should.ThrowAsync<ModrinthException>(() => CreateInstaller().InstallModpackIntoServerAsync(Server(), serverDir, serverDir + "/cliente", "malo",
+            ct: TestContext.Current.CancellationToken));
+        System.IO.File.Exists(Path.Combine(serverDir, "eula.txt")).ShouldBeFalse();
     }
 }

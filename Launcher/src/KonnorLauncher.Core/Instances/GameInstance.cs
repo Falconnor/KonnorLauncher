@@ -100,6 +100,12 @@ public sealed partial class GameInstance
     /// </summary>
     public bool ServerProtectsPacks { get; set; }
 
+    /// <summary>
+    /// <c>auto_join</c> del servidor: dirección del servidor de Minecraft al que el juego entra directamente
+    /// al pulsar JUGAR (null = el servidor no lo pide).
+    /// </summary>
+    public string? ServerAutoJoin { get; set; }
+
     /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
     [JsonIgnore]
     public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;

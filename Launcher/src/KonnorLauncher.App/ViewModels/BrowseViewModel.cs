@@ -93,6 +93,55 @@ public sealed partial class BrowseViewModel : ObservableObject
     /// <summary>Llegaron resultados nuevos (la vista vuelve arriba).</summary>
     public event EventHandler? ResultsReplaced;
 
+    /// <summary>Se instaló contenido en un servidor de Hosting (id del servidor).</summary>
+    public event EventHandler<string>? ServerContentChanged;
+
+    /// <summary>«Volver al servidor» desde el aviso de instalación en un servidor.</summary>
+    public event EventHandler<string>? ReturnToServerRequested;
+
+    /// <summary>Servidor de Hosting en el que se instala (null = Explorar normal, para las instancias).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsServerMode), nameof(ServerTargetText))]
+    private ServerInstallTarget? _serverTarget;
+
+    public bool IsServerMode => ServerTarget is not null;
+    public string ServerTargetText => ServerTarget is { } t ? $"Instalando en «{t.Name}»" : string.Empty;
+
+    /// <summary>
+    /// Abre Mods para instalar en un servidor de Hosting: su cargador, su versión de Minecraft y el entorno
+    /// «Servidor» quedan marcados y bloqueados, así no aparecen mods de otros cargadores.
+    /// </summary>
+    public async Task OpenForServerAsync(ServerInstallTarget target)
+    {
+        Notice = null;
+        ServerTarget = target;
+        if (!_tagsLoaded)
+        {
+            ActiveType = target.StartType;
+            await OpenCoreAsync();
+            return;
+        }
+
+        SelectType(target.StartType, keepText: false);
+    }
+
+    /// <summary>Deja de instalar en el servidor: Mods vuelve a ser el de las instancias.</summary>
+    [RelayCommand]
+    private void ExitServerMode()
+    {
+        if (ServerTarget is null)
+            return;
+        ServerTarget = null;
+        SelectType(ActiveType, keepText: true);
+    }
+
+    [RelayCommand]
+    private void ReturnToServer()
+    {
+        if (ServerTarget is { } target)
+            ReturnToServerRequested?.Invoke(this, target.ServerId);
+    }
+
     public ObservableCollection<BrowseTab> Tabs { get; }
     public ObservableCollection<ProjectCard> Results { get; } = [];
     public ObservableCollection<PageItem> Pages { get; } = [];
@@ -181,7 +230,13 @@ public sealed partial class BrowseViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════════
 
     /// <summary>Abre la página (la primera vez carga las listas de categorías, cargadores y versiones).</summary>
-    public async Task OpenAsync()
+    public Task OpenAsync()
+    {
+        ServerTarget = null;
+        return OpenCoreAsync();
+    }
+
+    private async Task OpenCoreAsync()
     {
         Notice = null;
         if (!_tagsLoaded)
@@ -335,6 +390,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     /// <summary>Abre la página en una pestaña concreta (los accesos de la barra lateral).</summary>
     public Task OpenAsync(ContentType type)
     {
+        ServerTarget = null; // desde la barra lateral es Explorar normal
         if (!_tagsLoaded)
         {
             ActiveType = type; // se selecciona al terminar de cargar las listas
@@ -370,8 +426,10 @@ public sealed partial class BrowseViewModel : ObservableObject
         var current = ++_tabSwitch;
         if (System.Windows.SystemParameters.ClientAreaAnimation)
             await Task.Delay(TabAnimation);
-        if (current == _tabSwitch && tab.IsActive)
-            SelectType(tab.Type, keepText: false);
+        if (current != _tabSwitch || !tab.IsActive)
+            return;
+        // Con un servidor de destino, todas las pestañas instalan en él (cada una con sus filtros fijos).
+        SelectType(tab.Type, keepText: false);
     }
 
     private void SelectType(ContentType type, bool keepText)
@@ -418,8 +476,61 @@ public sealed partial class BrowseViewModel : ObservableObject
         SplitLoaders();
 
         OpenSourceOnly = false;
+        ApplyServerLocks();
         OnPropertyChanged(nameof(ShowFeatures));
         OnPropertyChanged(nameof(ShowLoaders));
+    }
+
+    /// <summary>
+    /// Con un servidor de destino, en cualquier pestaña: su versión de Minecraft y, si el tipo depende del
+    /// cargador (mods, plugins, modpacks), el suyo, marcados y bloqueados; en mods y modpacks, también «Servidor».
+    /// </summary>
+    private void ApplyServerLocks()
+    {
+        if (ServerTarget is not { } target)
+            return;
+        var server = target.Server;
+        var loaders = ContentInstaller.ServerLoaders(server, ActiveType);
+        if (loaders is not null && ActiveType is ContentType.Mod or ContentType.Modpack)
+        {
+            foreach (var loader in loaders)
+            {
+                // Los de plugins (Paper, Spigot, Bukkit) no salen en la lista de un jugador: se añaden.
+                if (Loaders.All(l => l.Value != loader))
+                    Loaders.Add(new FilterOption(loader, BrowseText.Loader(loader), FiltersChanged));
+            }
+
+            foreach (var loader in Loaders)
+            {
+                loader.IsActive = loaders.Contains(loader.Value);
+                loader.IsLocked = true;
+            }
+
+            SplitLoaders();
+        }
+
+        if (GameVersions.All(v => v.Value != server.MinecraftVersion))
+            GameVersions.Insert(0, new FilterOption(server.MinecraftVersion, server.MinecraftVersion, FiltersChanged));
+        foreach (var version in GameVersions)
+        {
+            version.IsActive = version.Value == server.MinecraftVersion;
+            version.IsLocked = true;
+        }
+
+        if (ActiveType is ContentType.Mod or ContentType.Modpack)
+        {
+            foreach (var environment in Environments)
+            {
+                environment.IsActive = environment.Value == "server";
+                environment.IsLocked = true;
+            }
+        }
+
+        // Lo que este servidor no puede cargar (mods en Vanilla, modpacks en Paper): se avisa ya.
+        if (ContentInstaller.ServerBlockReason(server, ActiveType) is { } reason)
+            ShowNotice(reason, error: true);
+        else if (IsNoticeError)
+            Notice = null;
     }
 
     /// <summary>
@@ -460,6 +571,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         var suspended = _suspend;
         _suspend = true;
         BuildGameVersions(selected);
+        ApplyServerLocks(); // en un servidor, su versión sigue fija
         _suspend = suspended;
     }
 
@@ -486,7 +598,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         _suspend = true;
         foreach (var category in Categories)
             category.State = CategoryState.None;
-        foreach (var option in Features.Concat(Environments).Concat(GameVersions).Concat(Loaders))
+        foreach (var option in Features.Concat(Environments).Concat(GameVersions).Concat(Loaders).Where(o => !o.IsLocked))
             option.IsActive = false;
         OpenSourceOnly = false;
         _suspend = false;
@@ -499,7 +611,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         foreach (var category in Categories.Where(c => c.State != CategoryState.None))
             Chips.Add(new FilterChip(category.IsExcluded ? $"Sin {category.Label.ToLowerInvariant()}" : category.Label, category.IsExcluded,
                 () => category.State = CategoryState.None));
-        foreach (var option in Features.Concat(Environments).Concat(GameVersions).Concat(Loaders).Where(o => o.IsActive))
+        foreach (var option in Features.Concat(Environments).Concat(GameVersions).Concat(Loaders).Where(o => o.IsActive && !o.IsLocked))
             Chips.Add(new FilterChip(option.Label, false, () => option.IsActive = false));
         if (OpenSourceOnly)
             Chips.Add(new FilterChip("Código abierto", false, () => OpenSourceOnly = false));
@@ -615,6 +727,8 @@ public sealed partial class BrowseViewModel : ObservableObject
             ? Environments.Where(e => e.IsActive).Select(e => e.Value == "client" ? ProjectEnvironment.Client : ProjectEnvironment.Server).ToList()
             : [],
         OpenSourceOnly = OpenSourceOnly,
+        // Un servidor Paper instala plugins: en Modrinth son su propio tipo de proyecto.
+        ProjectTypeOverride = ActiveType == ContentType.Mod && ServerTarget?.Server.Software == KonnorLauncher.Core.Hosting.ServerSoftware.Paper ? "plugin" : null,
     };
 
     private async Task SearchAsync(TimeSpan delay, CancellationToken ct)
@@ -633,7 +747,7 @@ public sealed partial class BrowseViewModel : ObservableObject
             Results.Clear();
             foreach (var hit in page.Hits)
             {
-                var card = new ProjectCard(hit, ActiveType, InstallAsync);
+                var card = new ProjectCard(hit, ActiveType, InstallAsync, forServer: IsServerMode);
                 Results.Add(card);
                 _ = LoadIconAsync(card);
             }
@@ -723,6 +837,12 @@ public sealed partial class BrowseViewModel : ObservableObject
     private async Task InstallAsync(ProjectCard card, string? versionId)
     {
         Notice = null;
+        if (ServerTarget is { } server)
+        {
+            await InstallIntoServerAsync(card, server, versionId);
+            return;
+        }
+
         GameInstance? target = null;
         if (!card.Type.CreatesInstance())
         {
@@ -786,6 +906,59 @@ public sealed partial class BrowseViewModel : ObservableObject
                                        or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
         {
             _logger.LogWarning(ex, "No se pudo instalar {Project}", card.Hit.ProjectId);
+            card.State = CardState.Available;
+            ShowNotice($"No se pudo instalar {card.Title}: {ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>Instala el mod o plugin en la carpeta del servidor de Hosting (sin preguntar dónde).</summary>
+    private async Task InstallIntoServerAsync(ProjectCard card, ServerInstallTarget server, string? versionId)
+    {
+        var progress = new Progress<InstallProgress>(p =>
+        {
+            card.IsProgressKnown = p.Percent is not null;
+            card.Progress = p.Percent ?? 0;
+        });
+        card.State = CardState.Installing;
+        try
+        {
+            if (ContentInstaller.ServerBlockReason(server.Server, card.Type) is { } reason)
+                throw new ModrinthException(reason);
+            if (card.Type == ContentType.Modpack)
+            {
+                var count = await Task.Run(() => _installer.InstallModpackIntoServerAsync(server.Server, server.ServerDir, server.ClientDir,
+                    card.Hit.ProjectId, progress, versionId: versionId));
+                card.State = CardState.Installed;
+                ShowNotice($"Modpack {card.Title} instalado en el servidor «{server.Name}» ({count} archivos; lo de solo cliente va a la carpeta del cliente). Reinícialo para cargarlo.");
+                ServerContentChanged?.Invoke(this, server.ServerId);
+                return;
+            }
+
+            var result = await Task.Run(() => _installer.InstallIntoServerAsync(server.Server, server.ServerDir, server.ClientDir,
+                card.Hit.ProjectId, card.Type, progress, versionId: versionId));
+            card.State = CardState.Installed;
+            var extra = result.Dependencies.Count switch
+            {
+                0 => string.Empty,
+                1 => " y 1 dependencia",
+                var n => $" y {n} dependencias",
+            };
+            var missing = result.MissingDependencies.Count > 0
+                ? $" No se encontró versión compatible de {result.MissingDependencies.Count} dependencia(s): puede que no funcione."
+                : string.Empty;
+            var where = card.Type switch
+            {
+                ContentType.ResourcePack or ContentType.Shader => "en la carpeta del cliente (lo reciben los jugadores al sincronizar)",
+                ContentType.DataPack => "en el mundo del servidor. Reinícialo para cargarlo",
+                _ => "en el servidor. Reinícialo para cargarlo",
+            };
+            ShowNotice($"{card.Title}{extra} instalado en «{server.Name}», {where}.{missing}", error: missing.Length > 0);
+            ServerContentChanged?.Invoke(this, server.ServerId);
+        }
+        catch (Exception ex) when (ex is ModrinthException or IOException or UnauthorizedAccessException or InvalidDataException
+                                       or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
+        {
+            _logger.LogWarning(ex, "No se pudo instalar {Project} en el servidor {Server}", card.Hit.ProjectId, server.ServerId);
             card.State = CardState.Available;
             ShowNotice($"No se pudo instalar {card.Title}: {ex.Message}", error: true);
         }

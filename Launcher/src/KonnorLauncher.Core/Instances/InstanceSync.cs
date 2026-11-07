@@ -79,6 +79,7 @@ public sealed class InstanceSync
                 game = m.Game;
                 instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
                 instance.ServerLocksUrl = m.LockServerUrl ?? true;
+                instance.ServerAutoJoin = m.AutoJoinAddress;
                 ApplyPacksPolicy(instance, m);
                 if (m.Released == true)
                     instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
@@ -162,6 +163,7 @@ public sealed class InstanceSync
                 instance.AvailableClientVersion = manifest.ClientVersion;
             instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
             instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
+            instance.ServerAutoJoin = manifest.AutoJoinAddress;
             ApplyPacksPolicy(instance, manifest);
             if (manifest.Released == true)
                 instance.ServerReleased = true;
@@ -221,6 +223,7 @@ public sealed class InstanceSync
         to.ServerLocksUrl = from.ServerLocksUrl;
         to.ServerReleased |= from.ServerReleased; // irreversible
         to.ServerProtectsPacks = from.ServerProtectsPacks;
+        to.ServerAutoJoin = from.ServerAutoJoin;
         to.InstallPacks |= from.ServerProtectsPacks;
         to.AvailableClientVersion = from.AvailableClientVersion;
     }
@@ -230,6 +233,7 @@ public sealed class InstanceSync
         || a.ServerLocksUrl != b.ServerLocksUrl
         || a.ServerReleased != b.ServerReleased
         || a.ServerProtectsPacks != b.ServerProtectsPacks
+        || a.ServerAutoJoin != b.ServerAutoJoin
         || a.InstallPacks != b.InstallPacks
         || a.AvailableClientVersion != b.AvailableClientVersion;
 

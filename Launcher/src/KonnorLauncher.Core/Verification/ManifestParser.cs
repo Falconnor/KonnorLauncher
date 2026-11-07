@@ -59,7 +59,18 @@ public static partial class ManifestParser
         // Política del servidor (solo cuenta un booleano; si falta, null).
         return new ClientManifest(clientVersion, files, blocks,
             ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"),
-            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"), ParseGame(root));
+            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"), ParseGame(root), ParseAutoJoin(root));
+    }
+
+    /// <summary>
+    /// <c>auto_join: true</c> con <c>server_address</c> válida (<c>host</c> o <c>host:puerto</c>) → dirección
+    /// normalizada. Si falta o no es válida, null: se juega sin entrar a ningún servidor (no se rechaza el manifest).
+    /// </summary>
+    private static string? ParseAutoJoin(JsonElement root)
+    {
+        if (ReadFlag(root, "auto_join") != true)
+            return null;
+        return Servers.ServerAddress.TryParse(ReadString(root, "server_address"), out var address) ? address.ToString() : null;
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ using KonnorLauncher.App.ViewModels;
 using KonnorLauncher.App.Views;
 using KonnorLauncher.Core;
 using KonnorLauncher.Core.Configuration;
+using KonnorLauncher.Core.Hosting;
 using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Launching;
 using KonnorLauncher.Core.Loaders;
@@ -105,7 +106,7 @@ public partial class App : Application
         // La lista de versiones de Mojang, los manifests de las instancias sincronizadas y la primera página
         // de Explorar (así se abre al instante) se piden en segundo plano para no retrasar el arranque.
         var main = _host.Services.GetRequiredService<MainViewModel>();
-        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync(), main.Browse.PrefetchAsync());
+        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync(), main.Browse.PrefetchAsync(), main.Hosting.AutoStartAsync());
     }
 
     /// <summary>Registro de servicios (Core + ViewModels + vistas).</summary>
@@ -157,6 +158,13 @@ public partial class App : Application
             AutomaticDecompression = System.Net.DecompressionMethods.All,
         });
 
+        // IP pública para la sección Hosting (api.ipify.org devuelve solo la IP en texto).
+        services.AddHttpClient(NetworkAccess.HttpClientName, c =>
+        {
+            c.Timeout = Timeout.InfiniteTimeSpan;
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        });
+
         // Modrinth: pide identificar el programa en el User-Agent (sin datos del jugador).
         services.AddHttpClient(ModrinthClient.HttpClientName, c =>
         {
@@ -189,6 +197,12 @@ public partial class App : Application
         services.AddSingleton(sp => new ServerDirectoryClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerDirectoryClient>>()));
         services.AddSingleton(sp => new ServerStatusClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerStatusClient>>()));
         services.AddSingleton(sp => new ServerLibrary(LauncherPaths.DataDir, sp.GetRequiredService<ILogger<ServerLibrary>>()));
+        // Hosting: servidores alojados en este equipo (en %APPDATA%\KonnorLauncher\hosting) y publicación del cliente.
+        services.AddSingleton(sp => new HostedServerStore(System.IO.Path.Combine(LauncherPaths.DataDir, "hosting"), sp.GetRequiredService<ILogger<HostedServerStore>>()));
+        services.AddSingleton(sp => new ServerInstaller(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), LauncherPaths.MetaDir, sp.GetRequiredService<ILogger<ServerInstaller>>()));
+        services.AddSingleton<ServerSoftwareCatalog>();
+        services.AddSingleton<NetworkAccess>();
+        services.AddSingleton<HostingService>();
 
         // UI.
         services.AddSingleton<IDialogService, DialogService>();
@@ -198,6 +212,7 @@ public partial class App : Application
         services.AddSingleton<BrowseViewModel>();
         services.AddSingleton<SkinsViewModel>();
         services.AddSingleton<ServersViewModel>();
+        services.AddSingleton<HostingViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
         services.AddSingleton<ConfirmViewModel>();

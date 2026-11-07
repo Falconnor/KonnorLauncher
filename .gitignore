@@ -17,3 +17,6 @@ desktop.ini
 
 # Lista de pruebas (documento local)
 PRUEBAS.md
+
+# Gestor de servidores (proyecto local, solo de referencia)
+ServerManager/

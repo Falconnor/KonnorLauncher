@@ -1,0 +1,1024 @@
+<UserControl x:Class="KonnorLauncher.App.Views.HostingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
+             xmlns:conv="clr-namespace:KonnorLauncher.App.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:HostingViewModel}">
+    <UserControl.Resources>
+        <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
+
+        <SolidColorBrush x:Key="RowFill" Color="#0AFFFFFF" />
+        <SolidColorBrush x:Key="RowFillHover" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="Offline" Color="#66F3F5F7" />
+        <SolidColorBrush x:Key="ErrorText" Color="#FCA5A5" />
+        <SolidColorBrush x:Key="ConsoleFill" Color="#59000000" />
+
+        <!-- ── Select integrado con el fondo (como en Mods y Servidores) ── -->
+        <Style x:Key="GlassSelect" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource RadiusButton}" Padding="2,0,8,0">
+                            <DockPanel>
+                                <TextBlock x:Name="Chevron" DockPanel.Dock="Right" Text="{StaticResource IconChevronDown}" Style="{StaticResource Icon}"
+                                           FontSize="10" Margin="10,0,0,0" Foreground="{StaticResource Ink3}" RenderTransformOrigin="0.5,0.5" />
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Setter TargetName="Chevron" Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Setter TargetName="Chevron" Property="RenderTransform"><Setter.Value><RotateTransform Angle="180" /></Setter.Value></Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MenuPanel" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource MenuGlass}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineStrong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="6" />
+        </Style>
+
+        <!-- «Versión: 1.21.4 ▾» y su menú -->
+        <DataTemplate x:Key="FilterSelect" DataType="{x:Type vm:ServerFilter}">
+            <Grid Margin="0,0,16,0">
+                <ToggleButton x:Name="Toggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsOpen}" AutomationProperties.Name="{Binding Name}">
+                    <TextBlock>
+                        <Run Text="{Binding Name, Mode=OneWay}" /><Run Text=":" /> <Run Text="{Binding SelectedLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                    </TextBlock>
+                </ToggleButton>
+                <Popup IsOpen="{Binding IsOpen}" PlacementTarget="{Binding ElementName=Toggle}" Placement="Bottom"
+                       StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="200">
+                    <Border Style="{StaticResource MenuPanel}">
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="360" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Options}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ServerChoice}">
+                                        <Button Style="{StaticResource ListOption}" Command="{Binding ChooseCommand}" AutomationProperties.Name="{Binding Label}">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="{StaticResource IconCheck}" Style="{StaticResource Icon}" FontSize="11"
+                                                           Margin="12,0,0,0" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                            </DockPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Fila: se aclara con el ratón -->
+        <Style x:Key="ServerRow" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource RowFill}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource RadiusGroup}" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource RowFillHover}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Bloque de ajustes (sin resaltar del fondo) -->
+        <Style x:Key="Section" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource RowFill}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource RadiusGroup}" />
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="Meta" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource Ink3}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+        </Style>
+
+        <!-- Copiar: el icono pasa a ✓ un momento (Tag = la propiedad «copiado») -->
+        <Style x:Key="CopyButton" TargetType="Button" BasedOn="{StaticResource IconOnlyButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Content" Value="&#xE8C8;" />
+            <Setter Property="ToolTip" Value="Copiar" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Content" Value="{StaticResource IconCheck}" />
+                    <Setter Property="Foreground" Value="{StaticResource Ok}" />
+                    <Setter Property="ToolTip" Value="Copiada" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Punto de estado: verde en línea, amarillo arrancando o deteniéndose, gris detenido -->
+        <Style x:Key="StateDot" TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+            <Setter Property="Fill" Value="{StaticResource Offline}" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource Ok}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsStarting}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsStopping}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource Warn}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Icono de cada software, con su inicial -->
+        <DataTemplate x:Key="SoftwareTile">
+            <Border Width="52" Height="52" CornerRadius="12" Background="{StaticResource TileBackground}">
+                <TextBlock Text="{Binding Initial}" FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource Ink2}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </DataTemplate>
+
+        <!-- Opción de software al crear: tarjeta con nombre y descripción, resaltada en gris al elegirla -->
+        <Style x:Key="SoftwareCard" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{StaticResource RowFill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusRow}" Padding="14,11" Margin="0,0,8,8">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowFillHover}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowSelected}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource HairlineStrong}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Línea de la consola, coloreada por nivel -->
+        <DataTemplate x:Key="ConsoleLineTemplate" DataType="{x:Type vm:ConsoleLine}">
+            <TextBlock x:Name="Line" Text="{Binding Text}" TextWrapping="Wrap" Foreground="{StaticResource Ink2}" />
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="Warning">
+                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Warn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Error">
+                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource ErrorText}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Command">
+                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Ink}" />
+                    <Setter TargetName="Line" Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="Launcher">
+                    <Setter TargetName="Line" Property="Foreground" Value="{StaticResource Ink3}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <Style x:Key="SmallGlass" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="0,8,0,0">
+        <!-- ═══════════════ Lista y creación ═══════════════ -->
+        <DockPanel Visibility="{Binding IsDetail, Converter={StaticResource InverseBoolToVisibility}}">
+            <!-- Pestañas, subrayadas sobre una línea fina (como en Mods y Servidores) -->
+            <Grid DockPanel.Dock="Top" Height="50" Margin="0,-8,0,18">
+                <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
+                <StackPanel Orientation="Horizontal" KeyboardNavigation.TabNavigation="Once">
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="HostingTabs" IsChecked="{Binding IsServersTab}"
+                                 AutomationProperties.Name="Mis servidores" ToolTip="Los servidores alojados en este equipo">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Mis servidores" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="HostingTabs" IsChecked="{Binding IsCreateTab}"
+                                 AutomationProperties.Name="Crear servidor" ToolTip="Elegir versión y software, descargarlo e instalarlo">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Crear servidor" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </Grid>
+
+            <Grid>
+                <!-- ── Mis servidores ── -->
+                <Grid Visibility="{Binding IsList, Converter={StaticResource BoolToVisibility}}">
+                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Servers}" Margin="0,0,6,0" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:HostedServerViewModel}">
+                                    <Border Style="{StaticResource ServerRow}" Cursor="Hand" MouseLeftButtonUp="OnRowClick">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SoftwareTile}" Focusable="False"
+                                                            VerticalAlignment="Top" Margin="0,0,14,0" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{StaticResource Ink2}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                                                        <Ellipse Style="{StaticResource StateDot}" />
+                                                        <TextBlock Text="{Binding StateText}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink2}" Margin="0" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding PlayersText}" Style="{StaticResource Meta}"
+                                                               Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding UptimeText}" Style="{StaticResource Meta}"
+                                                               Visibility="{Binding UptimeText, Converter={StaticResource TextToVisibility}}" />
+                                                    <TextBlock Text="{Binding LanAddress}" Style="{StaticResource Meta}" ToolTip="Dirección en tu red local" />
+                                                </WrapPanel>
+                                                <ProgressBar Style="{StaticResource GlassProgressBar}" Margin="0,10,0,0" Value="{Binding ProgressValue}" MaxWidth="420"
+                                                             HorizontalAlignment="Left" Width="420" IsIndeterminate="{Binding IsProgressKnown, Converter={StaticResource InverseBool}}"
+                                                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource ErrorText}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                           Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                                                <Button Style="{StaticResource QuietButton}" Height="36" FontSize="13.5" Margin="0,0,8,0" Content="Cancelar"
+                                                        Command="{Binding CancelWorkCommand}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                                                <Button Style="{StaticResource GlassButton}" Height="36" MinWidth="100" FontSize="14" Margin="0,0,8,0" Content="Gestionar"
+                                                        Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Gestionar {0}}" />
+                                                <Grid>
+                                                    <Button Height="36" MinWidth="100" FontSize="14" Command="{Binding StartCommand}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat=Iniciar {0}}"
+                                                            Visibility="{Binding IsStopped, Converter={StaticResource BoolToVisibility}}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                                                                <Setter Property="Content" Value="Iniciar" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                                        <Setter Property="Content" Value="Preparando…" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Style="{StaticResource GlassButton}" Height="36" MinWidth="100" FontSize="14" Content="Detener"
+                                                            Command="{Binding StopCommand}" AutomationProperties.Name="{Binding Name, StringFormat=Detener {0}}"
+                                                            Visibility="{Binding IsAlive, Converter={StaticResource BoolToVisibility}}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
+                                Visibility="{Binding HasNoServers, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Todavía no tienes servidores" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Ink}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Crea uno eligiendo la versión y el software (Vanilla, Paper, Fabric, Forge, NeoForge o Quilt): el launcher lo descarga, lo instala y lo gestiona desde aquí."
+                                   Foreground="{StaticResource Ink2}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,16" />
+                        <Button Style="{StaticResource AccentButton}" HorizontalAlignment="Center" Padding="22,0" Content="Crear servidor"
+                                Click="OnCreateClick" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── Crear servidor ── -->
+                <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding IsCreate, Converter={StaticResource BoolToVisibility}}">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="860" /><ColumnDefinition Width="0" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,14,12">
+                        <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="40" Tag="Por ejemplo: Survival con amigos"
+                                 Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nombre del servidor" />
+
+                        <TextBlock Text="Software" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                        <ItemsControl ItemsSource="{Binding SoftwareOptions}" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:SoftwareOption}">
+                                    <Button Style="{StaticResource SoftwareCard}" AutomationProperties.Name="{Binding Name}"
+                                            Command="{Binding DataContext.SelectSoftwareCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Right" Text="{StaticResource IconCheck}" Style="{StaticResource Icon}" FontSize="11"
+                                                           Foreground="{StaticResource Ok}" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" />
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Description}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Versión de Minecraft y del cargador, integradas con el fondo -->
+                        <WrapPanel Margin="0,12,0,0">
+                            <ContentControl Content="{Binding MinecraftVersion}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False"
+                                            IsEnabled="{Binding IsLoadingVersions, Converter={StaticResource InverseBool}}" />
+                            <ContentControl Content="{Binding LoaderVersion}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False"
+                                            Visibility="{Binding HasLoader, Converter={StaticResource BoolToVisibility}}" ToolTip="{Binding LoaderLabel}" />
+                        </WrapPanel>
+                        <TextBlock Text="Cargando versiones…" Style="{StaticResource Hint}" Margin="2,4,0,0"
+                                   Visibility="{Binding IsLoadingVersions, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding VersionStatus}" Style="{StaticResource Hint}" Margin="2,4,0,0"
+                                   Visibility="{Binding VersionStatus, Converter={StaticResource TextToVisibility}}" />
+
+                        <Border Style="{StaticResource Section}" Margin="0,18,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Memoria" Style="{StaticResource SectionTitle}" Margin="0,0,0,8" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding NewMemoryText}" FontWeight="SemiBold" Width="80" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <Slider Style="{StaticResource GlassSlider}" VerticalAlignment="Center"
+                                            Minimum="{Binding MemoryMinMb}" Maximum="{Binding MemoryMaxMb}" Value="{Binding NewMemoryMb}"
+                                            TickFrequency="{Binding MemoryStepMb}" IsSnapToTickEnabled="True"
+                                            SmallChange="{Binding MemoryStepMb}" LargeChange="1024" AutomationProperties.Name="Memoria del servidor" />
+                                </DockPanel>
+                                <TextBlock Text="Con mods conviene dar 6 GB o más; Vanilla y Paper funcionan bien con 2 a 4 GB." Style="{StaticResource Hint}" Margin="0,8,0,0" />
+
+                                <Grid Margin="0,18,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Puerto" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="5" Tag="25565"
+                                                 Text="{Binding NewPortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Puerto" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Mensaje de la lista de servidores (MOTD)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="120" Tag="Por defecto, el nombre del servidor"
+                                                 Text="{Binding NewMotd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="MOTD" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,18,0,0" IsChecked="{Binding NewPremiumOnly}"
+                                          AutomationProperties.Name="Solo cuentas premium">
+                                    <StackPanel>
+                                        <TextBlock Text="Solo cuentas premium" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   Text="Desactivado, se puede entrar con las cuentas sin conexión de este launcher (online-mode=false)." />
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding AcceptEula}" Margin="0,4,0,0"
+                                  AutomationProperties.Name="Acepto el EULA de Minecraft">
+                            <StackPanel>
+                                <TextBlock Text="Acepto el EULA de Minecraft" FontWeight="SemiBold" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0">
+                                    <Run Text="Mojang lo exige para iniciar cualquier servidor." />
+                                    <Hyperlink Command="{Binding OpenEulaCommand}" Foreground="{StaticResource Ink2}">Leer el EULA</Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
+                        </CheckBox>
+
+                        <DockPanel Margin="0,22,0,0">
+                            <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Padding="24,0" Height="40" Content="Crear servidor"
+                                    Command="{Binding CreateCommand}" IsEnabled="{Binding CanCreate}" AutomationProperties.Name="Crear servidor" />
+                            <TextBlock Text="{Binding CreateError}" Foreground="{StaticResource ErrorText}" FontSize="13" TextWrapping="Wrap"
+                                       VerticalAlignment="Center" Margin="16,0,0,0" />
+                        </DockPanel>
+                    </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </DockPanel>
+
+        <!-- ═══════════════ Página de un servidor ═══════════════ -->
+        <DockPanel DataContext="{Binding Selected}" Visibility="{Binding DataContext.IsDetail, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}"
+                   d:DataContext="{d:DesignInstance Type=vm:HostedServerViewModel}">
+            <!-- Cabecera: volver, nombre, estado, direcciones e Iniciar/Detener -->
+            <Grid DockPanel.Dock="Top" Margin="0,-4,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Style="{StaticResource IconOnlyButton}" Content="&#xE72B;" FontSize="13" Width="34" Height="34" VerticalAlignment="Top" Margin="0,9,10,0"
+                        Command="{Binding DataContext.BackCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        ToolTip="Volver a Mis servidores" AutomationProperties.Name="Volver" />
+                <ContentControl Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource SoftwareTile}" Focusable="False" Margin="0,0,14,0" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis" />
+                    <WrapPanel Margin="0,4,0,0">
+                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink2}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                            <Ellipse Style="{StaticResource StateDot}" />
+                            <TextBlock Text="{Binding StateText}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink2}" Margin="0" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding PlayersText}" Style="{StaticResource Meta}" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding UptimeText}" Style="{StaticResource Meta}" Visibility="{Binding UptimeText, Converter={StaticResource TextToVisibility}}" />
+                    </WrapPanel>
+                    <!-- Direcciones para los jugadores -->
+                    <WrapPanel Margin="0,4,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,14,0" Visibility="{Binding PublicAddress, Converter={StaticResource TextToVisibility}}">
+                            <TextBlock Text="Internet:" Style="{StaticResource Meta}" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding PublicAddress}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink}" Margin="0,0,2,0" />
+                            <Button Style="{StaticResource CopyButton}" Tag="{Binding IsCopied}" Command="{Binding CopyAddressCommand}" CommandParameter="public"
+                                    AutomationProperties.Name="Copiar dirección de internet" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                            <TextBlock Text="Red local:" Style="{StaticResource Meta}" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding LanAddress}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink}" Margin="0,0,2,0" />
+                            <Button Style="{StaticResource CopyButton}" Tag="{Binding IsLanCopied}" Command="{Binding CopyAddressCommand}" CommandParameter="lan"
+                                    AutomationProperties.Name="Copiar dirección de la red local" />
+                        </StackPanel>
+                        <Button Style="{StaticResource QuietButton}" Height="28" FontSize="12.5" Padding="10,0" Command="{Binding OpenRouterCommand}"
+                                ToolTip="{Binding RouterTip}" AutomationProperties.Name="Abrir el router">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Abrir el router" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding PortMessage}" Style="{StaticResource Hint}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding PortMessage, Converter={StaticResource TextToVisibility}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Top" Margin="14,6,0,0">
+                    <Button Style="{StaticResource IconOnlyButton}" Width="36" Height="36" FontSize="13" Content="{StaticResource IconFolder}" Margin="0,0,4,0"
+                            Command="{Binding OpenFolderCommand}" ToolTip="Abrir la carpeta del servidor" AutomationProperties.Name="Abrir carpeta del servidor" />
+                    <Button Style="{StaticResource IconOnlyButton}" Width="36" Height="36" FontSize="13" Content="{StaticResource IconSync}" Margin="0,0,8,0"
+                            Command="{Binding RestartCommand}" ToolTip="Reiniciar" AutomationProperties.Name="Reiniciar"
+                            Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+                    <Grid>
+                        <Button Height="38" MinWidth="112" FontSize="14" Command="{Binding StartCommand}" AutomationProperties.Name="Iniciar servidor"
+                                Visibility="{Binding IsStopped, Converter={StaticResource BoolToVisibility}}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                                    <Setter Property="Content" Value="Iniciar" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                            <Setter Property="Content" Value="Preparando…" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Style="{StaticResource GlassButton}" Height="38" MinWidth="112" FontSize="14" Content="Detener"
+                                Command="{Binding StopCommand}" AutomationProperties.Name="Detener servidor"
+                                Visibility="{Binding IsAlive, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- Progreso y errores -->
+            <StackPanel DockPanel.Dock="Top">
+                <StackPanel Margin="0,0,0,12" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding ProgressText}" FontSize="13" Foreground="{StaticResource Ink}" />
+                    <ProgressBar Style="{StaticResource GlassProgressBar}" Margin="0,8,0,0" Value="{Binding ProgressValue}"
+                                 IsIndeterminate="{Binding IsProgressKnown, Converter={StaticResource InverseBool}}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Error}" FontSize="13" Foreground="{StaticResource ErrorText}" TextWrapping="Wrap" Margin="0,0,0,12"
+                           Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
+            </StackPanel>
+
+            <!-- Pestañas del servidor -->
+            <Grid DockPanel.Dock="Top" Height="46" Margin="0,0,0,16">
+                <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
+                <StackPanel Orientation="Horizontal" KeyboardNavigation.TabNavigation="Once">
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="46" GroupName="ServerDetailTabs" IsChecked="{Binding IsConsoleTab}" AutomationProperties.Name="Consola">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE756;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Consola" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="46" GroupName="ServerDetailTabs" IsChecked="{Binding IsSettingsTab}" AutomationProperties.Name="Configuración">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{StaticResource IconSettings}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Configuración" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="46" GroupName="ServerDetailTabs" IsChecked="{Binding IsPlayersTab}" AutomationProperties.Name="Jugadores">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE716;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Jugadores" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="46" GroupName="ServerDetailTabs" IsChecked="{Binding IsContentTab}" AutomationProperties.Name="Contenido">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Contenido" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="46" GroupName="ServerDetailTabs" IsChecked="{Binding IsPublishTab}" AutomationProperties.Name="Sincronización"
+                                 ToolTip="Los launchers de los jugadores descargan los mismos mods que el servidor">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{StaticResource IconSync}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                            <TextBlock Text="Sincronización" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </Grid>
+
+            <Grid>
+                <!-- ── Consola ── -->
+                <DockPanel Visibility="{Binding IsConsoleTab, Converter={StaticResource BoolToVisibility}}">
+                    <Grid DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="CommandBox" Style="{StaticResource GlassTextBox}" FontFamily="Consolas" Tag="Comando (por ejemplo: say Hola, op Steve, time set day)…"
+                                 Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="OnCommandKeyDown"
+                                 IsEnabled="{Binding IsAlive}" AutomationProperties.Name="Comando del servidor" />
+                        <Button Grid.Column="1" Style="{StaticResource GlassButton}" Margin="8,0,0,0" Height="40" MinWidth="90" Content="Enviar"
+                                Command="{Binding SendCommandCommand}" IsEnabled="{Binding IsAlive}" AutomationProperties.Name="Enviar comando" />
+                        <Button Grid.Column="2" Style="{StaticResource IconOnlyButton}" Margin="6,0,0,0" Width="36" Height="36" FontSize="13"
+                                Content="{StaticResource IconDelete}" Command="{Binding ClearConsoleCommand}" ToolTip="Limpiar la consola"
+                                AutomationProperties.Name="Limpiar consola" />
+                    </Grid>
+                    <Border Background="{StaticResource ConsoleFill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusGroup}" Padding="14,10,4,10">
+                        <Grid>
+                            <ListBox x:Name="ConsoleList" ItemsSource="{Binding Console}" ItemTemplate="{StaticResource ConsoleLineTemplate}"
+                                     Background="Transparent" BorderThickness="0" FontFamily="Consolas" FontSize="12.5"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.ScrollUnit="Pixel" AutomationProperties.Name="Consola del servidor">
+                                <ListBox.Template>
+                                    <ControlTemplate TargetType="ListBox">
+                                        <ScrollViewer x:Name="ConsoleScroll" Template="{StaticResource GlassScrollViewer}" Focusable="False" CanContentScroll="True">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ListBox.Template>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Focusable" Value="False" />
+                                        <Setter Property="Padding" Value="0,1,10,1" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <ContentPresenter Margin="{TemplateBinding Padding}" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ContextMenu>
+                                    <ContextMenu Style="{StaticResource GlassContextMenu}">
+                                        <MenuItem Style="{StaticResource GlassMenuItem}" Header="Copiar toda la consola" Click="OnCopyConsole" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                            </ListBox>
+                            <TextBlock Text="El servidor está detenido. Pulsa Iniciar para verlo arrancar aquí." Foreground="{StaticResource Ink3}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Console.Count}" Value="0" />
+                                                    <Condition Binding="{Binding IsStopped}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                </DockPanel>
+
+                <!-- ── Configuración (server.properties) ── -->
+                <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding IsSettingsTab, Converter={StaticResource BoolToVisibility}}">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="860" /><ColumnDefinition Width="0" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,14,12">
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="General" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="Mensaje de la lista de servidores (MOTD)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource GlassTextBox}" MaxLength="120" Text="{Binding Motd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="MOTD" />
+                                <UniformGrid Columns="3" Margin="0,14,0,0">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Text="Puerto" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="5" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Puerto" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Text="Jugadores máximos" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="4" Text="{Binding MaxPlayersText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Jugadores máximos" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Distancia de renderizado" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="2" Text="{Binding ViewDistanceText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Distancia de renderizado" />
+                                    </StackPanel>
+                                </UniformGrid>
+                                <WrapPanel Margin="0,14,0,0">
+                                    <ContentControl Content="{Binding Difficulty}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
+                                    <ContentControl Content="{Binding GameMode}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="Reglas" Style="{StaticResource SectionTitle}" />
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OnlineMode}" AutomationProperties.Name="Solo cuentas premium">
+                                    <StackPanel>
+                                        <TextBlock Text="Solo cuentas premium" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Desactivado, se entra con las cuentas sin conexión de este launcher." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding Whitelist}" AutomationProperties.Name="Lista blanca">
+                                    <StackPanel>
+                                        <TextBlock Text="Lista blanca" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Solo entran los jugadores añadidos (pestaña Jugadores)." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding Pvp}" AutomationProperties.Name="PvP"
+                                          Visibility="{Binding HasPvpSetting, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Combate entre jugadores (PvP)" FontWeight="SemiBold" />
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding AllowFlight}" AutomationProperties.Name="Permitir volar">
+                                    <StackPanel>
+                                        <TextBlock Text="Permitir volar" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Evita que el servidor expulse a quien vuela con mods como jetpacks." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding CommandBlocks}" AutomationProperties.Name="Bloques de comandos"
+                                          Visibility="{Binding HasCommandBlockSetting, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Bloques de comandos" FontWeight="SemiBold" />
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding Hardcore}" AutomationProperties.Name="Extremo">
+                                    <TextBlock Text="Modo extremo (hardcore)" FontWeight="SemiBold" />
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="Mundo y rendimiento" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="Semilla" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource GlassTextBox}" MaxLength="64" Tag="Vacía: al azar" Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Semilla" />
+                                <TextBlock Text="El mundo ya existe: la semilla solo se aplica a un mundo nuevo." Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                           Visibility="{Binding HasWorld, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="Memoria" Style="{StaticResource FieldLabel}" Margin="0,16,0,8" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding MemoryText}" FontWeight="SemiBold" Width="80" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <Slider Style="{StaticResource GlassSlider}" VerticalAlignment="Center"
+                                            Minimum="{Binding MemoryMinMb}" Maximum="{Binding MemoryMaxMb}" Value="{Binding MemoryMb}"
+                                            TickFrequency="{Binding MemoryStepMb}" IsSnapToTickEnabled="True"
+                                            SmallChange="{Binding MemoryStepMb}" LargeChange="1024" AutomationProperties.Name="Memoria del servidor" />
+                                </DockPanel>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,16,0,0" IsChecked="{Binding AutoStart}" AutomationProperties.Name="Iniciar al abrir el launcher">
+                                    <TextBlock Text="Iniciar al abrir el launcher" FontWeight="SemiBold" />
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <DockPanel Margin="0,4,0,18">
+                            <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Padding="22,0" Content="Guardar" Command="{Binding SaveSettingsCommand}" />
+                            <TextBlock Text="{Binding SettingsMessage}" Style="{StaticResource Hint}" FontSize="13" VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap" />
+                        </DockPanel>
+
+                        <!-- Zona de peligro -->
+                        <Border Background="{StaticResource DangerTint}" CornerRadius="{StaticResource RadiusGroup}" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Mantenimiento" Style="{StaticResource SectionTitle}" />
+                                <WrapPanel>
+                                    <Button Style="{StaticResource SmallGlass}" Content="Reinstalar" Command="{Binding ReinstallCommand}"
+                                            ToolTip="Vuelve a descargar el software del servidor; el mundo y la configuración se conservan" />
+                                    <Button Style="{StaticResource SmallGlass}" Content="Forzar cierre" Command="{Binding KillCommand}"
+                                            IsEnabled="{Binding IsAlive}" ToolTip="Cierra el servidor sin guardar (si no responde a Detener)" />
+                                    <Button Style="{StaticResource DangerButton}" Height="32" FontSize="13" Content="Eliminar servidor" Command="{Binding DeleteCommand}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- ── Jugadores ── -->
+                <DockPanel Visibility="{Binding IsPlayersTab, Converter={StaticResource BoolToVisibility}}">
+                    <Border DockPanel.Dock="Top" Style="{StaticResource Section}">
+                        <StackPanel>
+                            <TextBlock Text="Gestionar un jugador" Style="{StaticResource SectionTitle}" />
+                            <TextBox Style="{StaticResource GlassTextBox}" MaxLength="16" Tag="Nombre del jugador" MaxWidth="360" HorizontalAlignment="Left" Width="360"
+                                     Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nombre del jugador" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Style="{StaticResource SmallGlass}" Content="Hacer operador" Command="{Binding PlayerActionCommand}" CommandParameter="op" />
+                                <Button Style="{StaticResource SmallGlass}" Content="Quitar operador" Command="{Binding PlayerActionCommand}" CommandParameter="deop" />
+                                <Button Style="{StaticResource SmallGlass}" Content="Añadir a la lista blanca" Command="{Binding PlayerActionCommand}" CommandParameter="whitelist add" />
+                                <Button Style="{StaticResource SmallGlass}" Content="Quitar de la lista blanca" Command="{Binding PlayerActionCommand}" CommandParameter="whitelist remove" />
+                                <Button Style="{StaticResource SmallGlass}" Content="Desbanear" Command="{Binding PlayerActionCommand}" CommandParameter="pardon" />
+                            </WrapPanel>
+                            <TextBlock Text="Los cambios se aplican con el servidor en marcha (como los comandos de la consola)." Style="{StaticResource Hint}" Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <DockPanel DockPanel.Dock="Top" Margin="2,6,0,10">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Width="30" Height="30" FontSize="12" Content="{StaticResource IconSync}"
+                                Command="{Binding RefreshPlayersCommand}" ToolTip="Actualizar" AutomationProperties.Name="Actualizar jugadores" />
+                        <TextBlock Text="Jugadores" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <Grid>
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PlayerEntry}">
+                                        <Border Style="{StaticResource ServerRow}" Padding="12,8">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                    <Button Style="{StaticResource SmallGlass}" Content="Operador"
+                                                            Command="{Binding DataContext.PlayerActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Name, StringFormat=op|{0}}" />
+                                                    <Button Style="{StaticResource SmallGlass}" Content="Expulsar"
+                                                            Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}"
+                                                            Command="{Binding DataContext.PlayerActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Name, StringFormat=kick|{0}}" />
+                                                    <Button Style="{StaticResource DangerButton}" Height="32" FontSize="13" Content="Banear"
+                                                            Command="{Binding DataContext.PlayerActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding Name, StringFormat=ban|{0}}" />
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- Verde: conectado; gris: entró alguna vez -->
+                                                    <Ellipse Margin="0,0,10,0">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                                                <Setter Property="Fill" Value="{StaticResource Offline}" />
+                                                                <Setter Property="ToolTip" Value="Desconectado" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                                        <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                                                        <Setter Property="ToolTip" Value="Conectado" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                    <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="Todavía no entró nadie a este servidor." Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding HasPlayers, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </Grid>
+                </DockPanel>
+
+                <!-- ── Contenido: mods o plugins y carpetas ── -->
+                <DockPanel Visibility="{Binding IsContentTab, Converter={StaticResource BoolToVisibility}}">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <WrapPanel DockPanel.Dock="Right">
+                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="world" Content="Carpeta del mundo" />
+                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="client" Content="Carpeta del cliente"
+                                    ToolTip="Archivos que reciben los jugadores al publicar el cliente (config, resourcepacks, shaderpacks…)" />
+                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="content" Content="{Binding ContentFolderText}"
+                                    Visibility="{Binding HasContentFolder, Converter={StaticResource BoolToVisibility}}" />
+                            <Button Style="{StaticResource SmallGlass}" Command="{Binding AddContentFromFileCommand}" Content="Desde un archivo…"
+                                    ToolTip="Copiar un .jar del equipo a la carpeta del servidor"
+                                    Visibility="{Binding HasContentFolder, Converter={StaticResource BoolToVisibility}}" />
+                            <Button Style="{StaticResource AccentButton}" Height="32" FontSize="13" Padding="14,0" Command="{Binding AddContentCommand}"
+                                    ToolTip="Explorar Modrinth con solo lo compatible con este servidor: mods, modpacks, data packs, paquetes de recursos y shaders"
+                                    AutomationProperties.Name="{Binding AddContentText}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding AddContentText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding ContentTitle}" Style="{StaticResource SectionTitle}" Margin="2,0,0,0" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <Grid>
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ContentFiles}" Margin="0,0,6,0" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ContentFile}">
+                                        <Border Style="{StaticResource ServerRow}" Padding="12,8">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding IsEnabled, Mode=OneWay}" Margin="0,0,10,0" VerticalAlignment="Center"
+                                                              Command="{Binding DataContext.ToggleContentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                              CommandParameter="{Binding}" ToolTip="Activado / desactivado" AutomationProperties.Name="{Binding Name, StringFormat=Activar {0}}" />
+                                                    <Button Style="{StaticResource IconOnlyButton}" Width="32" Height="32" FontSize="13" Content="{StaticResource IconDelete}"
+                                                            Command="{Binding DataContext.RemoveContentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}" ToolTip="Quitar" AutomationProperties.Name="{Binding Name, StringFormat=Quitar {0}}" />
+                                                </StackPanel>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock x:Name="FileName" Text="{Binding Name}" FontSize="14" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding SizeText}" Style="{StaticResource Meta}" Margin="0,2,0,0" HorizontalAlignment="Left" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                <Setter TargetName="FileName" Property="Foreground" Value="{StaticResource Ink3}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="440"
+                                   Text="{Binding ContentTitle, StringFormat=Todavía no hay {0}. Añade archivos .jar o cópialos en su carpeta.}"
+                                   Visibility="{Binding HasNoContent, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="440"
+                                   Text="Un servidor Vanilla no carga mods ni plugins. Para usarlos, crea un servidor Paper, Fabric, Forge, NeoForge o Quilt."
+                                   Visibility="{Binding HasContentFolder, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </Grid>
+                </DockPanel>
+
+                <!-- ── Sincronización de los launchers de los jugadores ── -->
+                <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
+                              Visibility="{Binding IsPublishTab, Converter={StaticResource BoolToVisibility}}">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="860" /><ColumnDefinition Width="0" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,14,12">
+                        <TextBlock Style="{StaticResource Hint}" FontSize="13" TextWrapping="Wrap" Margin="2,0,0,14"
+                                   Text="Los jugadores que activen «Sincronizar con el servidor» en su instancia (con la dirección de abajo) reciben la misma versión, el mismo cargador y los mismos mods que este servidor, más lo que pongas en la carpeta del cliente." />
+
+                        <!-- Estado -->
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Command="{Binding TogglePublishingCommand}" Height="34" MinWidth="120" FontSize="13.5">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource GlassButton}">
+                                                <Setter Property="Content" Value="Sincronizar ahora" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPublishing}" Value="True">
+                                                        <Setter Property="Content" Value="Detener sincronización" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse Margin="0,0,8,0">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                                    <Setter Property="Fill" Value="{StaticResource Offline}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPublishing}" Value="True">
+                                                            <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding PublishStatusText}" FontSize="13.5" Foreground="{StaticResource Ink}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <TextBlock Text="Dirección para los launchers:" Style="{StaticResource Meta}" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding PublishUrl}" Style="{StaticResource Meta}" Foreground="{StaticResource Ink}" FontFamily="Consolas" Margin="0,0,2,0" />
+                                    <Button Style="{StaticResource CopyButton}" Tag="{Binding IsPublishCopied}" Command="{Binding CopyAddressCommand}" CommandParameter="publish"
+                                            AutomationProperties.Name="Copiar dirección de sincronización" />
+                                    <Button Style="{StaticResource QuietButton}" Height="28" FontSize="12.5" Padding="10,0" Margin="8,0,0,0" Content="Regenerar manifest"
+                                            Command="{Binding RegenerateCommand}" IsEnabled="{Binding IsPublishing}"
+                                            ToolTip="Se regenera solo al cambiar los archivos; esto lo fuerza ahora" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding PublishError}" Foreground="{StaticResource Warn}" FontSize="12.5" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding PublishError, Converter={StaticResource TextToVisibility}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="Configuración" Style="{StaticResource SectionTitle}" />
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding PublishEnabled}" AutomationProperties.Name="Sincronizar al iniciar el servidor">
+                                    <StackPanel>
+                                        <TextBlock Text="Sincronizar al iniciar el servidor" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Los launchers pueden sincronizarse mientras el servidor de Minecraft está en marcha." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <UniformGrid Columns="2" Margin="0,16,0,0">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Text="Puerto de sincronización" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="5" Text="{Binding PublishPortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Puerto de sincronización" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Versión del cliente" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="32" Tag="1.0.0" Text="{Binding ClientVersion, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Versión del cliente" />
+                                    </StackPanel>
+                                </UniformGrid>
+                                <TextBlock Text="Súbela al cambiar los mods: los launchers muestran «Actualización disponible»." Style="{StaticResource Hint}" Margin="0,6,0,0" />
+                                <TextBlock Text="Dirección pública (opcional)" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
+                                <TextBox Style="{StaticResource GlassTextBox}" MaxLength="253" Tag="Vacía: la IP pública de esta red. O un dominio: mi-servidor.com"
+                                         Text="{Binding PublicHost, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Dirección pública" />
+                                <TextBlock Text="Con ella entran los jugadores al unirse automáticamente y descargan el paquete de recursos obligatorio." Style="{StaticResource Hint}" Margin="0,6,0,0" />
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,16,0,0" IsChecked="{Binding IncludeServerMods}"
+                                          Visibility="{Binding IsModded, Converter={StaticResource BoolToVisibility}}" AutomationProperties.Name="Publicar los mods del servidor">
+                                    <StackPanel>
+                                        <TextBlock Text="Publicar los mods del servidor" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Los jugadores reciben la carpeta mods del servidor; lo de la carpeta del cliente se añade o la reemplaza." />
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="Política para los jugadores" Style="{StaticResource SectionTitle}" />
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding AutoJoin}" AutomationProperties.Name="Unirse automáticamente">
+                                    <StackPanel>
+                                        <TextBlock Text="Unirse automáticamente" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Al pulsar JUGAR, el juego entra directamente a este servidor." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding DeleteUnauthorized}" AutomationProperties.Name="Borrar archivos no autorizados">
+                                    <StackPanel>
+                                        <TextBlock Text="Borrar lo que no esté publicado" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Quita de las instancias los mods que no estén en el servidor." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding AlwaysOnline}" AutomationProperties.Name="Requerir conexión">
+                                    <StackPanel>
+                                        <TextBlock Text="Requerir conexión para jugar" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Sin respuesta de este equipo, la instancia no se puede jugar." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding LockServerUrl}" AutomationProperties.Name="Bloquear dirección">
+                                    <StackPanel>
+                                        <TextBlock Text="Bloquear la dirección" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Los jugadores no pueden cambiar la dirección de sincronización." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox Style="{StaticResource SwitchCheckBox}" Margin="0,14,0,0" IsChecked="{Binding ProtectPacks}" AutomationProperties.Name="Proteger paquetes">
+                                    <StackPanel>
+                                        <TextBlock Text="Paquetes de recursos obligatorios" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   Text="Los resourcepacks y shaderpacks publicados se instalan siempre y se reparan, y el servidor de Minecraft exige el primer paquete de recursos al entrar (quien lo rechace no puede jugar)." />
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </Border>
+
+                        <DockPanel Margin="0,4,0,12">
+                            <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Padding="22,0" Content="Guardar" Command="{Binding SavePublishCommand}" />
+                            <TextBlock Text="{Binding PublishMessage}" Style="{StaticResource Hint}" FontSize="13" VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap" />
+                        </DockPanel>
+                    </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </DockPanel>
+    </Grid>
+</UserControl>

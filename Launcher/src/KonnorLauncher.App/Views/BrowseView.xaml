@@ -97,6 +97,18 @@
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource SelectedFillStrong}" />
                                 <Setter Property="Foreground" Value="{StaticResource Ink}" />
                             </DataTrigger>
+                            <!-- Fijada por un servidor de Hosting: no se puede cambiar -->
+                            <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                <Setter Property="Cursor" Value="Arrow" />
+                                <Setter Property="ToolTip" Value="Lo fija el servidor en el que se instala" />
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLocked}" Value="True" />
+                                    <Condition Binding="{Binding IsActive}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Opacity" Value="0.35" />
+                            </MultiDataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -423,6 +435,24 @@
         <Grid Grid.Row="0" Height="50">
             <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
             <DockPanel>
+                <!-- Abierto desde Hosting: aviso del servidor en el que se instala, volver a él o salir -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0"
+                            Visibility="{Binding IsServerMode, Converter={StaticResource BoolToVisibility}}">
+                    <Border Background="#1FF5B041" BorderBrush="#59F5B041" BorderThickness="1" CornerRadius="{StaticResource RadiusButton}"
+                            Padding="10,5" VerticalAlignment="Center"
+                            ToolTip="Lo que instales va a la carpeta del servidor, con su cargador y su versión de Minecraft">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7BA;" Style="{StaticResource Icon}" FontSize="12" Foreground="{StaticResource Warn}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ServerTargetText}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Warn}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                        </StackPanel>
+                    </Border>
+                    <Button Style="{StaticResource QuietButton}" Height="30" FontSize="12.5" Padding="10,0" Margin="6,0,0,0" Content="Volver al servidor"
+                            Command="{Binding ReturnToServerCommand}" AutomationProperties.Name="Volver al servidor" />
+                    <Button Style="{StaticResource IconOnlyButton}" Width="30" Height="30" FontSize="10" Content="{StaticResource IconClose}"
+                            Command="{Binding ExitServerModeCommand}" ToolTip="Dejar de instalar en el servidor"
+                            AutomationProperties.Name="Dejar de instalar en el servidor" />
+                </StackPanel>
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly">
                     <ItemsControl ItemsSource="{Binding Tabs}" KeyboardNavigation.TabNavigation="Once">
                         <ItemsControl.ItemsPanel>

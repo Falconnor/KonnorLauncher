@@ -47,6 +47,12 @@ public sealed record SearchQuery
 
     public bool OpenSourceOnly { get; init; }
 
+    /// <summary>
+    /// Tipo de proyecto de Modrinth en lugar del de <see cref="Type"/>: <c>plugin</c> para buscar plugins de
+    /// Paper, Spigot y Bukkit (un servidor Paper de la sección Hosting).
+    /// </summary>
+    public string? ProjectTypeOverride { get; init; }
+
     public const int MaxLimit = 100;
 
     public int Offset => (Math.Max(1, Page) - 1) * Math.Clamp(Limit, 1, MaxLimit);
@@ -62,7 +68,7 @@ public sealed record SearchQuery
 
     public List<List<string>> BuildFacets()
     {
-        var facets = new List<List<string>> { new() { "project_type:" + Type.ProjectType() } };
+        var facets = new List<List<string>> { new() { "project_type:" + (ProjectTypeOverride ?? Type.ProjectType()) } };
         foreach (var category in IncludedCategories)
             facets.Add(["categories:" + category]);
         foreach (var category in ExcludedCategories)

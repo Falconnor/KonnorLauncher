@@ -609,6 +609,12 @@
                             <views:ServersView DataContext="{Binding Servers}" />
                         </Border>
 
+                        <!-- Hosting: crear y gestionar servidores en este equipo (también ocupa el sitio de la barra de juego) -->
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                                Visibility="{Binding IsHosting, Converter={StaticResource BoolToVisibility}}">
+                            <views:HostingView DataContext="{Binding Hosting}" />
+                        </Border>
+
                         <!-- Barra de juego: estado, progreso y JUGAR, separada por una línea fina (solo con una instancia a la vista) -->
                         <Border Grid.Row="1" Padding="32,16,24,16" BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0"
                                 Visibility="{Binding ShowInstancePanel, Converter={StaticResource BoolToVisibility}}">

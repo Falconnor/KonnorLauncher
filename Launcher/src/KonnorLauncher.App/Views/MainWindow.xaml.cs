@@ -23,6 +23,29 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
+        Closing += OnClosing;
+    }
+
+    private bool _serversStopped;
+
+    /// <summary>
+    /// Con servidores de Hosting en marcha, cerrar los detiene antes con <c>stop</c> (guardan el mundo):
+    /// se pregunta primero y la ventana se cierra cuando han terminado.
+    /// </summary>
+    private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_serversStopped || !_viewModel.Hosting.AnyRunning)
+            return;
+        e.Cancel = true;
+        var ok = await _viewModel.Confirm.ShowAsync("Servidores en marcha",
+            "Al cerrar el launcher se detienen los servidores de Hosting (guardando sus mundos) y su sincronización.",
+            "Detener y cerrar", isDanger: false);
+        if (!ok)
+            return;
+        IsEnabled = false;
+        await _viewModel.Hosting.StopAllAsync();
+        _serversStopped = true;
+        Close();
     }
 
     /// <summary>
@@ -61,6 +84,10 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
         else if (_viewModel.IsSkins && !AnyOverlayOpen() && _viewModel.Skins.CloseTopmost())
+        {
+            e.Handled = true;
+        }
+        else if (_viewModel.IsHosting && !AnyOverlayOpen() && _viewModel.Hosting.CloseTopmost())
         {
             e.Handled = true;
         }

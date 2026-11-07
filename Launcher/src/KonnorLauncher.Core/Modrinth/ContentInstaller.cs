@@ -150,7 +150,7 @@ public sealed class ContentInstaller
         progress?.Report(new InstallProgress("Buscando una versión compatible…", null));
         var version = versionId is not null
             ? await _client.GetVersionAsync(versionId, ct).ConfigureAwait(false)
-            : await PickVersionAsync(projectId, instance, type, ct).ConfigureAwait(false)
+            : await PickVersionAsync(projectId, CompatibleLoaders(instance, type), GameVersion(instance), ct).ConfigureAwait(false)
               ?? throw new ModrinthException(NoVersionText(instance, type));
         if (version.ProjectId != projectId)
             throw new ModrinthException("La versión elegida no es de este proyecto.");
@@ -158,10 +158,120 @@ public sealed class ContentInstaller
         visited.Add(projectId);
 
         if (type == ContentType.Mod)
-            await InstallDependenciesAsync(version, instance, instanceDir, folder, index, visited, dependencies, missing, 1, progress, ct).ConfigureAwait(false);
+            await InstallDependenciesAsync(version, CompatibleLoaders(instance, ContentType.Mod), GameVersion(instance), instanceDir, folder, index,
+                visited, dependencies, missing, 1, progress, ct).ConfigureAwait(false);
 
         SaveIndex(instanceDir, index);
         _logger.LogInformation("Instalado {Project} ({File}) en {Instance}; dependencias: {Deps}", projectId, file, instance.Id, dependencies.Count);
+        return new InstallResult(file, dependencies, missing);
+    }
+
+    // ── Servidores de la sección Hosting ────────────────────────────────────
+
+    /// <summary>Por qué no se puede instalar este tipo en el servidor, o null si se puede.</summary>
+    public static string? ServerBlockReason(Hosting.HostedServer server, ContentType type) => type switch
+    {
+        ContentType.Mod when server.ContentFolder is null =>
+            "Un servidor Vanilla no carga mods ni plugins. Crea uno con Paper, Fabric, Forge, NeoForge o Quilt.",
+        ContentType.Modpack when !server.IsModded =>
+            "Los modpacks necesitan un servidor con Fabric, Forge, NeoForge o Quilt.",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Cargadores de Modrinth que acepta el servidor para este tipo (null = cualquiera). Mods: los de su software
+    /// (Quilt también carga los de Fabric; Paper, los plugins de Spigot y Bukkit). Modpacks: el de su cargador.
+    /// </summary>
+    public static IReadOnlyList<string>? ServerLoaders(Hosting.HostedServer server, ContentType type) => type switch
+    {
+        ContentType.Mod => server.Software switch
+        {
+            Hosting.ServerSoftware.Fabric => ["fabric"],
+            Hosting.ServerSoftware.Quilt => ["quilt", "fabric"],
+            Hosting.ServerSoftware.Forge => ["forge"],
+            Hosting.ServerSoftware.NeoForge => ["neoforge"],
+            Hosting.ServerSoftware.Paper => ["paper", "spigot", "bukkit"],
+            _ => [],
+        },
+        ContentType.Modpack => server.Software switch
+        {
+            Hosting.ServerSoftware.Fabric => ["fabric"],
+            Hosting.ServerSoftware.Quilt => ["quilt"],
+            Hosting.ServerSoftware.Forge => ["forge"],
+            Hosting.ServerSoftware.NeoForge => ["neoforge"],
+            _ => [],
+        },
+        ContentType.ResourcePack => ["minecraft"],
+        ContentType.DataPack => ["datapack"],
+        _ => null,
+    };
+
+    /// <summary>
+    /// Carpeta de destino en el servidor: mods o plugins en el servidor; paquetes de recursos y shaders en la
+    /// carpeta del cliente (los reciben los jugadores al sincronizar); data packs en el mundo del servidor.
+    /// </summary>
+    public static string ServerFolder(Hosting.HostedServer server, string serverDir, string clientDir, ContentType type)
+    {
+        switch (type)
+        {
+            case ContentType.Mod:
+                return Path.Combine(serverDir, server.ContentFolder ?? throw new ModrinthException(ServerBlockReason(server, type)!));
+            case ContentType.ResourcePack:
+                return Path.Combine(clientDir, "resourcepacks");
+            case ContentType.Shader:
+                return Path.Combine(clientDir, "shaderpacks");
+            case ContentType.DataPack:
+            {
+                var level = Hosting.ServerPropertiesFile.Load(Path.Combine(serverDir, Hosting.ServerPropertiesFile.FileName)).Get("level-name", "world");
+                if (!IsSafeFileName(level))
+                    throw new ModrinthException("El nombre del mundo del servidor no es válido.");
+                return Path.Combine(serverDir, level, "datapacks");
+            }
+            default:
+                throw new ModrinthException("Este contenido no se instala en una carpeta del servidor.");
+        }
+    }
+
+    /// <summary>
+    /// Instala un proyecto en un servidor de Hosting con la versión compatible con su software y su versión de
+    /// Minecraft (y, si es un mod o plugin, sus dependencias obligatorias). El índice de lo instalado se guarda en
+    /// la carpeta del servidor. Los modpacks se instalan con <see cref="InstallModpackIntoServerAsync"/>.
+    /// </summary>
+    public Task<InstallResult> InstallIntoServerAsync(Hosting.HostedServer server, string serverDir, string clientDir, string projectId,
+        ContentType type, IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? versionId = null)
+    {
+        if (ServerBlockReason(server, type) is { } reason)
+            throw new ModrinthException(reason);
+        if (type == ContentType.Modpack)
+            throw new ModrinthException("Los modpacks se instalan con su propio flujo.");
+        return InstallIntoFolderAsync(serverDir, ServerFolder(server, serverDir, clientDir, type), type, ServerLoaders(server, type),
+            server.MinecraftVersion, projectId, progress, ct, versionId);
+    }
+
+    private async Task<InstallResult> InstallIntoFolderAsync(string serverDir, string folder, ContentType type, IReadOnlyList<string>? loaders,
+        string gameVersion, string projectId, IProgress<InstallProgress>? progress, CancellationToken ct, string? versionId)
+    {
+        var index = LoadIndex(serverDir);
+        var dependencies = new List<string>();
+        var missing = new List<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        progress?.Report(new InstallProgress("Buscando una versión compatible…", null));
+        var version = versionId is not null
+            ? await _client.GetVersionAsync(versionId, ct).ConfigureAwait(false)
+            : await PickVersionAsync(projectId, loaders, gameVersion, ct).ConfigureAwait(false)
+              ?? throw new ModrinthException($"No hay ninguna versión para este servidor (Minecraft {gameVersion}).");
+        if (version.ProjectId != projectId)
+            throw new ModrinthException("La versión elegida no es de este proyecto.");
+        if (type == ContentType.Mod && loaders is { Count: > 0 } && !version.Loaders.Any(l => loaders.Contains(l, StringComparer.OrdinalIgnoreCase)))
+            throw new ModrinthException("Esa versión no es compatible con el software de este servidor.");
+        var file = await InstallVersionAsync(version, serverDir, folder, type, index, progress, ct).ConfigureAwait(false);
+        visited.Add(projectId);
+        if (type == ContentType.Mod)
+            await InstallDependenciesAsync(version, loaders, gameVersion, serverDir, folder, index, visited, dependencies, missing, 1, progress, ct).ConfigureAwait(false);
+
+        SaveIndex(serverDir, index);
+        _logger.LogInformation("Instalado {Project} ({File}) en el servidor {Dir}; dependencias: {Deps}", projectId, file, serverDir, dependencies.Count);
         return new InstallResult(file, dependencies, missing);
     }
 
@@ -188,10 +298,9 @@ public sealed class ContentInstaller
             : $"No hay ninguna versión para Minecraft {minecraft}.";
     }
 
-    private async Task<ProjectVersion?> PickVersionAsync(string projectId, GameInstance instance, ContentType type, CancellationToken ct)
+    private async Task<ProjectVersion?> PickVersionAsync(string projectId, IReadOnlyList<string>? loaders, string? gameVersion, CancellationToken ct)
     {
-        var gameVersion = GameVersion(instance);
-        var versions = await _client.GetVersionsAsync(projectId, CompatibleLoaders(instance, type),
+        var versions = await _client.GetVersionsAsync(projectId, loaders,
             gameVersion is null ? null : [gameVersion], ct).ConfigureAwait(false);
         return Pick(versions);
     }
@@ -229,7 +338,7 @@ public sealed class ContentInstaller
         return file.Filename;
     }
 
-    private async Task InstallDependenciesAsync(ProjectVersion version, GameInstance instance, string instanceDir, string folder,
+    private async Task InstallDependenciesAsync(ProjectVersion version, IReadOnlyList<string>? loaders, string? gameVersion, string instanceDir, string folder,
         Dictionary<string, IndexEntry> index, HashSet<string> visited, List<string> added, List<string> missing, int depth,
         IProgress<InstallProgress>? progress, CancellationToken ct)
     {
@@ -246,7 +355,7 @@ public sealed class ContentInstaller
             {
                 if (visited.Contains(projectId) || InstalledHere(index, instanceDir, projectId))
                     continue;
-                resolved = await PickVersionAsync(projectId, instance, ContentType.Mod, ct).ConfigureAwait(false);
+                resolved = await PickVersionAsync(projectId, loaders, gameVersion, ct).ConfigureAwait(false);
             }
             else
             {
@@ -263,7 +372,7 @@ public sealed class ContentInstaller
                 continue;
             progress?.Report(new InstallProgress("Instalando dependencias…", null));
             added.Add(await InstallVersionAsync(resolved, instanceDir, folder, ContentType.Mod, index, progress, ct).ConfigureAwait(false));
-            await InstallDependenciesAsync(resolved, instance, instanceDir, folder, index, visited, added, missing, depth + 1, progress, ct).ConfigureAwait(false);
+            await InstallDependenciesAsync(resolved, loaders, gameVersion, instanceDir, folder, index, visited, added, missing, depth + 1, progress, ct).ConfigureAwait(false);
         }
     }
 
@@ -315,7 +424,7 @@ public sealed class ContentInstaller
 
             await DownloadPackFilesAsync(pack.Files, instanceDir, progress, ct).ConfigureAwait(false);
             progress?.Report(new InstallProgress("Copiando la configuración del modpack…", null));
-            ExtractOverrides(archive, instanceDir, ct);
+            ExtractOverrides(archive, instanceDir, ["overrides/", "client-overrides/"], null, ct);
             _logger.LogInformation("Modpack {Project} instalado como {Instance} ({Files} archivos)", projectId, created.Id, pack.Files.Count);
             return created;
         }
@@ -335,6 +444,79 @@ public sealed class ContentInstaller
             {
             }
         }
+    }
+
+    /// <summary>
+    /// Instala un modpack en un servidor de Hosting: necesita una versión del modpack para su cargador y su versión
+    /// de Minecraft. Los archivos del lado servidor y <c>overrides</c> + <c>server-overrides</c> van al servidor;
+    /// los que son solo de cliente y <c>client-overrides</c>, a la carpeta del cliente (los reciben los jugadores al
+    /// sincronizar). Devuelve cuántos archivos se instalaron.
+    /// </summary>
+    public async Task<int> InstallModpackIntoServerAsync(Hosting.HostedServer server, string serverDir, string clientDir, string projectId,
+        IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? versionId = null)
+    {
+        if (ServerBlockReason(server, ContentType.Modpack) is { } reason)
+            throw new ModrinthException(reason);
+        var loaders = ServerLoaders(server, ContentType.Modpack)!;
+        progress?.Report(new InstallProgress("Buscando una versión del modpack para este servidor…", null));
+        static bool IsPack(ProjectVersion v) => v.PrimaryFile?.Filename.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase) == true;
+        var versions = await _client.GetVersionsAsync(projectId, ct: ct).ConfigureAwait(false);
+        if (versionId is not null)
+            versions = versions.Where(v => v.Id == versionId).ToList();
+        var version = Pick(versions.Where(v => IsPack(v)
+                                               && v.Loaders.Intersect(loaders, StringComparer.OrdinalIgnoreCase).Any()
+                                               && v.GameVersions.Contains(server.MinecraftVersion)))
+                      ?? throw new ModrinthException(
+                          $"Este modpack no tiene una versión para {Hosting.HostedServer.SoftwareName(server.Software)} {server.MinecraftVersion}.");
+
+        var temp = Path.Combine(Path.GetTempPath(), $"konnor-modpack-{Guid.NewGuid():N}.mrpack");
+        try
+        {
+            var file = version.PrimaryFile!;
+            await DownloadAsync(file.Url, file.Hashes, file.Size, temp,
+                new Progress<double>(p => progress?.Report(new InstallProgress("Descargando el modpack…", p))), ct).ConfigureAwait(false);
+
+            using var archive = ZipFile.OpenRead(temp);
+            var serverPack = MrpackIndex.Read(archive, PackSide.Server);
+            if (serverPack.Loader != Hosting.ServerSoftwareCatalog.ToLoader(server.Software) || serverPack.Minecraft != server.MinecraftVersion)
+                throw new ModrinthException($"El modpack es para {GameInstance.LoaderDisplayName(serverPack.Loader)} {serverPack.Minecraft}: no coincide con el servidor.");
+            var clientPack = MrpackIndex.Read(archive, PackSide.Client);
+            var serverPaths = serverPack.Files.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var clientOnly = clientPack.Files.Where(f => !serverPaths.Contains(f.Path)).ToList();
+
+            // Nada del modpack puede sustituir los archivos del launcher en el servidor.
+            foreach (var path in serverPack.Files.Select(f => f.Path))
+                RejectServerFile(path);
+            await DownloadPackFilesAsync(serverPack.Files, serverDir, progress, ct).ConfigureAwait(false);
+            await DownloadPackFilesAsync(clientOnly, clientDir, progress, ct).ConfigureAwait(false);
+            progress?.Report(new InstallProgress("Copiando la configuración del modpack…", null));
+            ExtractOverrides(archive, serverDir, ["overrides/", "server-overrides/"], RejectServerFile, ct);
+            ExtractOverrides(archive, clientDir, ["client-overrides/"], null, ct);
+            _logger.LogInformation("Modpack {Project} instalado en el servidor {Dir}: {Server} archivos del servidor y {Client} solo de cliente",
+                projectId, serverDir, serverPack.Files.Count, clientOnly.Count);
+            return serverPack.Files.Count + clientOnly.Count;
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>Archivos de un servidor de Hosting que un modpack no puede sustituir.</summary>
+    private static void RejectServerFile(string relative)
+    {
+        var first = relative.Replace('\\', '/').Split('/')[0];
+        if (first.Equals(Hosting.HostedServerStore.FileName, StringComparison.OrdinalIgnoreCase)
+            || first.Equals(Hosting.HostedServerStore.InternalFolder, StringComparison.OrdinalIgnoreCase)
+            || first.Equals(Hosting.HostedServerStore.ClientFolder, StringComparison.OrdinalIgnoreCase)
+            || first.Equals("eula.txt", StringComparison.OrdinalIgnoreCase))
+            throw new ModrinthException($"El modpack intenta sustituir un archivo del servidor: {relative}");
     }
 
     /// <summary>Nombre de instancia que no se repite: «Título», «Título (2)»... (recortado al máximo admitido).</summary>
@@ -370,10 +552,13 @@ public sealed class ContentInstaller
             }).ConfigureAwait(false);
     }
 
-    /// <summary><c>overrides/</c> y después <c>client-overrides/</c> (tiene prioridad) se copian a la instancia.</summary>
-    private static void ExtractOverrides(ZipArchive archive, string instanceDir, CancellationToken ct)
+    /// <summary>
+    /// Copia las carpetas <paramref name="prefixes"/> del modpack en orden (la última tiene prioridad): en una
+    /// instancia, <c>overrides/</c> y <c>client-overrides/</c>.
+    /// </summary>
+    private static void ExtractOverrides(ZipArchive archive, string instanceDir, string[] prefixes, Action<string>? check, CancellationToken ct)
     {
-        foreach (var prefix in new[] { "overrides/", "client-overrides/" })
+        foreach (var prefix in prefixes)
         {
             foreach (var entry in archive.Entries)
             {
@@ -383,6 +568,7 @@ public sealed class ContentInstaller
                     continue;
                 if (entry.Length > MaxUnknownFileBytes)
                     throw new ModrinthException($"El modpack contiene un archivo demasiado grande: {name}");
+                check?.Invoke(name[prefix.Length..]);
                 var destination = SafePackPath(instanceDir, name[prefix.Length..]);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 entry.ExtractToFile(destination, overwrite: true);
@@ -507,22 +693,31 @@ public sealed class ContentInstaller
     }
 }
 
+/// <summary>Lado para el que se leen los archivos de un modpack (<c>env.client</c> o <c>env.server</c>).</summary>
+public enum PackSide
+{
+    Client,
+    Server,
+}
+
 /// <summary>Archivo del índice de un modpack.</summary>
 public sealed record MrpackFile(string Path, string Url, FileHashes Hashes, long Size);
 
 /// <summary><c>modrinth.index.json</c> de un modpack: versión de Minecraft, cargador y archivos del cliente.</summary>
 public sealed record MrpackIndex(string Minecraft, ModLoader Loader, string? LoaderVersion, IReadOnlyList<MrpackFile> Files)
 {
-    public static MrpackIndex Read(ZipArchive archive)
+    public static MrpackIndex Read(ZipArchive archive, PackSide side = PackSide.Client)
     {
         var entry = archive.GetEntry("modrinth.index.json") ?? throw new ModrinthException("El archivo no es un modpack de Modrinth.");
         using var stream = entry.Open();
         using var document = JsonDocument.Parse(stream);
-        return Parse(document.RootElement);
+        return Parse(document.RootElement, side);
     }
 
-    public static MrpackIndex Parse(JsonElement root)
+    /// <summary>Índice del modpack con los archivos de <paramref name="side"/> (los no admitidos en ese lado se omiten).</summary>
+    public static MrpackIndex Parse(JsonElement root, PackSide side = PackSide.Client)
     {
+        var sideName = side == PackSide.Server ? "server" : "client";
         if (!root.TryGetProperty("dependencies", out var deps) || deps.ValueKind != JsonValueKind.Object
             || !deps.TryGetProperty("minecraft", out var mc) || mc.GetString() is not { Length: > 0 } minecraft)
             throw new ModrinthException("El modpack no indica su versión de Minecraft.");
@@ -542,8 +737,8 @@ public sealed record MrpackIndex(string Minecraft, ModLoader Loader, string? Loa
         {
             foreach (var file in list.EnumerateArray())
             {
-                // Los archivos solo de servidor no se descargan.
-                if (file.TryGetProperty("env", out var env) && env.TryGetProperty("client", out var client) && client.GetString() == "unsupported")
+                // Los archivos que no admite este lado (p. ej. los solo de servidor en una instancia) no se descargan.
+                if (file.TryGetProperty("env", out var env) && env.TryGetProperty(sideName, out var support) && support.GetString() == "unsupported")
                     continue;
                 var path = file.GetProperty("path").GetString() ?? string.Empty;
                 var url = file.TryGetProperty("downloads", out var downloads) && downloads.ValueKind == JsonValueKind.Array

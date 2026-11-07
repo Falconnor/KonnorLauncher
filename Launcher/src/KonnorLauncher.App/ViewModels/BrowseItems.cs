@@ -32,11 +32,27 @@ public sealed partial class FilterOption(string value, string label, Action chan
     public string Label { get; } = label;
     [ObservableProperty] private bool _isActive;
 
+    /// <summary>Lo fija un servidor de Hosting (su cargador y su versión): no se puede quitar.</summary>
+    [ObservableProperty] private bool _isLocked;
+
     partial void OnIsActiveChanged(bool value) => changed();
 
     [RelayCommand]
-    private void Toggle() => IsActive = !IsActive;
+    private void Toggle()
+    {
+        if (!IsLocked)
+            IsActive = !IsActive;
+    }
 }
+
+/// <summary>
+/// Servidor de la sección Hosting en el que se instala desde Explorar (todas las pestañas): cada una queda con
+/// el cargador y la versión del servidor fijos, y lo elegido va a su sitio en el servidor (mods o plugins, el
+/// mundo para los data packs, la carpeta del cliente para paquetes de recursos y shaders). <see cref="StartType"/>
+/// es la pestaña con la que se abre.
+/// </summary>
+public sealed record ServerInstallTarget(string ServerId, string Name, KonnorLauncher.Core.Hosting.HostedServer Server,
+    string ServerDir, string ClientDir, ContentType StartType);
 
 public enum CategoryState
 {
@@ -103,8 +119,9 @@ public sealed partial class ProjectCard : ObservableObject
 {
     private const int MaxTags = 5;
 
-    public ProjectCard(SearchHit hit, ContentType type, Func<ProjectCard, Task> install)
+    public ProjectCard(SearchHit hit, ContentType type, Func<ProjectCard, Task> install, bool forServer = false)
     {
+        ForServer = forServer;
         Hit = hit;
         Type = type;
         InstallCommand = new AsyncRelayCommand(() => install(this), () => State != CardState.Installing);
@@ -117,6 +134,10 @@ public sealed partial class ProjectCard : ObservableObject
 
     public SearchHit Hit { get; }
     public ContentType Type { get; }
+
+    /// <summary>Se instala en un servidor de Hosting (un modpack no crea una instancia).</summary>
+    public bool ForServer { get; }
+    private bool CreatesInstance => !ForServer && Type.CreatesInstance();
     public string Title => Hit.Title;
     public string AuthorText => $"por {Hit.Author}";
     public string Description => Hit.Description;
@@ -139,8 +160,8 @@ public sealed partial class ProjectCard : ObservableObject
     public string ActionText => State switch
     {
         CardState.Installing => IsProgressKnown ? $"{Progress:0} %" : "Instalando…",
-        CardState.Installed => Type.CreatesInstance() ? "Instancia creada" : "Instalado",
-        _ => Type.CreatesInstance() ? "Crear instancia" : "Instalar",
+        CardState.Installed => CreatesInstance ? "Instancia creada" : "Instalado",
+        _ => CreatesInstance ? "Crear instancia" : "Instalar",
     };
 
     partial void OnIconChanged(ImageSource? value) => OnPropertyChanged(nameof(HasIcon));
