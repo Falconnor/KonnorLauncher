@@ -1,4 +1,6 @@
 using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KonnorLauncher.Core.Instances;
 
@@ -41,6 +43,16 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     [ObservableProperty] private int _resourcePackCount;
     [ObservableProperty] private int _shaderPackCount;
 
+    /// <summary>Icono propio de la instancia (el del modpack con que se creó); null: se ven las iniciales.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIcon))]
+    private ImageSource? _icon;
+
+    public bool HasIcon => Icon is not null;
+
+    /// <summary>Archivo del icono dentro de la carpeta de la instancia.</summary>
+    public const string IconFileName = "icon.png";
+
     /// <summary>Archivos .jar de la carpeta mods (los desactivados .jar.disabled no cuentan).</summary>
     public System.Collections.ObjectModel.ObservableCollection<string> ModFiles { get; } = [];
 
@@ -74,6 +86,31 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         WorldCount = Count("saves", "*", files: false);
         ResourcePackCount = Count("resourcepacks", "*", files: null);
         ShaderPackCount = Count("shaderpacks", "*", files: null);
+        Icon = LoadIcon();
+    }
+
+    private ImageSource? LoadIcon()
+    {
+        var file = Path.Combine(Directory, IconFileName);
+        try
+        {
+            if (!File.Exists(file))
+                return null;
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad; // no deja el archivo abierto
+            image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            image.DecodePixelWidth = 128;
+            image.UriSource = new Uri(file);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                       or ArgumentException or InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            return null; // dañado: se ven las iniciales
+        }
     }
 
     private IEnumerable<string> ListMods()

@@ -733,6 +733,9 @@ public sealed partial class BrowseViewModel : ObservableObject
                 var versions = GameVersions.Where(v => v.IsActive).Select(v => v.Value).ToList();
                 var instance = await Task.Run(() => _installer.InstallModpackAsync(card.Hit.ProjectId, card.Hit.Title, progress,
                     loaders: loaders, gameVersions: versions, versionId: versionId));
+                // El icono del modpack pasa a ser el de la instancia (sin icono, se quedan las iniciales).
+                await _icons.SaveAsPngAsync(card.Hit.IconUrl,
+                    Path.Combine(_store.GetDirectory(instance.Id), InstanceItemViewModel.IconFileName));
                 card.State = CardState.Installed;
                 ShowNotice($"Instancia «{instance.Name}» creada con {card.Title}. Al pulsar JUGAR se instala {instance.Summary}.");
                 InstanceCreated?.Invoke(this, instance);

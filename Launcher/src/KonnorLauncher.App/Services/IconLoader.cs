@@ -62,6 +62,27 @@ public sealed class IconLoader(IHttpClientFactory httpFactory)
         return task;
     }
 
+    /// <summary>
+    /// Guarda el icono de <paramref name="url"/> como PNG en <paramref name="path"/> (el de un modpack, en
+    /// su instancia). false si no hay icono o no se pudo descargar o escribir.
+    /// </summary>
+    public async Task<bool> SaveAsPngAsync(string? url, string path)
+    {
+        if (await LoadAsync(url).ConfigureAwait(false) is not BitmapSource bitmap || ToPng(bitmap) is not { } png)
+            return false;
+        try
+        {
+            var tmp = path + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+            await File.WriteAllBytesAsync(tmp, png).ConfigureAwait(false);
+            File.Move(tmp, path, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private async Task<ImageSource?> LoadCoreAsync(string url, int decodeWidth)
     {
         PruneDiskOnce();

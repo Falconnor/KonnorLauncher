@@ -161,8 +161,8 @@
                                RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock Text="Konnor Launcher" FontFamily="{StaticResource DisplayFont}" FontSize="15" FontWeight="SemiBold"
                                    Margin="10,0,0,0" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding LauncherVersionText}" FontSize="12" Foreground="{StaticResource Ink3}"
-                                   Margin="8,1,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding LauncherVersionText}" FontSize="10.5" Foreground="{StaticResource Ink3}"
+                                   Margin="7,2,0,0" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <!-- ═══ Barra lateral: Explorar, instancias, jugador y Opciones ═══
@@ -244,9 +244,27 @@
                                             <Grid DockPanel.Dock="Left" Width="44" Height="44" Margin="0,0,12,0">
                                                 <Border CornerRadius="22" Background="{StaticResource TileBackground}" BorderThickness="1.5"
                                                         BorderBrush="{Binding Loader, Converter={StaticResource LoaderBrush}}">
-                                                    <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="14" FontWeight="SemiBold"
-                                                               Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    <Grid>
+                                                        <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="14" FontWeight="SemiBold"
+                                                                   Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <!-- Icono del modpack con que se creó la instancia -->
+                                                        <Ellipse Margin="1" Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}">
+                                                            <Ellipse.Fill>
+                                                                <ImageBrush ImageSource="{Binding Icon}" Stretch="UniformToFill" />
+                                                            </Ellipse.Fill>
+                                                        </Ellipse>
+                                                    </Grid>
                                                 </Border>
                                                 <!-- Verde: sincronizada con su servidor; ámbar: con una actualización; sin punto: normal -->
                                                 <Ellipse Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
@@ -379,9 +397,28 @@
                                     </Grid.ColumnDefinitions>
                                     <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource TileBackground}" BorderThickness="1.5"
                                             BorderBrush="{Binding Loader, Converter={StaticResource LoaderBrush}}">
-                                        <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="SemiBold"
-                                                   Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Grid>
+                                            <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="SemiBold"
+                                                       Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <!-- Icono del modpack con que se creó la instancia -->
+                                            <Rectangle Margin="1" RadiusX="11.5" RadiusY="11.5"
+                                                       Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}">
+                                                <Rectangle.Fill>
+                                                    <ImageBrush ImageSource="{Binding Icon}" Stretch="UniformToFill" />
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                        </Grid>
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="18,0,12,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource ViewTitle}" FontSize="22" />
