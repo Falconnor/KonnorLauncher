@@ -24,6 +24,12 @@ namespace KonnorLauncher.App.Controls;
 /// se muestra el texto sin formato.
 /// </para>
 /// <para>
+/// El visor solo existe mientras se ve: con la página cerrada, en otra pestaña o con el launcher
+/// minimizado se destruye. El control de composición captura la página continuamente y hace que WPF
+/// dibuje fotogramas sin parar (un 10-15 % de CPU con el launcher en reposo, también minimizado). Al
+/// volver a verse se crea de nuevo y recupera la posición del desplazamiento.
+/// </para>
+/// <para>
 /// La barra de desplazamiento es la del launcher (la de la página va oculta): el control de composición
 /// no hace llegar a la página el arrastre de su propia barra. Se mantienen sincronizadas leyendo la
 /// posición de la página y moviéndola con scripts del propio launcher (los de la página siguen
@@ -33,7 +39,7 @@ namespace KonnorLauncher.App.Controls;
 public sealed partial class HtmlView : Grid
 {
     public static readonly DependencyProperty HtmlProperty = DependencyProperty.Register(
-        nameof(Html), typeof(string), typeof(HtmlView), new PropertyMetadata(null, (d, _) => ((HtmlView)d).Show()));
+        nameof(Html), typeof(string), typeof(HtmlView), new PropertyMetadata(null, (d, _) => ((HtmlView)d).OnHtmlChanged()));
 
     public string? Html
     {
@@ -43,7 +49,11 @@ public sealed partial class HtmlView : Grid
 
     private static Task<CoreWebView2Environment>? _environment;
 
-    private readonly WebView2CompositionControl _web = new() { DefaultBackgroundColor = System.Drawing.Color.Transparent };
+    /// <summary>El visor, solo mientras se ve (ver la descripción de la clase).</summary>
+    private WebView2CompositionControl? _web;
+    private Window? _window;
+    private int _generation;        // cada visor creado; uno que termina de iniciarse tarde ve que ya no es el actual
+    private double _restoreScroll;  // posición a recuperar al volver a crear el visor
     private readonly TextBlock _fallback = new()
     {
         TextWrapping = TextWrapping.Wrap,
@@ -71,7 +81,6 @@ public sealed partial class HtmlView : Grid
         _fallback.SetResourceReference(TextBlock.ForegroundProperty, "Ink2");
         _bar.SetResourceReference(StyleProperty, "GlassScrollBar");
         SetColumn(_bar, 1);
-        Children.Add(_web);
         Children.Add(_bar);
         _fallbackScroll.Content = _fallback;
         SetColumnSpan(_fallbackScroll, 2);
@@ -79,32 +88,68 @@ public sealed partial class HtmlView : Grid
 
         _bar.ValueChanged += OnBarValueChanged;
         _sync.Tick += async (_, _) => await ReadScrollAsync();
-        // Solo se sincroniza mientras se ve (la galería y las versiones la ocultan).
-        IsVisibleChanged += (_, e) =>
+        IsVisibleChanged += (_, _) => UpdateWeb();
+        Loaded += (_, _) =>
         {
-            if (e.NewValue is true && _ready)
-                _sync.Start();
-            else
-                _sync.Stop();
+            _window = Window.GetWindow(this);
+            if (_window is not null)
+                _window.StateChanged += OnWindowStateChanged;
+            UpdateWeb();
         };
-        Unloaded += (_, _) => _sync.Stop();
-        Loaded += async (_, _) => await InitializeAsync();
+        Unloaded += (_, _) =>
+        {
+            if (_window is not null)
+                _window.StateChanged -= OnWindowStateChanged;
+            _window = null;
+            DestroyWeb();
+        };
         // El control de composición ya pasó el clic a la página (barra de desplazamiento, enlaces, texto),
         // pero no lo marca como atendido: sin esto, la ventana empezaría a arrastrarse y se quedaría el ratón.
         MouseLeftButtonDown += (_, e) => e.Handled = true;
     }
 
-    private async Task InitializeAsync()
+    private void OnWindowStateChanged(object? sender, EventArgs e) => UpdateWeb();
+
+    /// <summary>Otra página (otro proyecto): empieza arriba, no donde estaba la anterior.</summary>
+    private void OnHtmlChanged()
     {
-        if (_ready || _failed)
-            return;
+        _restoreScroll = 0;
+        Show();
+    }
+
+    /// <summary>Se ve de verdad: visible, con una página que mostrar y el launcher sin minimizar.</summary>
+    private bool ShouldShowWeb =>
+        !_failed && IsVisible && !string.IsNullOrEmpty(Html) && _window is { WindowState: not WindowState.Minimized };
+
+    /// <summary>Crea o destruye el visor según <see cref="ShouldShowWeb"/>.</summary>
+    private void UpdateWeb()
+    {
+        if (ShouldShowWeb)
+        {
+            if (_web is null)
+                _ = CreateWebAsync();
+        }
+        else if (_web is not null)
+        {
+            DestroyWeb();
+        }
+    }
+
+    private async Task CreateWebAsync()
+    {
+        var generation = ++_generation;
+        var web = new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Transparent };
+        _web = web;
+        Children.Insert(0, web);
         try
         {
             // Un solo entorno para todo el launcher, con su carpeta de datos en %LOCALAPPDATA%.
             _environment ??= CoreWebView2Environment.CreateAsync(null,
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KonnorLauncher", "webview"));
-            await _web.EnsureCoreWebView2Async(await _environment);
-            var core = _web.CoreWebView2;
+            await web.EnsureCoreWebView2Async(await _environment);
+            if (generation != _generation)
+                return; // se destruyó mientras se iniciaba
+            var core = web.CoreWebView2;
             core.Settings.IsScriptEnabled = false;
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = false;
@@ -114,34 +159,61 @@ public sealed partial class HtmlView : Grid
             core.Settings.IsGeneralAutofillEnabled = false;
             core.Settings.IsPasswordAutosaveEnabled = false;
             core.NavigationStarting += OnNavigationStarting;
+            core.NavigationCompleted += OnNavigationCompleted;
             core.NewWindowRequested += (_, e) =>
             {
                 e.Handled = true;
                 OpenExternal(e.Uri);
             };
             _ready = true;
-            if (IsVisible)
-                _sync.Start();
+            _sync.Start();
             Show();
         }
         catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or COMException or InvalidOperationException or IOException
-                                       or UnauthorizedAccessException)
+                                       or UnauthorizedAccessException or ObjectDisposedException)
         {
+            if (generation != _generation)
+                return;
             _failed = true;
+            DestroyWeb();
             Show();
         }
+    }
+
+    /// <summary>Cierra el visor (y su captura). La posición del desplazamiento se guarda para recuperarla.</summary>
+    private void DestroyWeb()
+    {
+        _generation++;
+        _sync.Stop();
+        _ready = false;
+        _bar.Visibility = Visibility.Collapsed;
+        if (_web is not { } web)
+            return;
+        _web = null;
+        Children.Remove(web);
+        web.Dispose();
+    }
+
+    /// <summary>Al volver a crear el visor, la página vuelve a donde estaba.</summary>
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (_restoreScroll <= 0 || _web?.CoreWebView2 is not { } core)
+            return;
+        var y = _restoreScroll.ToString("0", CultureInfo.InvariantCulture);
+        _restoreScroll = 0;
+        _ = core.ExecuteScriptAsync($"window.scrollTo(0, {y})");
     }
 
     /// <summary>Posición de la página → barra del launcher.</summary>
     private async Task ReadScrollAsync()
     {
-        if (!_ready || _reading || _web.CoreWebView2 is null)
+        if (!_ready || _reading || _web?.CoreWebView2 is not { } core)
             return;
         _reading = true;
         try
         {
             // Script del launcher (no de la página): funciona aunque los de la página estén desactivados.
-            var json = await _web.CoreWebView2.ExecuteScriptAsync(
+            var json = await core.ExecuteScriptAsync(
                 "[window.scrollY, document.documentElement.scrollHeight, window.innerHeight]");
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() != 3)
@@ -157,6 +229,8 @@ public sealed partial class HtmlView : Grid
             _bar.SmallChange = 48;
             if (!_bar.IsMouseCaptureWithin)
                 _bar.Value = Math.Clamp(top, 0, max);
+            if (_web is not null)
+                _restoreScroll = top;
             _bar.Visibility = max > 1 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex) when (ex is COMException or InvalidOperationException or JsonException or ObjectDisposedException)
@@ -173,10 +247,10 @@ public sealed partial class HtmlView : Grid
     /// <summary>Barra del launcher (arrastre, clic o accesibilidad) → posición de la página.</summary>
     private void OnBarValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_updating || !_ready || _web.CoreWebView2 is null)
+        if (_updating || !_ready || _web?.CoreWebView2 is not { } core)
             return;
         var y = e.NewValue.ToString("0", CultureInfo.InvariantCulture);
-        _ = _web.CoreWebView2.ExecuteScriptAsync($"window.scrollTo(0, {y})");
+        _ = core.ExecuteScriptAsync($"window.scrollTo(0, {y})");
     }
 
     /// <summary>Solo se carga la propia página; cualquier enlace se abre fuera.</summary>
@@ -207,7 +281,6 @@ public sealed partial class HtmlView : Grid
         var html = Html ?? string.Empty;
         if (_failed)
         {
-            _web.Visibility = Visibility.Collapsed;
             _bar.Visibility = Visibility.Collapsed;
             _fallbackScroll.Visibility = Visibility.Visible;
             _fallback.Visibility = Visibility.Visible;
@@ -215,8 +288,16 @@ public sealed partial class HtmlView : Grid
             return;
         }
 
-        if (_ready)
-            _web.NavigateToString(html.Length > 0 ? html : "<html><body></body></html>");
+        if (_ready && _web is not null)
+        {
+            if (html.Length > 0)
+                _web.NavigateToString(html);
+            else
+                DestroyWeb(); // sin página (se cerró el proyecto): fuera el visor
+            return;
+        }
+
+        UpdateWeb();
     }
 
     /// <summary>Texto aproximado de la página, sin etiquetas (si no hay WebView2).</summary>
