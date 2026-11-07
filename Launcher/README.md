@@ -26,6 +26,9 @@ src/
   KonnorLauncher.Core/         ← lógica sin UI: configuración, instancias, cargadores, verificación, CmlLib, flujo de JUGAR
     Instances/                 ← instancias (instance.json) y sus carpetas
     Loaders/                   ← versiones e instalación de Fabric, Quilt, Forge y NeoForge
+    Modrinth/                  ← búsqueda e instalación de contenido de Modrinth (Explorar)
+    Players/                   ← skins: validación, galería de MineSkin y skins descargadas
+    Servers/                   ← directorio de servidores, estado en vivo, ping, servers.dat y Favoritos
   KonnorLauncher.App/          ← interfaz WPF (MVVM), assets y launcher.properties por defecto
     Controls/GlassPanel.cs     ← panel de cristal: desenfoca lo que hay detrás (WPF no tiene backdrop-filter)
     Themes/Glass.xaml          ← estilos glassmorphism (mismos tokens que el panel del servidor)
@@ -77,9 +80,16 @@ Todo se guarda en `%APPDATA%\KonnorLauncher`:
 
 ```
 instances/<id>/        ← una carpeta por instancia: instance.json, mods, config, saves, resourcepacks...
+                         (icon.png: icono del modpack con que se creó; servers.dat: su lista Multijugador)
 meta/                  ← compartido entre instancias (como en Modrinth)
   versions/  libraries/  assets/  runtime/   (runtime = Java de Mojang)
+player/                ← skin y foto de perfil del jugador
+  skins/               ← skins descargadas (sin aplicar) y su índice downloaded.json
+servers.json           ← Favoritos de la sección Servidores y la instancia creada para cada servidor
 ```
+
+Los iconos de Modrinth y las texturas de la galería de skins se guardan en una caché aparte,
+`%LOCALAPPDATA%\KonnorLauncher\cache`, que se puede borrar sin perder nada.
 
 - **Crear una instancia**: nombre, versión de Minecraft (barra que se despliega, con buscador),
   cargador de mods (Vanilla, Fabric, Forge, NeoForge o Quilt) y, si hay cargador, su versión:
@@ -106,10 +116,41 @@ meta/                  ← compartido entre instancias (como en Modrinth)
   de perfil y la skin. La skin se valida (PNG de 64×64 o 64×32) y se muestra en 3D, girando y con
   sus capas exteriores; se puede arrastrar para girarla y elegir el modelo clásico o delgado. En
   una cuenta sin conexión el juego no descarga skins: dentro del juego solo se ve con un mod de skins.
+- **Menú de la instancia**: con clic derecho sobre una instancia de la barra lateral (o la tecla de
+  menú) se abre un menú con Jugar, Abrir carpeta, Editar instancia y Eliminar instancia, sin cambiar
+  la instancia seleccionada.
 - **Migración**: la primera vez, si `launcher.properties` tenía una versión o la verificación
   activada, esa configuración se convierte en la instancia "Konnor".
 
 La variable `KONNOR_DATA_DIR` cambia la carpeta de datos (útil para pruebas o una instalación portátil).
+
+## Explorar, Skins y Servidores
+
+La barra lateral da acceso a tres secciones además de las instancias:
+
+- **Explorar (Mods, Shaders y el resto de pestañas)**: busca en [Modrinth](https://modrinth.com) modpacks,
+  mods, paquetes de recursos, data packs y shaders, con filtros (versión, cargador, categoría, entorno)
+  y orden. Los mods se instalan en la instancia elegida con sus dependencias; un modpack crea una
+  instancia nueva con su versión, su cargador, sus archivos y su icono.
+- **Skins**: galería pública de [MineSkin](https://mineskin.org) (pestañas Recientes y Populares, con
+  búsqueda) y la pestaña **Descargadas**. La skin elegida se ve en 3D: gira sola, se orienta con el
+  botón pulsado y se acerca con la rueda o con el deslizador de zoom. **Usar esta skin** la aplica a la
+  cuenta; **Descargar skin** la guarda en Descargadas sin aplicarla, y desde ahí se puede borrar.
+- **Servidores**: directorio de servidores de Java de Modrinth (API v3: dirección, jugadores conectados,
+  región, idiomas y modpack de cada servidor), con búsqueda y filtros por orden, región, versión,
+  categoría e idioma. Pestañas:
+  - **Premium**: servidores que piden cuenta de Minecraft premium. Con las cuentas sin conexión del
+    launcher el servidor rechaza la conexión.
+  - **No premium**: servidores en modo offline, a los que se entra con las cuentas del launcher.
+  - **Explorar**: todos los servidores.
+  - **Favoritos**: direcciones guardadas (con la estrella de un servidor o escribiéndolas), con su
+    estado en vivo de [mcstatus.io](https://mcstatus.io): jugadores, versión, mensaje e icono.
+
+  **Jugar** en un servidor del directorio crea (o reutiliza) su instancia con su modpack o su versión,
+  lo añade a la lista Multijugador del juego (`servers.dat`) y abre el juego entrando directamente al
+  servidor. En Favoritos, Jugar lo añade a la instancia seleccionada. Cada servidor muestra el ping
+  desde este equipo (tiempo de abrir la conexión): verde hasta 80 ms, amarillo hasta 120 ms y rojo
+  por encima. Los servidores que solo publican su puerto con un registro SRV pueden no mostrar ping.
 
 ## Configuración (`launcher.properties`)
 
@@ -128,8 +169,9 @@ la izquierda de la barra lateral); memoria y Java, en **Opciones**:
 | `instance.selected` | Instancia seleccionada en la barra lateral |
 | `server.url` | Dirección que se propone al marcar "Sincronizar con el servidor" en una instancia nueva |
 
-`minecraft.version`, `game.path`, `enable.verify` y `delete_unauthorized` son de la versión
-anterior: solo se leen para migrarlos a la primera instancia (y los usa la herramienta de diagnóstico).
+`minecraft.version`, `enable.verify` y `cached.client.version` son de la versión anterior: solo se
+leen para migrarlos a la primera instancia. `game.path`, `versions.path` y `delete_unauthorized` solo
+los usa la herramienta de diagnóstico.
 
 ## Diagnosticar el servidor
 
