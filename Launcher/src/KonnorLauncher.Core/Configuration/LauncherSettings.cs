@@ -12,8 +12,6 @@ public sealed class LauncherSettings
     public const string KeyGamePath = "game.path";
     public const string KeyJavaPath = "java.path";
     public const string KeyVersionsPath = "versions.path";
-    public const string KeyLibrariesPath = "libraries.path";
-    public const string KeyAssetsPath = "assets.path";
     public const string KeyMinecraftVersion = "minecraft.version";
     public const string KeyServerUrl = "server.url";
     public const string KeyEnableVerify = "enable.verify";
@@ -45,8 +43,6 @@ public sealed class LauncherSettings
     public string GamePath => Properties.Get(KeyGamePath);
     public string JavaPath => Properties.Get(KeyJavaPath);
     public string VersionsPath => Properties.Get(KeyVersionsPath, "versions");
-    public string LibrariesPath => Properties.Get(KeyLibrariesPath, "libraries");
-    public string AssetsPath => Properties.Get(KeyAssetsPath, "assets");
     public string MinecraftVersion => Properties.Get(KeyMinecraftVersion);
     public string ServerUrl => Properties.Get(KeyServerUrl);
     public string CachedClientVersion => Properties.Get(KeyCachedClientVersion);

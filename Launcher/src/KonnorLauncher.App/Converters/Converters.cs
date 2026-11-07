@@ -50,16 +50,6 @@ public sealed class InverseBoolToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>null → Collapsed; cualquier otro valor → Visible.</summary>
-public sealed class NullToVisibilityConverter : IValueConverter
-{
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is null ? Visibility.Collapsed : Visibility.Visible;
-
-    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
 /// <summary>
 /// Cargador → su color (recursos <c>LoaderVanilla</c>, <c>LoaderFabric</c>...): borde y letras del icono
 /// de una instancia.

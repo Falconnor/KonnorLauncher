@@ -171,6 +171,7 @@ public partial class App : Application
         services.AddSingleton(sp => new ModrinthClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ModrinthClient>>()));
         services.AddSingleton<ContentInstaller>();
         services.AddSingleton(sp => new MineSkinClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<MineSkinClient>>()));
+        services.AddSingleton(sp => new SkinLibrary(System.IO.Path.Combine(LauncherPaths.PlayerDir, "skins"), sp.GetRequiredService<ILogger<SkinLibrary>>()));
         services.AddSingleton<IconLoader>();
 
         // UI.

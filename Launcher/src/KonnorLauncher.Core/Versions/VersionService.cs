@@ -1,7 +1,5 @@
 using CmlLib.Core.VersionLoader;
 using CmlLib.Core.VersionMetadata;
-using KonnorLauncher.Core.Configuration;
-using KonnorLauncher.Core.Paths;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -16,16 +14,12 @@ public sealed record VersionEntry(string Id, bool IsInstalled, string Type);
 /// </summary>
 public sealed class VersionService
 {
-    private readonly LauncherSettings _settings;
-    private readonly LauncherPaths _paths;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger _logger;
     private volatile IReadOnlyList<string>? _remoteReleases;
 
-    public VersionService(LauncherSettings settings, LauncherPaths paths, IHttpClientFactory httpFactory, ILogger<VersionService>? logger = null)
+    public VersionService(IHttpClientFactory httpFactory, ILogger<VersionService>? logger = null)
     {
-        _settings = settings;
-        _paths = paths;
         _httpFactory = httpFactory;
         _logger = (ILogger?)logger ?? NullLogger.Instance;
     }
@@ -38,13 +32,6 @@ public sealed class VersionService
     /// Lista vacía = se intentó y no hay conexión.
     /// </summary>
     public IReadOnlyList<string>? RemoteReleases => _remoteReleases;
-
-    /// <summary>Versión seleccionada (<c>minecraft.version</c>).</summary>
-    public string SelectedVersion => _settings.MinecraftVersion;
-
-    /// <summary>Carpeta de versiones resuelta (<c>versions.path</c>, relativa al juego).</summary>
-    public string VersionsDir => LauncherPaths.ResolveGameSubDir(
-        _paths.ResolveGameDir(_settings.GamePath), _settings.VersionsPath, "versions");
 
     /// <summary>
     /// Versiones instaladas: subcarpetas de <c>versions/</c> que contienen <c>&lt;id&gt;.json</c>
@@ -83,9 +70,6 @@ public sealed class VersionService
         return result;
     }
 
-    /// <summary>Instaladas en la carpeta configurada actualmente.</summary>
-    public List<string> GetInstalledVersions() => GetInstalledVersions(VersionsDir);
-
     /// <summary>
     /// Descarga la lista de Mojang (solo <c>release</c>) con el cargador de CmlLib.
     /// Sin conexión deja la lista vacía en vez de lanzar una excepción.
@@ -117,9 +101,6 @@ public sealed class VersionService
         return _remoteReleases;
     }
 
-    /// <summary>Lista combinada: instaladas + releases remotas no instaladas.</summary>
-    public List<VersionEntry> GetAllVersions() => Combine(GetInstalledVersions(), _remoteReleases);
-
     /// <summary>Combina instaladas y remotas sin duplicados (función pura, testeable).</summary>
     public static List<VersionEntry> Combine(IReadOnlyList<string> installed, IReadOnlyList<string>? remote)
     {
@@ -132,13 +113,5 @@ public sealed class VersionService
         }
 
         return result;
-    }
-
-    /// <summary>Guarda la versión elegida al instante.</summary>
-    public void SelectVersion(string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-            throw new ArgumentException("La versión no puede estar vacía", nameof(id));
-        _settings.Properties.Set(LauncherSettings.KeyMinecraftVersion, id.Trim());
     }
 }

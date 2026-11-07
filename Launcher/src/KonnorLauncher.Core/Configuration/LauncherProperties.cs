@@ -86,13 +86,6 @@ public sealed class LauncherProperties
             return _values.ContainsKey(key);
     }
 
-    /// <summary>Copia de todas las claves y valores actuales.</summary>
-    public IReadOnlyDictionary<string, string> Snapshot()
-    {
-        lock (_sync)
-            return new Dictionary<string, string>(_values, StringComparer.Ordinal);
-    }
-
     // ── Escritura ────────────────────────────────────────────────────────
 
     /// <summary>Asigna una clave y guarda en el momento.</summary>

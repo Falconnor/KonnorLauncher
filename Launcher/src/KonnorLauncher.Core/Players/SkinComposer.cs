@@ -1,7 +1,7 @@
 namespace KonnorLauncher.Core.Players;
 
 /// <summary>
-/// Composición 2D de una skin de Minecraft (FRENTE y ESPALDA) sobre un lienzo de 16×32 px.
+/// Composición 2D de una skin de Minecraft (FRENTE) sobre un lienzo de 16×32 px.
 /// Trabaja con píxeles BGRA de 32 bits y sin UI, por lo que se puede probar con tests.
 /// Skin moderna = exactamente 64×64; cualquier otra se trata como clásica (64×32) y las
 /// extremidades del lado derecho se obtienen espejando las izquierdas.
@@ -19,8 +19,6 @@ public static class SkinComposer
 
     public static Pixels ComposeFront(Pixels skin) => Compose(skin, FrontParts(IsModern(skin)));
 
-    public static Pixels ComposeBack(Pixels skin) => Compose(skin, BackParts(IsModern(skin)));
-
     public static bool IsModern(Pixels skin) => skin.Width == 64 && skin.Height == 64;
 
     // Partes de la skin (el orden importa: la capa del sombrero se dibuja al final).
@@ -33,17 +31,6 @@ public static class SkinComposer
         new(4, 20, 4, 12, 4, 20),    // pierna (izquierda)
         modern ? new(20, 52, 4, 12, 8, 20) : new(4, 20, 4, 12, 8, 20, Mirror: true),  // pierna (derecha)
         new(40, 8, 8, 8, 4, 0),      // capa del sombrero
-    ];
-
-    private static Part[] BackParts(bool modern) =>
-    [
-        new(24, 8, 8, 8, 4, 0),
-        new(32, 20, 8, 12, 4, 8),
-        new(52, 20, 4, 12, 12, 8),
-        modern ? new(44, 52, 4, 12, 0, 8) : new(52, 20, 4, 12, 0, 8, Mirror: true),
-        new(12, 20, 4, 12, 8, 20),
-        modern ? new(28, 52, 4, 12, 4, 20) : new(12, 20, 4, 12, 4, 20, Mirror: true),
-        new(56, 8, 8, 8, 4, 0),
     ];
 
     private static Pixels Compose(Pixels skin, IEnumerable<Part> parts)

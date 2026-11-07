@@ -11,8 +11,8 @@ namespace KonnorLauncher.App.Controls;
 /// <summary>
 /// Visor 3D de una skin de Minecraft: el jugador con sus capas base y exteriores, girando despacio y
 /// respirando. Con el botón pulsado se para el giro, se orienta libremente (aunque el ratón salga del
-/// recuadro) y la rueda acerca o aleja; al soltar, la inclinación y el zoom vuelven a los iniciales y
-/// sigue girando. La textura debe venir ya normalizada a 64×64
+/// recuadro) y la rueda acerca o aleja; al soltar, la inclinación vuelve a la inicial, el zoom al elegido
+/// (<see cref="Zoom"/>) y sigue girando. La textura debe venir ya normalizada a 64×64
 /// (<see cref="SkinTexture.Normalize"/>). Las coordenadas de cada caja siguen el diseño de las skins
 /// del juego: arriba, abajo, lado derecho, frente, lado izquierdo y espalda.
 /// </summary>
@@ -23,6 +23,19 @@ public sealed class SkinViewer3D : Grid
 
     public static readonly DependencyProperty SlimProperty = DependencyProperty.Register(
         nameof(Slim), typeof(bool), typeof(SkinViewer3D), new PropertyMetadata(false, (d, _) => ((SkinViewer3D)d).Rebuild()));
+
+    public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(
+        nameof(Zoom), typeof(double), typeof(SkinViewer3D), new PropertyMetadata(1.0, (d, _) => ((SkinViewer3D)d).OnZoomChanged()));
+
+    /// <summary>
+    /// Zoom elegido (1 = distancia inicial; 2 = el doble de cerca). Es el zoom al que se vuelve al soltar;
+    /// mientras se arrastra manda la rueda.
+    /// </summary>
+    public double Zoom
+    {
+        get => (double)GetValue(ZoomProperty);
+        set => SetValue(ZoomProperty, value);
+    }
 
     /// <summary>Textura de 64×64 (BGRA) ya normalizada.</summary>
     public SkinComposer.Pixels? Skin
@@ -148,13 +161,28 @@ public sealed class SkinViewer3D : Grid
             var k = 1 - Math.Exp(-ReturnSpeed * elapsed);
             _yaw.Angle = (_yaw.Angle + IdleDegreesPerSecond * elapsed) % 360;
             _pitch.Angle += (NearestRestPitch() - _pitch.Angle) * k;
-            var distance = _distance + (RestDistance - _distance) * k;
+            var distance = _distance + (ZoomDistance - _distance) * k;
             if (Math.Abs(distance - _distance) > 0.001)
             {
                 _distance = distance;
                 UpdateCamera();
             }
         }
+    }
+
+    /// <summary>Distancia de la cámara para <see cref="Zoom"/>, dentro de los límites del zoom.</summary>
+    private double ZoomDistance => Math.Clamp(RestDistance / Math.Max(Zoom, 0.01), MinDistance, MaxDistance);
+
+    /// <summary>
+    /// Zoom cambiado (con el deslizador): se aplica al momento, sin la transición suave. Mientras se
+    /// arrastra no se toca: manda la rueda y al soltar se vuelve a este.
+    /// </summary>
+    private void OnZoomChanged()
+    {
+        if (_dragStart is not null)
+            return;
+        _distance = ZoomDistance;
+        UpdateCamera();
     }
 
     /// <summary>La inclinación inicial más cercana (si se dieron vueltas en vertical, no se deshacen todas).</summary>

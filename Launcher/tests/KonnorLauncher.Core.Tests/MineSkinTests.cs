@@ -65,6 +65,32 @@ public sealed class MineSkinTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task List_Popular_UsesThePopularListWithItsCursor()
+    {
+        _server.Map("/v2/skins/popular?size=48&after=p1", $$$$"""
+            {"success":true,"skins":[{"uuid":"p2","name":"Popular","texture":"{{{{HashB}}}}","timestamp":5}],
+             "pagination":{"current":{},"next":{"after":"p2"}}}
+            """);
+
+        var page = await Client().ListAsync(after: "p1", order: SkinListOrder.Popular);
+
+        page.Skins.Select(s => s.Uuid).ShouldBe(["p2"]);
+        page.Skins[0].Texture.ShouldBe(HashB);
+        page.NextAfter.ShouldBe("p2");
+    }
+
+    [Fact]
+    public async Task List_Latest_IsTheDefaultOrder()
+    {
+        _server.Map("/v2/skins?size=10", """{"skins":[],"pagination":{"current":{}}}""");
+
+        var page = await Client().ListAsync(size: 10, order: SkinListOrder.Latest);
+
+        page.Skins.ShouldBeEmpty();
+        _server.Requests.ShouldBe(["/v2/skins?size=10"]);
+    }
+
+    [Fact]
     public async Task Get_ReadsVariantAndTexture()
     {
         _server.Map("/v2/skins/u1", $$$$"""

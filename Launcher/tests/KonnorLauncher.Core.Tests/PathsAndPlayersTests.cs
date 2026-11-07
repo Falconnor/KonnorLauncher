@@ -82,7 +82,6 @@ public class PathsAndPlayersTests
         // UUID.nameUUIDFromBytes("OfflinePlayer:Steve".getBytes(UTF_8))
         var uuid = OfflineUuid.FromUsername("Steve");
         uuid.ShouldBe("5627dd98e6be3c21b8a8e92344183641");
-        OfflineUuid.ToDashed(uuid).ShouldBe("5627dd98-e6be-3c21-b8a8-e92344183641");
         uuid[12].ShouldBe('3'); // versión 3
     }
 

@@ -337,9 +337,6 @@ public sealed partial class ProjectPageViewModel : ObservableObject
 
     // ── Secciones ───────────────────────────────────────────────────────────
 
-    [RelayCommand]
-    private void ShowSection(string section) => Section = section;
-
     partial void OnSectionChanged(string value)
     {
         OnPropertyChanged(nameof(IsDescription));

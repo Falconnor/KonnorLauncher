@@ -76,7 +76,6 @@ public sealed partial class InstallDialogViewModel : ObservableObject
     [ObservableProperty] private bool _useLatestLoader;
     [ObservableProperty] private string _loaderStatus = string.Empty;
     [ObservableProperty] private string? _resolvedLoaderVersion;
-    [ObservableProperty] private bool _isBusy;
 
     public bool IsExistingMode
     {

@@ -19,8 +19,4 @@ public static class OfflineUuid
         hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // variante IETF
         return Convert.ToHexStringLower(hash);
     }
-
-    /// <summary>Formato con guiones (8-4-4-4-12), útil para mostrar o comparar con el servidor.</summary>
-    public static string ToDashed(string undashed) =>
-        $"{undashed[..8]}-{undashed[8..12]}-{undashed[12..16]}-{undashed[16..20]}-{undashed[20..]}";
 }

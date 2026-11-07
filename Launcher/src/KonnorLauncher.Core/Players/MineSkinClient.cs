@@ -17,6 +17,16 @@ public sealed record SkinPage(IReadOnlyList<SkinSummary> Skins, string? NextAfte
 /// <summary>Ficha de una skin. <paramref name="Slim"/>: modelo de brazos finos (Alex).</summary>
 public sealed record SkinDetails(string Uuid, string? Name, string Texture, bool Slim, long Views);
 
+/// <summary>
+/// Orden de la galería: las más recientes o las más vistas últimamente (<c>/skins/popular</c>, el mismo
+/// listado que la sección «Popular» de mineskin.org).
+/// </summary>
+public enum SkinListOrder
+{
+    Latest,
+    Popular,
+}
+
 /// <summary>Error de la galería de skins con un mensaje apto para mostrar.</summary>
 public sealed class MineSkinException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -56,15 +66,24 @@ public sealed partial class MineSkinClient
     /// <summary>Página web de la skin en MineSkin (atribución).</summary>
     public static string PageUrl(string uuid) => $"https://mineskin.org/skins/{Uri.EscapeDataString(uuid)}";
 
-    /// <summary>Galería, de la más reciente a la más antigua; <paramref name="filter"/> busca por nombre.</summary>
-    public async Task<SkinPage> ListAsync(string? filter = null, string? after = null, int size = PageSize, CancellationToken ct = default)
+    /// <summary>
+    /// Galería en el orden <paramref name="order"/>; <paramref name="filter"/> busca por nombre (y etiquetas).
+    /// <para>
+    /// El listado de populares repite skins de una página a otra (quien lo use debe quitar las repetidas)
+    /// y, al buscar, devuelve resultados que no coinciden con lo buscado: la búsqueda es fiable solo en
+    /// <see cref="SkinListOrder.Latest"/>.
+    /// </para>
+    /// </summary>
+    public async Task<SkinPage> ListAsync(string? filter = null, string? after = null, int size = PageSize,
+        SkinListOrder order = SkinListOrder.Latest, CancellationToken ct = default)
     {
         var query = new List<string> { "size=" + Math.Clamp(size, 1, 100) };
         if (!string.IsNullOrWhiteSpace(filter))
             query.Add("filter=" + Uri.EscapeDataString(filter.Trim()));
         if (!string.IsNullOrEmpty(after))
             query.Add("after=" + Uri.EscapeDataString(after));
-        var dto = await GetAsync<ListDto>("/skins?" + string.Join('&', query), ct).ConfigureAwait(false);
+        var list = order == SkinListOrder.Popular ? "/skins/popular?" : "/skins?";
+        var dto = await GetAsync<ListDto>(list + string.Join('&', query), ct).ConfigureAwait(false);
         var skins = (dto.Skins ?? [])
             .Where(s => !string.IsNullOrEmpty(s.Uuid) && IsTextureHash(s.Texture))
             .Select(s => new SkinSummary(s.Uuid!, string.IsNullOrWhiteSpace(s.Name) ? null : s.Name.Trim(), s.Texture!, s.Timestamp))

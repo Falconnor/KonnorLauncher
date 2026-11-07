@@ -92,50 +92,11 @@ public sealed class LauncherPaths
         return DefaultGameDir;
     }
 
-    /// <summary>
-    /// Igual que <see cref="ResolveGameDir"/>, pero además crea la carpeta. Si la ruta configurada no se
-    /// puede crear (permisos, unidad inexistente...), vuelve a la carpeta por defecto.
-    /// </summary>
-    public string EnsureGameDir(string? configuredPath)
-    {
-        var candidate = ResolveGameDir(configuredPath);
-        try
-        {
-            Directory.CreateDirectory(candidate);
-            return candidate;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            var fallback = DefaultGameDir;
-            Directory.CreateDirectory(fallback);
-            return fallback;
-        }
-    }
-
     /// <summary>Resuelve una subcarpeta del juego (<c>versions.path</c>, etc.): absoluta o relativa al juego.</summary>
     public static string ResolveGameSubDir(string gameDir, string? configured, string defaultName)
     {
         var value = string.IsNullOrWhiteSpace(configured) ? defaultName : configured.Trim();
         return Path.GetFullPath(Path.IsPathRooted(value) ? value : Path.Combine(gameDir, value));
-    }
-
-    /// <summary>
-    /// Ruta para el botón 📁 de Opciones: relativa → relativa a la carpeta del launcher.
-    /// Devuelve null si está vacía o es inválida.
-    /// </summary>
-    public string? ResolveUserFolder(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        try
-        {
-            var trimmed = value.Trim();
-            return Path.GetFullPath(Path.IsPathRooted(trimmed) ? trimmed : Path.Combine(LaunchDir, trimmed));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return null;
-        }
     }
 
     /// <summary>True si la ruta es la <c>%APPDATA%\.minecraft</c> oficial, donde la limpieza no debe borrar nada.</summary>
