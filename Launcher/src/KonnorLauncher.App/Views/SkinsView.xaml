@@ -398,7 +398,8 @@
                         </RadialGradientBrush>
                     </Border.Background>
                     <Grid>
-                        <c:SkinViewer3D Skin="{Binding SelectedPixels}" Slim="{Binding SelectedSlim}" Zoom="{Binding ViewerZoom}" Margin="0,8,0,22"
+                        <c:SkinViewer3D Skin="{Binding SelectedPixels}" Slim="{Binding SelectedSlim}" Zoom="{Binding ViewerZoom}"
+                                        MinZoom="{x:Static vm:SkinsViewModel.MinViewerZoom}" MaxZoom="{x:Static vm:SkinsViewModel.MaxViewerZoom}" Margin="0,8,0,22"
                                         AutomationProperties.Name="Vista 3D de la skin" />
                         <TextBlock Text="Cargando…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <TextBlock.Style>

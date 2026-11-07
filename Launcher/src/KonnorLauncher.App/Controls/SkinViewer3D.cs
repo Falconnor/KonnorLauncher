@@ -25,7 +25,16 @@ public sealed class SkinViewer3D : Grid
         nameof(Slim), typeof(bool), typeof(SkinViewer3D), new PropertyMetadata(false, (d, _) => ((SkinViewer3D)d).Rebuild()));
 
     public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(
-        nameof(Zoom), typeof(double), typeof(SkinViewer3D), new PropertyMetadata(1.0, (d, _) => ((SkinViewer3D)d).OnZoomChanged()));
+        nameof(Zoom), typeof(double), typeof(SkinViewer3D),
+        new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, _) => ((SkinViewer3D)d).OnZoomChanged()));
+
+    /// <summary>Límites del zoom que cambia la rueda sin pulsar (por defecto, los de la distancia de la cámara).</summary>
+    public double MinZoom { get; set; } = RestDistance / MaxDistance;
+
+    public double MaxZoom { get; set; } = RestDistance / MinDistance;
+
+    /// <summary>Zoom que cambia cada paso de la rueda sin pulsar (como el deslizador de Skins).</summary>
+    private const double WheelZoomStep = 0.05;
 
     /// <summary>
     /// Zoom elegido (1 = distancia inicial; 2 = el doble de cerca). Es el zoom al que se vuelve al soltar;
@@ -60,6 +69,19 @@ public sealed class SkinViewer3D : Grid
     private const double MaxDistance = 120;
     private const double DegreesPerPixel = 0.8;
 
+    /// <summary>
+    /// Fotogramas por segundo de la vista: 40 girando sola y 50 arrastrando (para que siga mejor al ratón).
+    /// Conviene que dividan exacto la frecuencia de la pantalla (a 200 Hz: 40 = 1 de cada 5 refrescos,
+    /// 50 = 1 de cada 4); si no, los fotogramas salen desiguales y se nota a tirones.
+    /// Lo que no cambia no se redibuja, así que la GPU trabaja menos que a la frecuencia de la pantalla.
+    /// </summary>
+    private const double FramesPerSecond = 40;
+
+    private const double DragFramesPerSecond = 50;
+
+    private static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1 / FramesPerSecond);
+    private static readonly TimeSpan DragFrameInterval = TimeSpan.FromSeconds(1 / DragFramesPerSecond);
+
     /// <summary>Rapidez de la vuelta a la posición inicial (mayor = más rápida).</summary>
     private const double ReturnSpeed = 7;
 
@@ -83,6 +105,12 @@ public sealed class SkinViewer3D : Grid
     private double _dragYaw;
     private double _dragPitch;
     private TimeSpan _lastFrame;
+    private TimeSpan _nextFrame;
+
+    // Arrastrando: lo que pide el ratón se guarda y se aplica en el siguiente fotograma (como mucho 40 por segundo)
+    private double _targetYaw;
+    private double _targetPitch;
+    private bool _cameraPending;
     private Window? _window;
 
     public SkinViewer3D()
@@ -142,9 +170,28 @@ public sealed class SkinViewer3D : Grid
     private void OnRendering(object? sender, EventArgs e)
     {
         var time = ((RenderingEventArgs)e).RenderingTime;
+        // 40 fotogramas por segundo: se avanza por un reloj (cada 25 ms) y no por el último fotograma, así a
+        // 60 Hz salen 40 de media y no 30. Si se quedó muy atrás (pausa), se vuelve a contar desde ahora.
+        if (_lastFrame != TimeSpan.Zero && time < _nextFrame)
+            return;
+        var interval = _dragStart is null ? FrameInterval : DragFrameInterval;
+        _nextFrame = time - _nextFrame > interval ? time + interval : _nextFrame + interval;
         var elapsed = _lastFrame == TimeSpan.Zero ? 0 : Math.Min((time - _lastFrame).TotalSeconds, 0.1);
         _lastFrame = time;
         var t = time.TotalSeconds;
+
+        // Arrastrando: el giro y el zoom que pidió el ratón desde el fotograma anterior
+        if (_dragStart is not null)
+        {
+            _yaw.Angle = _targetYaw;
+            _pitch.Angle = _targetPitch;
+        }
+
+        if (_cameraPending)
+        {
+            _cameraPending = false;
+            UpdateCamera();
+        }
 
         // Respiración (como el jugador quieto en el juego): brazos un poco hacia fuera y adelante/atrás,
         // pecho que sube y baja
@@ -183,7 +230,7 @@ public sealed class SkinViewer3D : Grid
         if (_dragStart is not null)
             return;
         _distance = ZoomDistance;
-        UpdateCamera();
+        _cameraPending = true; // en el siguiente fotograma
     }
 
     /// <summary>La inclinación inicial más cercana (si se dieron vueltas en vertical, no se deshacen todas).</summary>
@@ -203,8 +250,8 @@ public sealed class SkinViewer3D : Grid
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         _dragStart = e.GetPosition(this);
-        _dragYaw = _yaw.Angle;
-        _dragPitch = _pitch.Angle;
+        _dragYaw = _targetYaw = _yaw.Angle;
+        _dragPitch = _targetPitch = _pitch.Angle;
         CaptureMouse();
         e.Handled = true; // que no arrastre la ventana
     }
@@ -214,23 +261,39 @@ public sealed class SkinViewer3D : Grid
         if (_dragStart is not { } start)
             return;
         // Con el botón pulsado sigue girando aunque el ratón salga del recuadro (está capturado)
+        // (se aplica en el siguiente fotograma)
         var position = e.GetPosition(this);
-        _yaw.Angle = _dragYaw + (position.X - start.X) * DegreesPerPixel;
-        _pitch.Angle = _dragPitch + (position.Y - start.Y) * DegreesPerPixel;
+        _targetYaw = _dragYaw + (position.X - start.X) * DegreesPerPixel;
+        _targetPitch = _dragPitch + (position.Y - start.Y) * DegreesPerPixel;
     }
 
-    /// <summary>Rueda con el botón pulsado: acerca o aleja.</summary>
+    /// <summary>
+    /// Rueda: sin pulsar cambia el zoom elegido (como el deslizador: se mantiene); con el botón pulsado
+    /// acerca o aleja solo mientras se arrastra (al soltar vuelve al elegido).
+    /// </summary>
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        e.Handled = true; // sobre la vista, la rueda no desplaza la página
         if (_dragStart is null)
-            return; // sin pulsar, la rueda desplaza la página como siempre
+        {
+            Zoom = Math.Clamp(Zoom + e.Delta / 120.0 * WheelZoomStep, MinZoom, MaxZoom);
+            return;
+        }
+
         _distance = Math.Clamp(_distance * Math.Pow(0.9, e.Delta / 120.0), MinDistance, MaxDistance);
-        UpdateCamera();
+        _cameraPending = true; // en el siguiente fotograma
         e.Handled = true;
     }
 
     private void EndDrag()
     {
+        if (_dragStart is not null)
+        {
+            // Lo último que pidió el ratón, aunque aún no se hubiera dibujado
+            _yaw.Angle = _targetYaw;
+            _pitch.Angle = _targetPitch;
+        }
+
         _dragStart = null;
         if (IsMouseCaptured)
             ReleaseMouseCapture();

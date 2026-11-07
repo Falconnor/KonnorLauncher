@@ -152,7 +152,15 @@
             <Setter.Value>
                 <ControlTemplate TargetType="c:GlassPanel">
                     <Grid x:Name="PART_Root">
-                        <Rectangle x:Name="PART_Backdrop" IsHitTestVisible="False" />
+                        <!-- El fondo ya desenfocado se guarda como imagen (BitmapCache en el contenedor, así incluye
+                             el desenfoque): lo que se anima encima (la vista 3D) no obliga a recalcular el
+                             desenfoque en cada fotograma. Solo se rehace si cambia el fondo o el tamaño. -->
+                        <Grid IsHitTestVisible="False">
+                            <Grid.CacheMode>
+                                <BitmapCache EnableClearType="False" SnapsToDevicePixels="False" />
+                            </Grid.CacheMode>
+                            <Rectangle x:Name="PART_Backdrop" IsHitTestVisible="False" />
+                        </Grid>
                         <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
                         <ContentPresenter Margin="{TemplateBinding Padding}" />
