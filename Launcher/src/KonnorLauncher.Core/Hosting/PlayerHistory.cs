@@ -11,23 +11,25 @@ namespace KonnorLauncher.Core.Hosting;
 public static class PlayerHistory
 {
     /// <summary>Nombres de los jugadores que entraron alguna vez, por orden alfabético.</summary>
-    public static IReadOnlyList<string> Load(string serverDir)
+    public static IReadOnlyList<string> Load(string serverDir) => [.. LoadEntries(serverDir).Select(e => e.Name)];
+
+    /// <summary>Jugadores que entraron alguna vez (nombre y UUID), por orden alfabético.</summary>
+    public static IReadOnlyList<(string Name, Guid Uuid)> LoadEntries(string serverDir)
     {
-        var level = ServerPropertiesFile.Load(Path.Combine(serverDir, ServerPropertiesFile.FileName)).Get("level-name", "world");
-        var world = Path.Combine(serverDir, string.IsNullOrWhiteSpace(level) ? "world" : level);
-        var folders = new[] { Path.Combine(world, "playerdata"), Path.Combine(world, "players", "data") }.Where(Directory.Exists).ToList();
+        var world = PlayerProfileReader.WorldDir(serverDir);
+        var folders = PlayerProfileReader.Layouts(world).Select(l => l.Data).Where(Directory.Exists).ToList();
         if (folders.Count == 0)
             return [];
 
         var names = ReadUserCache(Path.Combine(serverDir, "usercache.json"));
-        var result = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new SortedDictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in folders.SelectMany(f => Directory.EnumerateFiles(f, "*.dat")))
         {
             if (Guid.TryParse(Path.GetFileNameWithoutExtension(file), out var uuid) && names.TryGetValue(uuid, out var name))
-                result.Add(name);
+                result.TryAdd(name, uuid);
         }
 
-        return [.. result];
+        return [.. result.Select(e => (e.Key, e.Value))];
     }
 
     /// <summary><c>[{"name": "Steve", "uuid": "…", "expiresOn": "…"}]</c> → UUID → nombre. Dañado o ausente: vacío.</summary>

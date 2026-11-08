@@ -59,7 +59,8 @@ public static partial class ManifestParser
         // Política del servidor (solo cuenta un booleano; si falta, null).
         return new ClientManifest(clientVersion, files, blocks,
             ReadFlag(root, "delete_unauthorized"), ReadFlag(root, "always_online"), ReadFlag(root, "released"),
-            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"), ParseGame(root), ParseAutoJoin(root));
+            ReadFlag(root, "lock_server_url"), ReadFlag(root, "protect_packs"), ParseGame(root), ParseAutoJoin(root),
+            ParseMemory(root), ReadFlag(root, "verify_hashes"));
     }
 
     /// <summary>
@@ -72,6 +73,16 @@ public static partial class ManifestParser
             return null;
         return Servers.ServerAddress.TryParse(ReadString(root, "server_address"), out var address) ? address.ToString() : null;
     }
+
+    /// <summary>
+    /// <c>recommended_memory_mb</c>: entero entre 512 MB y 1 TB; cualquier otro valor se ignora (no se rechaza
+    /// el manifest).
+    /// </summary>
+    private static int? ParseMemory(JsonElement root) =>
+        root.TryGetProperty("recommended_memory_mb", out var value) && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var mb) && mb is >= 512 and <= 1024 * 1024
+            ? mb
+            : null;
 
     /// <summary>
     /// Sección opcional <c>minecraft</c>: <c>{ "version", "loader", "loader_version" }</c>. Si está pero no

@@ -90,9 +90,11 @@ public sealed class VerificationTests : IAsyncLifetime
         _server.Map("/client/packages/" + name, bytes);
     }
 
-    private void PublishManifest(bool includeBlocks = true, bool? deleteUnauthorized = null)
+    private void PublishManifest(bool includeBlocks = true, bool? deleteUnauthorized = null, bool verifyHashes = false)
     {
         var manifest = new Dictionary<string, object> { ["client_version"] = "1.2.3", ["files"] = _files };
+        if (verifyHashes)
+            manifest["verify_hashes"] = true;
         if (deleteUnauthorized is { } delete)
             manifest["delete_unauthorized"] = delete;
         if (includeBlocks)
@@ -153,6 +155,50 @@ public sealed class VerificationTests : IAsyncLifetime
 
         result.FilesToRepair.ShouldBe(1);
         File.ReadAllText(GameFile("mods/a.jar")).ShouldBe("contenido-correcto");
+    }
+
+    [Fact]
+    public async Task Case02c_advanced_security_repairs_a_same_size_file_with_another_hash()
+    {
+        AddFile("mods/a.jar", "contenido-correcto");
+        AddFile("mods/b.jar", "intacto");
+        AddBlock("assets_001.zip", ("assets/objects/ab/abc", "asset-1"));
+        PublishManifest(verifyHashes: true);
+        _game.Write("mods/a.jar", "contenido-cambiado"); // mismo tamaño, otro contenido
+        _game.Write("mods/b.jar", "intacto");
+        _game.Write("assets/objects/ab/abc", "asset-2");
+
+        var result = await CreateVerifier().VerifyAsync(Options(), null, TestContext.Current.CancellationToken);
+
+        result.Success.ShouldBeTrue();
+        result.FilesToRepair.ShouldBe(1); // b.jar está bien
+        result.BlocksToRepair.ShouldBe(1);
+        File.ReadAllText(GameFile("mods/a.jar")).ShouldBe("contenido-correcto");
+        File.ReadAllText(GameFile("assets/objects/ab/abc")).ShouldBe("asset-1");
+    }
+
+    [Fact]
+    public async Task Server_that_never_answers_fails_within_the_manifest_timeout()
+    {
+        // Acepta la conexión pero no responde nunca (equipo apagado detrás de un router, puerto colgado…).
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            var result = await new ClientVerifier(_http) { ManifestTimeout = TimeSpan.FromSeconds(1) }
+                .VerifyAsync(Options(url: $"http://127.0.0.1:{port}"), null, TestContext.Current.CancellationToken);
+
+            result.Status.ShouldBe(VerificationException.ServerNotResponding);
+            watch.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(3)); // un solo plazo, reintentos incluidos
+            new ClientVerifier(_http).ManifestTimeout.ShouldBe(TimeSpan.FromSeconds(3));
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     [Fact]

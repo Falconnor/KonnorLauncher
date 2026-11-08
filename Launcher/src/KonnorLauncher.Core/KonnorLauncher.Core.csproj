@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="CmlLib.Core" />
     <PackageReference Include="CmlLib.Core.Installer.Forge" />
+    <PackageReference Include="fNbt" />
   </ItemGroup>
 
   <ItemGroup>

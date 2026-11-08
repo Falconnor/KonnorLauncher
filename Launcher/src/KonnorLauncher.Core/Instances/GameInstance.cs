@@ -106,6 +106,19 @@ public sealed partial class GameInstance
     /// </summary>
     public string? ServerAutoJoin { get; set; }
 
+    /// <summary>
+    /// <c>recommended_memory_mb</c> del servidor: la RAM que usa la instancia mientras el jugador no elija la
+    /// suya (<see cref="MemoryMb"/>). null = el servidor no la propone.
+    /// </summary>
+    public int? ServerMemoryMb { get; set; }
+
+    /// <summary>
+    /// RAM de la partida: la elegida para la instancia; si no, la que recomienda su servidor (ajustada a la
+    /// del equipo); si no, <paramref name="defaultMb"/> (la de Opciones).
+    /// </summary>
+    public int ResolveMemoryMb(int defaultMb) =>
+        MemoryMb ?? (SyncWithServer && ServerMemoryMb is { } server ? Configuration.SystemMemory.Clamp(server) : defaultMb);
+
     /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
     [JsonIgnore]
     public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;

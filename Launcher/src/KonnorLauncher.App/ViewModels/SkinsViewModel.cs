@@ -104,9 +104,24 @@ public sealed partial class SkinsViewModel : ObservableObject
     /// <summary>Páginas que se piden seguidas si una no trae ninguna skin nueva (populares repite muchas).</summary>
     private const int MaxEmptyPages = 3;
 
-    public bool IsLatest => Tab == SkinsTab.Latest;
-    public bool IsPopular => Tab == SkinsTab.Popular;
-    public bool IsDownloaded => Tab == SkinsTab.Downloaded;
+    // Con set para las pestañas (RadioButton): marcar una cambia de pestaña.
+    public bool IsLatest
+    {
+        get => Tab == SkinsTab.Latest;
+        set { if (value) Tab = SkinsTab.Latest; }
+    }
+
+    public bool IsPopular
+    {
+        get => Tab == SkinsTab.Popular;
+        set { if (value) Tab = SkinsTab.Popular; }
+    }
+
+    public bool IsDownloaded
+    {
+        get => Tab == SkinsTab.Downloaded;
+        set { if (value) Tab = SkinsTab.Downloaded; }
+    }
 
     /// <summary>Populares solo se puede elegir sin búsqueda (la API no busca bien entre las populares).</summary>
     public bool CanChoosePopular => string.IsNullOrWhiteSpace(SearchText);

@@ -16,8 +16,12 @@ public sealed class HostingService
     private readonly ConcurrentDictionary<string, ServerRunner> _runners = new();
     private readonly ConcurrentDictionary<string, ClientPublisher> _publishers = new();
 
-    public HostingService(HostedServerStore store, ServerInstaller installer, NetworkAccess network, ILoggerFactory? loggers = null)
+    private readonly KonnorLauncher.Core.Modrinth.ModrinthClient? _modrinth;
+
+    public HostingService(HostedServerStore store, ServerInstaller installer, NetworkAccess network, ILoggerFactory? loggers = null,
+        KonnorLauncher.Core.Modrinth.ModrinthClient? modrinth = null)
     {
+        _modrinth = modrinth;
         Store = store;
         Installer = installer;
         Network = network;
@@ -33,7 +37,7 @@ public sealed class HostingService
         _runners.GetOrAdd(id, key => new ServerRunner(key, _loggers.CreateLogger<ServerRunner>()));
 
     public ClientPublisher GetPublisher(string id) =>
-        _publishers.GetOrAdd(id, _ => new ClientPublisher(_loggers.CreateLogger<ClientPublisher>()));
+        _publishers.GetOrAdd(id, _ => new ClientPublisher(_loggers.CreateLogger<ClientPublisher>(), _modrinth));
 
     public bool AnyRunning => _runners.Values.Any(r => r.IsAlive) || _publishers.Values.Any(p => p.IsRunning);
 

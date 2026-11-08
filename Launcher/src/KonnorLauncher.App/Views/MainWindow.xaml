@@ -255,10 +255,9 @@
                                 <ListBox.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:InstanceItemViewModel}">
                                         <DockPanel>
-                                            <!-- Icono redondo con el color del cargador y el punto de estado -->
+                                            <!-- Icono redondo (sin contorno: la imagen ocupa todo el círculo) y el punto de estado -->
                                             <Grid DockPanel.Dock="Left" Width="44" Height="44" Margin="0,0,12,0">
-                                                <Border CornerRadius="22" Background="{StaticResource TileBackground}" BorderThickness="1.5"
-                                                        BorderBrush="{Binding Loader, Converter={StaticResource LoaderBrush}}">
+                                                <Border CornerRadius="22" Background="{StaticResource TileBackground}">
                                                     <Grid>
                                                         <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="14" FontWeight="SemiBold"
                                                                    Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
@@ -274,7 +273,7 @@
                                                             </TextBlock.Style>
                                                         </TextBlock>
                                                         <!-- Icono del modpack con que se creó la instancia -->
-                                                        <Ellipse Margin="1" Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}">
+                                                        <Ellipse Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}">
                                                             <Ellipse.Fill>
                                                                 <ImageBrush ImageSource="{Binding Icon}" Stretch="UniformToFill" />
                                                             </Ellipse.Fill>
@@ -388,7 +387,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Instancia seleccionada: cabecera, cifras, carpeta y mods (la lista ocupa lo que queda) -->
-                        <Border Grid.Row="0" Padding="32,28,32,20"
+                        <Border Grid.Row="0" Padding="32,28,32,20" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding ShowInstancePanel, Converter={StaticResource BoolToVisibility}}">
                             <!-- Tabulación en orden visual: la tuerca (arriba) antes que Abrir carpeta (abajo, pero declarado antes) -->
                             <DockPanel DataContext="{Binding SelectedInstance}" KeyboardNavigation.TabNavigation="Local">
@@ -564,7 +563,7 @@
                         </Border>
 
                         <!-- Sin instancias: una tarjeta con el primer paso -->
-                        <Border Grid.Row="0" Padding="40"
+                        <Border Grid.Row="0" Padding="40" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding ShowEmptyPanel, Converter={StaticResource BoolToVisibility}}">
                             <Border Style="{StaticResource Card}" Width="460" VerticalAlignment="Center" HorizontalAlignment="Center">
                                 <StackPanel>
@@ -592,25 +591,25 @@
                         </Border>
 
                         <!-- Explorar contenido: ocupa también el sitio de la barra de juego -->
-                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding IsBrowsing, Converter={StaticResource BoolToVisibility}}">
                             <views:BrowseView x:Name="BrowsePage" DataContext="{Binding Browse}" />
                         </Border>
 
                         <!-- Skins: galería de MineSkin (también ocupa el sitio de la barra de juego) -->
-                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding IsSkins, Converter={StaticResource BoolToVisibility}}">
                             <views:SkinsView DataContext="{Binding Skins}" />
                         </Border>
 
                         <!-- Servidores: directorio de Modrinth y Favoritos (también ocupa el sitio de la barra de juego) -->
-                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding IsServers, Converter={StaticResource BoolToVisibility}}">
                             <views:ServersView DataContext="{Binding Servers}" />
                         </Border>
 
                         <!-- Hosting: crear y gestionar servidores en este equipo (también ocupa el sitio de la barra de juego) -->
-                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20"
+                        <Border Grid.Row="0" Grid.RowSpan="2" Padding="32,8,24,20" Style="{StaticResource PageTransition}"
                                 Visibility="{Binding IsHosting, Converter={StaticResource BoolToVisibility}}">
                             <views:HostingView DataContext="{Binding Hosting}" />
                         </Border>

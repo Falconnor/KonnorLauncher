@@ -40,12 +40,16 @@ public sealed record AssetBlock(string Name, string Sha256, long Size, IReadOnly
 /// <c>protect_packs</c> (los paquetes de recursos y de shaders se instalan siempre y se protegen).
 /// <c>auto_join</c> y <c>server_address</c>: al jugar, el juego entra directamente a ese servidor de Minecraft
 /// (<see cref="AutoJoinAddress"/>; null si no se pide o la dirección no es válida).
+/// <c>recommended_memory_mb</c>: RAM que el servidor propone para la instancia (<see cref="RecommendedMemoryMb"/>).
+/// <c>verify_hashes</c> (seguridad avanzada): los archivos se comprueban también por su SHA-256, no solo por
+/// nombre y tamaño.
 /// <c>minecraft</c> (opcional): si está, <c>versions</c>, <c>libraries</c> y <c>assets</c> no vienen del
 /// servidor, los instala el launcher.
 /// </summary>
 public sealed record ClientManifest(string? ClientVersion, IReadOnlyList<ManifestFile> Files, IReadOnlyList<AssetBlock> AssetBlocks,
     bool? DeleteUnauthorized = null, bool? AlwaysOnline = null, bool? Released = null, bool? LockServerUrl = null,
-    bool? ProtectPacks = null, ManifestGame? Game = null, string? AutoJoinAddress = null);
+    bool? ProtectPacks = null, ManifestGame? Game = null, string? AutoJoinAddress = null, int? RecommendedMemoryMb = null,
+    bool? VerifyHashes = null);
 
 /// <summary>Resultado de una verificación.</summary>
 /// <param name="Success">true = el juego puede iniciarse.</param>

@@ -220,6 +220,19 @@ Cada servidor tiene su página:
   manifest, y este se regenera solo cuando la carpeta deja de cambiar unos segundos. Paper y Vanilla
   publican el juego sin cargador.
 
+  Los mods del servidor que Modrinth marca como **solo servidor** (`client_side: unsupported`) no se
+  envían: se identifican por su SHA-512 (también los que no se instalaron desde Explorar) y la respuesta
+  se guarda en `.konnor/mod-sides.json`. Los que no están en Modrinth se envían, y un mod puesto en
+  `cliente/mods` se envía siempre. La **RAM recomendada** (opcional) se publica como
+  `recommended_memory_mb`: la instancia del jugador la usa en lugar de la de Opciones hasta que él elija
+  otra en su instancia.
+
+  **Seguridad avanzada** (desactivada por defecto) publica `verify_hashes`: el launcher de cada jugador
+  comprueba entonces el SHA-256 de todos los archivos (varios a la vez) y repara los que no coincidan
+  aunque tengan el mismo tamaño. Desactivada, se comprueban solo el nombre y el tamaño, mucho más rápido.
+  Los cambios de esta pestaña se guardan solos al poco de hacerlos (un aviso flotante lo confirma, o
+  explica por qué no se pudo guardar); el botón **Guardar** sigue disponible.
+
 La cabecera muestra la dirección de internet (consultada a `api.ipify.org`) y la de la red local.
 **Abrir el router** abre la página del router (la puerta de enlace) para redirigir los puertos a este
 equipo: cada router es distinto y pide su contraseña, así que no se intenta hacer automáticamente. Al

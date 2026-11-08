@@ -77,20 +77,43 @@ public sealed class ModrinthClient
     public async Task<IReadOnlyDictionary<string, string>> FindFilesBySha512Async(IEnumerable<string> sha512, CancellationToken ct = default)
     {
         var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (hash, version) in await FindVersionsBySha512Async(sha512, ct).ConfigureAwait(false))
+        {
+            // La respuesta trae la versión entera: se toma el archivo cuyo hash es el pedido.
+            if (version.Files.FirstOrDefault(f => string.Equals(f.Hashes.Sha512, hash, StringComparison.OrdinalIgnoreCase)) is { } file
+                && ContentInstaller.IsAllowedUrl(file.Url, out _))
+                found[hash] = file.Url;
+        }
+
+        return found;
+    }
+
+    /// <summary>Versión de Modrinth a la que pertenece cada archivo (por su SHA-512). Los que no están, no aparecen.</summary>
+    public async Task<IReadOnlyDictionary<string, ProjectVersion>> FindVersionsBySha512Async(IEnumerable<string> sha512, CancellationToken ct = default)
+    {
+        var found = new Dictionary<string, ProjectVersion>(StringComparer.OrdinalIgnoreCase);
         foreach (var chunk in sha512.Select(h => h.ToLowerInvariant()).Distinct().Chunk(HashesPerRequest))
         {
             var versions = await PostAsync<Dictionary<string, ProjectVersion>>("/version_files",
                 new { hashes = chunk, algorithm = "sha512" }, ct).ConfigureAwait(false);
             foreach (var (hash, version) in versions)
-            {
-                // La respuesta trae la versión entera: se toma el archivo cuyo hash es el pedido.
-                if (version.Files.FirstOrDefault(f => string.Equals(f.Hashes.Sha512, hash, StringComparison.OrdinalIgnoreCase)) is { } file
-                    && ContentInstaller.IsAllowedUrl(file.Url, out _))
-                    found[hash] = file.Url;
-            }
+                found[hash] = version;
         }
 
         return found;
+    }
+
+    /// <summary>Varios proyectos a la vez (<c>GET /projects?ids=[…]</c>). Los que no existen, no aparecen.</summary>
+    public async Task<IReadOnlyList<ProjectDetails>> GetProjectsAsync(IEnumerable<string> ids, CancellationToken ct = default)
+    {
+        var result = new List<ProjectDetails>();
+        foreach (var chunk in ids.Distinct().Chunk(100))
+        {
+            var path = "/projects?ids=" + Uri.EscapeDataString(JsonSerializer.Serialize(chunk));
+            result.AddRange(await GetAsync<IReadOnlyList<ProjectDetails>>(path, ct).ConfigureAwait(false));
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyList<CategoryTag>> GetCategoriesAsync(CancellationToken ct = default) =>

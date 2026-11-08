@@ -76,3 +76,13 @@ public sealed class ZeroToVisibleConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>[proporción 0-1, ancho disponible] → ancho de la parte llena de una barra.</summary>
+public sealed class RatioWidthConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type targetType, object? parameter, CultureInfo culture) =>
+        values is [double ratio, double width] && width > 0 ? Math.Clamp(ratio, 0, 1) * width : 0.0;
+
+    public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

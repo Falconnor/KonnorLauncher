@@ -78,7 +78,9 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         // Una instancia enlazada aún debe pasar la verificación del servidor antes de estar lista.
         ReadyText = IsSynced ? $"Jugar a {model.Name}" : $"Listo para jugar a {model.Name}";
         LastPlayedText = FormatLastPlayed(model.LastPlayed);
-        MemoryText = model.MemoryMb is { } mb ? $"{InstanceEditorViewModel.FormatMemory(mb)} de RAM" : string.Empty;
+        MemoryText = model.MemoryMb is { } mb ? $"{InstanceEditorViewModel.FormatMemory(mb)} de RAM"
+            : model.SyncWithServer && model.ServerMemoryMb is not null ? $"{InstanceEditorViewModel.FormatMemory(model.ResolveMemoryMb(0))} de RAM (del servidor)"
+            : string.Empty;
         ModCount = Count("mods", "*.jar", files: true);
         ModFiles.Clear();
         foreach (var file in ListMods())

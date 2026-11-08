@@ -122,6 +122,18 @@ public sealed class ClientPublishSettings
     public bool LockServerUrl { get; set; } = true;
     public bool ProtectPacks { get; set; }
 
+    /// <summary>
+    /// RAM que se propone a los jugadores (<c>recommended_memory_mb</c>), en MB; null = no se propone. La
+    /// usa la instancia mientras el jugador no elija otra.
+    /// </summary>
+    public int? RecommendedMemoryMb { get; set; }
+
+    /// <summary>
+    /// Seguridad avanzada (<c>verify_hashes</c>): el launcher de cada jugador comprueba el SHA-256 de todos los
+    /// archivos al sincronizar. Desactivada, solo el nombre y el tamaño (mucho más rápido).
+    /// </summary>
+    public bool VerifyHashes { get; set; }
+
     /// <summary>Al jugar, el juego de cada jugador entra directamente a este servidor (<c>auto_join</c>).</summary>
     public bool AutoJoin { get; set; } = true;
 

@@ -39,7 +39,14 @@ public sealed class ClientPublisher : IAsyncDisposable
     private volatile ManifestBuildResult? _current;
     private int _verifications, _filesServed, _errors;
 
-    public ClientPublisher(ILogger? logger = null) => _logger = logger ?? NullLogger.Instance;
+    private readonly KonnorLauncher.Core.Modrinth.ModrinthClient? _modrinth;
+
+    /// <param name="modrinth">Para no enviar los mods solo de servidor (<see cref="ServerModFilter"/>); null = se envían todos.</param>
+    public ClientPublisher(ILogger? logger = null, KonnorLauncher.Core.Modrinth.ModrinthClient? modrinth = null)
+    {
+        _logger = logger ?? NullLogger.Instance;
+        _modrinth = modrinth;
+    }
 
     public bool IsRunning => _app is not null;
     public int Port { get; private set; }
@@ -188,8 +195,15 @@ public sealed class ClientPublisher : IAsyncDisposable
         Notify();
         try
         {
-            var result = await Task.Run(() => ClientManifestBuilder.Build(server, _serverDir, _clientDir, ManifestPath,
-                new HashCache(Path.Combine(_internalDir, "hashes.json"))), ct).ConfigureAwait(false);
+            var result = await Task.Run(async () =>
+            {
+                var cache = new HashCache(Path.Combine(_internalDir, "hashes.json"));
+                IReadOnlyList<string> skipped = ClientManifestBuilder.PublishesServerMods(server)
+                    ? await ServerModFilter.FindServerOnlyAsync(Path.Combine(_serverDir, "mods"), cache,
+                        Path.Combine(_internalDir, "mod-sides.json"), _modrinth, _logger, ct).ConfigureAwait(false)
+                    : [];
+                return ClientManifestBuilder.Build(server, _serverDir, _clientDir, ManifestPath, cache, skipped);
+            }, ct).ConfigureAwait(false);
             _current = result;
             LastBuilt = DateTimeOffset.Now;
             LastError = result.InvalidPaths.Count > 0

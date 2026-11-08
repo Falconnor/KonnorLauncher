@@ -15,7 +15,8 @@ public sealed record ManifestBuildResult(
     IReadOnlyList<string> InvalidPaths,
     IReadOnlyDictionary<string, string> PhysicalFiles,
     byte[] ManifestBytes,
-    TimeSpan Elapsed);
+    TimeSpan Elapsed,
+    IReadOnlyList<string>? SkippedServerMods = null);
 
 /// <summary>
 /// Genera <c>client_manifest.json</c> como lo hacía LauncherBackEnd (<c>generate_manifest.py</c>), con el
@@ -26,7 +27,8 @@ public sealed record ManifestBuildResult(
 /// <item><c>files</c>: todo lo que hay en la carpeta <c>cliente</c> y, si se pide, los mods del servidor.
 /// Los archivos de primer nivel de <c>mods</c>, <c>resourcepacks</c> y <c>shaderpacks</c> llevan su
 /// SHA-512 para que el launcher los descargue de Modrinth cuando estén allí.</item>
-/// <item>La política de sincronización (<c>delete_unauthorized</c>, <c>always_online</c>...).</item>
+/// <item>La política de sincronización (<c>delete_unauthorized</c>, <c>always_online</c>...) y la RAM
+/// recomendada (<c>recommended_memory_mb</c>).</item>
 /// </list>
 /// Las rutas que el launcher rechazaría no se publican: se devuelven en <see cref="ManifestBuildResult.InvalidPaths"/>.
 /// </summary>
@@ -40,16 +42,21 @@ public static class ClientManifestBuilder
     /// Archivos que se publican: ruta del manifest (con <c>/</c>) → archivo en disco. Los de la carpeta del
     /// cliente tienen prioridad sobre los mods del servidor con el mismo nombre.
     /// </summary>
+    /// <param name="skipServerMods">Mods del servidor que no se publican (los de solo servidor, ver <see cref="ServerModFilter"/>).</param>
     public static (SortedDictionary<string, string> Files, List<string> Invalid) CollectFiles(
-        string clientDir, string? serverModsDir)
+        string clientDir, string? serverModsDir, IEnumerable<string>? skipServerMods = null)
     {
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
         var invalid = new List<string>();
+        var skip = (skipServerMods ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (serverModsDir is not null && Directory.Exists(serverModsDir))
         {
             foreach (var path in Directory.EnumerateFiles(serverModsDir, "*.jar", SearchOption.TopDirectoryOnly))
-                Add("mods/" + Path.GetFileName(path), path);
+            {
+                if (!skip.Contains(Path.GetFileName(path)))
+                    Add("mods/" + Path.GetFileName(path), path);
+            }
         }
 
         if (Directory.Exists(clientDir))
@@ -93,11 +100,12 @@ public static class ClientManifestBuilder
     }
 
     /// <summary>Genera el manifest y lo escribe en <paramref name="manifestPath"/> solo si cambió.</summary>
-    public static ManifestBuildResult Build(HostedServer server, string serverDir, string clientDir, string manifestPath, HashCache cache)
+    public static ManifestBuildResult Build(HostedServer server, string serverDir, string clientDir, string manifestPath, HashCache cache,
+        IReadOnlyList<string>? skipServerMods = null)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
-        var modsDir = server.Publish.IncludeServerMods && server.IsModded ? Path.Combine(serverDir, "mods") : null;
-        var (files, invalid) = CollectFiles(clientDir, modsDir);
+        var modsDir = PublishesServerMods(server) ? Path.Combine(serverDir, "mods") : null;
+        var (files, invalid) = CollectFiles(clientDir, modsDir, skipServerMods);
 
         var filesNode = new JsonObject();
         long total = 0;
@@ -124,9 +132,12 @@ public static class ClientManifestBuilder
         manifest["lock_server_url"] = server.Publish.LockServerUrl;
         manifest["protect_packs"] = server.Publish.ProtectPacks;
         manifest["released"] = false;
+        manifest["verify_hashes"] = server.Publish.VerifyHashes;
         manifest["auto_join"] = server.Publish.AutoJoin && !string.IsNullOrWhiteSpace(server.Publish.JoinAddress);
         if (server.Publish.AutoJoin && !string.IsNullOrWhiteSpace(server.Publish.JoinAddress))
             manifest["server_address"] = server.Publish.JoinAddress;
+        if (server.Publish.RecommendedMemoryMb is > 0 and var memory)
+            manifest["recommended_memory_mb"] = memory;
         manifest["minecraft"] = GameNode(server);
         manifest["files"] = filesNode;
         manifest["asset_blocks"] = new JsonObject();
@@ -141,8 +152,12 @@ public static class ClientManifestBuilder
             File.Move(tmp, manifestPath, overwrite: true);
         }
 
-        return new ManifestBuildResult(changed, files.Count, total, invalid, files, bytes, started.Elapsed);
+        return new ManifestBuildResult(changed, files.Count, total, invalid, files, bytes, started.Elapsed,
+            modsDir is null ? [] : skipServerMods ?? []);
     }
+
+    /// <summary>Se publican los mods de la carpeta <c>mods</c> del servidor.</summary>
+    public static bool PublishesServerMods(HostedServer server) => server.Publish.IncludeServerMods && server.IsModded;
 
     /// <summary>
     /// <c>{"version", "loader", "loader_version"}</c>. Paper y Vanilla publican el juego sin cargador: los

@@ -98,9 +98,16 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
     public double MemoryMaxMb => SystemMemory.MaxMb;
     public double MemoryStepMb => SystemMemory.StepMb;
     public string MemoryRangeText => $"De {FormatMemory(SystemMemory.MinMb)} a {FormatMemory(SystemMemory.MaxMb)} (memoria instalada).";
-    public string DefaultMemoryText => CustomMemory
-        ? $"Solo para esta instancia. Las demás usan la de Opciones ({FormatMemory(_settings.MemoryMb)})."
-        : $"Desactivado: se usa la de Opciones ({FormatMemory(_settings.MemoryMb)}).";
+    public string DefaultMemoryText => ServerMemory is { } server
+        ? CustomMemory
+            ? $"Solo para esta instancia. El servidor recomienda {FormatMemory(server)}."
+            : $"Desactivado: se usa la que recomienda el servidor ({FormatMemory(server)})."
+        : CustomMemory
+            ? $"Solo para esta instancia. Las demás usan la de Opciones ({FormatMemory(_settings.MemoryMb)})."
+            : $"Desactivado: se usa la de Opciones ({FormatMemory(_settings.MemoryMb)}).";
+
+    /// <summary>RAM que recomienda el servidor de la instancia (ya ajustada a este equipo); null si no recomienda.</summary>
+    private int? ServerMemory => SyncWithServer && _editing?.ServerMemoryMb is { } mb ? (int)ClampMemory(mb) : null;
 
     /// <summary>Más del 75 % de la RAM del equipo: Windows y el resto de programas se quedan cortos.</summary>
     public bool IsMemoryHigh => CustomMemory && MemoryMb > SystemMemory.TotalMb * 0.75;
@@ -210,7 +217,8 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         NameError = null;
         SyncWithServer = instance.SyncWithServer; // antes que la versión: con sincronización no se consultan cargadores
         CustomMemory = instance.MemoryMb is not null;
-        MemoryMb = ClampMemory(instance.MemoryMb ?? _settings.MemoryMb);
+        // Preseleccionada: la del servidor si la recomienda (al personalizar se parte de ella).
+        MemoryMb = ClampMemory(instance.ResolveMemoryMb(_settings.MemoryMb));
         MinecraftVersion = instance.MinecraftVersion;
         // En una instancia sincronizada se marca (bloqueado) el cargador que publica el servidor.
         Loader = instance.SyncWithServer ? instance.Display.Loader : instance.Loader;
@@ -552,6 +560,7 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
 
     partial void OnSyncWithServerChanged(bool value)
     {
+        OnPropertyChanged(nameof(DefaultMemoryText));
         // Con la sincronización activada, versión y cargador los decide el servidor.
         if (value)
         {

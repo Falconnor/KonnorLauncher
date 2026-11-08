@@ -80,6 +80,7 @@ public sealed class InstanceSync
                 instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
                 instance.ServerLocksUrl = m.LockServerUrl ?? true;
                 instance.ServerAutoJoin = m.AutoJoinAddress;
+                instance.ServerMemoryMb = m.RecommendedMemoryMb;
                 ApplyPacksPolicy(instance, m);
                 if (m.Released == true)
                     instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
@@ -155,7 +156,7 @@ public sealed class InstanceSync
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(8));
+            timeout.CancelAfter(TimeSpan.FromSeconds(3)); // como la sincronización: sin respuesta en 3 s, no responde
             var url = instance.ServerUrl.Trim().TrimEnd('/') + "/client_manifest.json";
             var json = await _httpFactory.CreateClient(HttpClientName).GetStringAsync(url, timeout.Token).ConfigureAwait(false);
             var manifest = ManifestParser.Parse(json);
@@ -164,6 +165,7 @@ public sealed class InstanceSync
             instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
             instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
             instance.ServerAutoJoin = manifest.AutoJoinAddress;
+            instance.ServerMemoryMb = manifest.RecommendedMemoryMb;
             ApplyPacksPolicy(instance, manifest);
             if (manifest.Released == true)
                 instance.ServerReleased = true;
@@ -224,6 +226,7 @@ public sealed class InstanceSync
         to.ServerReleased |= from.ServerReleased; // irreversible
         to.ServerProtectsPacks = from.ServerProtectsPacks;
         to.ServerAutoJoin = from.ServerAutoJoin;
+        to.ServerMemoryMb = from.ServerMemoryMb;
         to.InstallPacks |= from.ServerProtectsPacks;
         to.AvailableClientVersion = from.AvailableClientVersion;
     }
@@ -234,6 +237,7 @@ public sealed class InstanceSync
         || a.ServerReleased != b.ServerReleased
         || a.ServerProtectsPacks != b.ServerProtectsPacks
         || a.ServerAutoJoin != b.ServerAutoJoin
+        || a.ServerMemoryMb != b.ServerMemoryMb
         || a.InstallPacks != b.InstallPacks
         || a.AvailableClientVersion != b.AvailableClientVersion;
 

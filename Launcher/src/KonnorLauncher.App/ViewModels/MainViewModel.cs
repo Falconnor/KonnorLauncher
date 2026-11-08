@@ -170,7 +170,7 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsAwayFromInstance => IsBrowsing || IsSkins || IsServers || IsHosting;
 
     /// <summary>Título de la cabecera: el de la página que se ve.</summary>
-    public string ViewTitle => IsSkins ? "Skins" : IsServers ? "Servidores" : IsHosting ? "Hosting" : IsBrowsing ? "Explorar" : string.Empty;
+    public string ViewTitle => IsSkins ? "Skins" : IsServers ? "Servidores" : IsHosting ? "Hosting" : IsBrowsing ? "Mods" : string.Empty;
 
     private bool _reloading;
 

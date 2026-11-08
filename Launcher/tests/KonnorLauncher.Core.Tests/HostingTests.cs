@@ -603,6 +603,110 @@ public sealed class HostingTests : IDisposable
         PlayerHistory.Load(dir).ShouldBeEmpty();
     }
 
+    // ── Mods solo de servidor y RAM recomendada ──────────────────────────
+
+    [Fact]
+    public async Task Server_only_mods_are_not_sent_to_players()
+    {
+        var (server, serverDir, clientDir, internalDir) = CreatePublishedServer();
+        Write(Path.Combine(serverDir, "mods", "admin.jar"), "solo servidor");
+        Write(Path.Combine(serverDir, "mods", "local.jar"), "no está en Modrinth");
+        Write(Path.Combine(serverDir, "mods", "forzado.jar"), "solo servidor también");
+        Write(Path.Combine(clientDir, "mods", "forzado.jar"), "solo servidor también"); // lo pone el administrador: se envía
+        var projects = new Dictionary<string, (string Id, string Side)>
+        {
+            [Sha512Hex("mod del servidor")] = ("sodium", "required"),
+            [Sha512Hex("solo servidor")] = ("admin", "unsupported"),
+            [Sha512Hex("solo servidor también")] = ("forzado", "unsupported"),
+        };
+        var requests = 0;
+        var down = false;
+        using var http = new HttpClient(new RouteHandler(request =>
+        {
+            requests++;
+            if (down)
+                throw new HttpRequestException("sin conexión");
+            if (request.RequestUri!.AbsolutePath.EndsWith("/version_files"))
+                return System.Text.Json.JsonSerializer.Serialize(projects.ToDictionary(p => p.Key, p => new { id = "v-" + p.Value.Id, project_id = p.Value.Id }));
+            return System.Text.Json.JsonSerializer.Serialize(projects.Values.Select(p => new { id = p.Id, client_side = p.Side, server_side = "required" }));
+        }));
+        var modrinth = new KonnorLauncher.Core.Modrinth.ModrinthClient(new Factory(http), baseUrl: "https://api.example.test/v2");
+        var cache = new HashCache(Path.Combine(internalDir, "h.json"));
+        var sidesFile = Path.Combine(internalDir, "mod-sides.json");
+
+        var skipped = await ServerModFilter.FindServerOnlyAsync(Path.Combine(serverDir, "mods"), cache, sidesFile, modrinth,
+            ct: TestContext.Current.CancellationToken);
+        skipped.Order().ShouldBe(["admin.jar", "forzado.jar"]);
+        var result = ClientManifestBuilder.Build(server, serverDir, clientDir, Path.Combine(internalDir, "m.json"), cache, skipped);
+        result.PhysicalFiles.Keys.Where(k => k.StartsWith("mods/")).Order()
+            .ShouldBe(["mods/forzado.jar", "mods/lithium.jar", "mods/local.jar", "mods/sodium.jar"]);
+        result.PhysicalFiles["mods/forzado.jar"].ShouldStartWith(clientDir);
+        result.SkippedServerMods.ShouldBe(skipped);
+
+        // Lo ya consultado se guarda: sin Modrinth se sigue omitiendo, y un mod nuevo se envía (no se puede saber).
+        var before = requests;
+        down = true;
+        (await ServerModFilter.FindServerOnlyAsync(Path.Combine(serverDir, "mods"), cache, sidesFile, modrinth,
+            ct: TestContext.Current.CancellationToken)).Order().ShouldBe(["admin.jar", "forzado.jar"]);
+        requests.ShouldBe(before);
+        Write(Path.Combine(serverDir, "mods", "nuevo.jar"), "otro solo servidor");
+        (await ServerModFilter.FindServerOnlyAsync(Path.Combine(serverDir, "mods"), cache, sidesFile, modrinth,
+            ct: TestContext.Current.CancellationToken)).ShouldNotContain("nuevo.jar");
+    }
+
+    [Fact]
+    public void Recommended_memory_is_published_and_used_until_the_player_picks_one()
+    {
+        var (server, serverDir, clientDir, internalDir) = CreatePublishedServer();
+        var manifestPath = Path.Combine(internalDir, "m.json");
+        ClientManifestBuilder.Build(server, serverDir, clientDir, manifestPath, new HashCache(Path.Combine(internalDir, "h.json")));
+        File.ReadAllText(manifestPath).ShouldNotContain("recommended_memory_mb"); // desactivada: no se publica
+        ManifestParser.Parse(File.ReadAllText(manifestPath)).VerifyHashes.ShouldBe(false); // seguridad avanzada: desactivada por defecto
+        server.Publish.VerifyHashes = true;
+
+        server.Publish.RecommendedMemoryMb = 6144;
+        ClientManifestBuilder.Build(server, serverDir, clientDir, manifestPath, new HashCache(Path.Combine(internalDir, "h.json")));
+        ManifestParser.Parse(File.ReadAllText(manifestPath)).RecommendedMemoryMb.ShouldBe(6144);
+        ManifestParser.Parse(File.ReadAllText(manifestPath)).VerifyHashes.ShouldBe(true);
+
+        var instance = new GameInstance { SyncWithServer = true, ServerMemoryMb = 6144 };
+        instance.ResolveMemoryMb(4096).ShouldBe(Math.Min(6144, KonnorLauncher.Core.Configuration.SystemMemory.MaxMb));
+        instance.MemoryMb = 3072; // la elige el jugador
+        instance.ResolveMemoryMb(4096).ShouldBe(3072);
+        new GameInstance { SyncWithServer = false, ServerMemoryMb = 6144 }.ResolveMemoryMb(4096).ShouldBe(4096);
+
+        var other = new GameInstance();
+        InstanceSync.PolicyDiffers(other, instance).ShouldBeTrue();
+        InstanceSync.CopyPolicy(instance, other);
+        other.ServerMemoryMb.ShouldBe(6144);
+        other.MemoryMb.ShouldBeNull(); // la del jugador no se toca
+    }
+
+    [Theory]
+    [InlineData("""{ "recommended_memory_mb": 8192, "files": {} }""", 8192)]
+    [InlineData("""{ "recommended_memory_mb": "8192", "files": {} }""", null)]
+    [InlineData("""{ "recommended_memory_mb": 100, "files": {} }""", null)]
+    [InlineData("""{ "recommended_memory_mb": 6.5, "files": {} }""", null)]
+    [InlineData("""{ "files": {} }""", null)]
+    public void Launcher_ignores_an_invalid_recommended_memory(string json, int? expected) =>
+        ManifestParser.Parse(json).RecommendedMemoryMb.ShouldBe(expected);
+
+    private static string Sha512Hex(string text) => Convert.ToHexStringLower(SHA512.HashData(Encoding.UTF8.GetBytes(text)));
+
+    private sealed class Factory(HttpClient http) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => http;
+    }
+
+    private sealed class RouteHandler(Func<HttpRequestMessage, string> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(respond(request), Encoding.UTF8, "application/json"),
+            });
+    }
+
     // ── Utilidades ───────────────────────────────────────────────────────
 
     private static void Write(string path, string content)

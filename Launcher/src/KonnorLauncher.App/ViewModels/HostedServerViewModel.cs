@@ -45,7 +45,6 @@ public enum ConsoleLevel
 }
 
 /// <summary>Un jugador del servidor: los que entraron alguna vez, con un punto verde si está conectado.</summary>
-public sealed record PlayerEntry(string Name, bool IsOnline);
 
 /// <summary>Archivo de la carpeta de mods o plugins.</summary>
 public sealed record ContentFile(string Name, string Path, string SizeText, bool IsEnabled);
@@ -92,7 +91,8 @@ public sealed partial class HostedServerViewModel : ObservableObject
         };
         _runner.StateChanged += (_, _) => _dispatcher.BeginInvoke(OnRunnerStateChanged);
         _runner.PlayersChanged += (_, _) => _dispatcher.BeginInvoke(RefreshPlayers);
-        _publisher.Changed += (_, _) => _dispatcher.BeginInvoke(RefreshPublish);
+        // Estado de la publicación (cada archivo servido lo cambia): no toca lo que se esté editando.
+        _publisher.Changed += (_, _) => _dispatcher.BeginInvoke(RefreshPublishStatus);
 
         Difficulty = new ServerFilter("Dificultad", () => { });
         Difficulty.SetOptions([("peaceful", "Pacífica"), ("easy", "Fácil"), ("normal", "Normal"), ("hard", "Difícil")], allLabel: null);
@@ -198,7 +198,10 @@ public sealed partial class HostedServerViewModel : ObservableObject
         if (value == HostedServerTab.Content)
             RefreshContent();
         if (value == HostedServerTab.Players)
+        {
+            ProfileView = null;
             RefreshPlayers();
+        }
         if (value == HostedServerTab.Settings)
             LoadSettings();
     }
@@ -290,7 +293,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
         _uptime.IsEnabled = IsRunning;
         if (State == ServerState.Stopped && _runner.LastExitCode is { } code && code != 0 && !IsBusy && Error is null && _runner.StartedAt is not null)
             Error = $"El servidor se cerró con un error (código {code}). Revisa la consola.";
-        RefreshPublish();
+        RefreshPublishStatus();
     }
 
     private void OnProgress(LauncherProgress p)
@@ -434,24 +437,86 @@ public sealed partial class HostedServerViewModel : ObservableObject
     private void RefreshPlayers()
     {
         var online = _runner.Players.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        IReadOnlyList<string> known;
+        IReadOnlyList<(string Name, Guid Uuid)> known;
         try
         {
-            known = PlayerHistory.Load(Directory);
+            known = PlayerHistory.LoadEntries(Directory);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             known = [];
         }
 
+        // Resumen de cada uno (vida, hambre, nivel…) del último guardado del mundo.
+        var uuids = known.ToDictionary(k => k.Name, k => k.Uuid, StringComparer.OrdinalIgnoreCase);
         Players.Clear();
-        foreach (var name in known.Union(online, StringComparer.OrdinalIgnoreCase)
+        foreach (var name in known.Select(k => k.Name).Union(online, StringComparer.OrdinalIgnoreCase)
                      .OrderByDescending(online.Contains)
                      .ThenBy(n => n, StringComparer.OrdinalIgnoreCase))
-            Players.Add(new PlayerEntry(name, online.Contains(name)));
+        {
+            var profile = uuids.TryGetValue(name, out var uuid) ? ReadProfile(name, uuid) : null;
+            Players.Add(new PlayerEntry(name, online.Contains(name), profile));
+        }
+
         OnPropertyChanged(nameof(HasPlayers));
         OnPropertyChanged(nameof(PlayersText));
     }
+
+    private PlayerProfile? ReadProfile(string name, Guid uuid)
+    {
+        try
+        {
+            return PlayerProfileReader.Read(Directory, name, uuid);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    // ── Perfil de un jugador ─────────────────────────────────────────────
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPlayerProfileOpen))]
+    private PlayerProfileViewModel? _profileView;
+
+    [ObservableProperty] private bool _isLoadingProfile;
+
+    public bool IsPlayerProfileOpen => ProfileView is not null;
+
+    /// <summary>
+    /// Abre el perfil. Si el jugador está conectado, antes se pide al servidor que guarde (<c>save-all</c>) para ver
+    /// su estado actual y no el del último guardado automático.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenPlayerAsync(PlayerEntry? entry)
+    {
+        if (entry?.Profile is not { } profile)
+            return;
+        ProfileView = new PlayerProfileViewModel(profile, entry.IsOnline);
+        if (!entry.IsOnline || !IsRunning)
+            return;
+
+        var file = PlayerProfileReader.FindDataFile(Directory, profile.Uuid);
+        var before = file is null ? DateTime.MinValue : File.GetLastWriteTimeUtc(file);
+        IsLoadingProfile = true;
+        try
+        {
+            _runner.SendCommand("save-all");
+            for (var i = 0; i < 30 && file is not null && File.GetLastWriteTimeUtc(file) == before; i++)
+                await Task.Delay(100);
+            await Task.Delay(150); // que termine de escribirse
+            if (ProfileView?.Profile.Uuid == profile.Uuid && ReadProfile(profile.Name, profile.Uuid) is { } fresh)
+                ProfileView = new PlayerProfileViewModel(fresh, entry.IsOnline);
+        }
+        finally
+        {
+            IsLoadingProfile = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ClosePlayer() => ProfileView = null;
 
     /// <summary>Acción sobre un jugador: <c>op</c>, <c>deop</c>, <c>kick</c>, <c>ban</c>, <c>pardon</c>, <c>whitelist add</c>...</summary>
     [RelayCommand]
@@ -819,7 +884,24 @@ public sealed partial class HostedServerViewModel : ObservableObject
     [ObservableProperty] private bool _protectPacks;
     [ObservableProperty] private bool _autoJoin;
     [ObservableProperty] private string _publicHost = string.Empty;
+    [ObservableProperty] private bool _recommendMemory;
+    [ObservableProperty] private bool _verifyHashes;
+    [ObservableProperty] private double _recommendedMemoryMb = DefaultRecommendedMemoryMb;
     [ObservableProperty] private string? _publishMessage;
+
+    /// <summary>RAM que se propone al activar la opción: la del launcher (4 GB) suele quedarse corta con muchos mods.</summary>
+    public const int DefaultRecommendedMemoryMb = 6144;
+    public const double RecommendedMemoryMinMb = 2048;
+    public const double RecommendedMemoryMaxMb = 16384;
+    public double RecommendedMemoryStepMb => Core.Configuration.SystemMemory.StepMb;
+    public string RecommendedMemoryText => Core.Configuration.SystemMemory.Format((int)RecommendedMemoryMb);
+
+    partial void OnRecommendedMemoryMbChanged(double value) => OnPropertyChanged(nameof(RecommendedMemoryText));
+
+    /// <summary>Mods del servidor que no se envían porque Modrinth los marca como solo de servidor.</summary>
+    public string? SkippedModsText => _publisher.Current?.SkippedServerMods is { Count: > 0 } skipped
+        ? $"No se envían {skipped.Count} {(skipped.Count == 1 ? "mod" : "mods")} solo de servidor: {string.Join(", ", skipped.Take(4))}{(skipped.Count > 4 ? "…" : string.Empty)}"
+        : null;
     [ObservableProperty] private bool _isPublishCopied;
 
     public bool IsPublishing => _publisher.IsRunning;
@@ -847,7 +929,23 @@ public sealed partial class HostedServerViewModel : ObservableObject
         }
     }
 
+    /// <summary>El formulario con lo guardado y el estado. Sus cambios no cuentan como ediciones (no se autoguardan).</summary>
     private void RefreshPublish()
+    {
+        _refreshingPublish = true;
+        try
+        {
+            RefreshPublishForm();
+        }
+        finally
+        {
+            _refreshingPublish = false;
+        }
+
+        RefreshPublishStatus();
+    }
+
+    private void RefreshPublishForm()
     {
         var p = Model.Publish;
         PublishEnabled = p.Enabled;
@@ -860,31 +958,134 @@ public sealed partial class HostedServerViewModel : ObservableObject
         ProtectPacks = p.ProtectPacks;
         AutoJoin = p.AutoJoin;
         PublicHost = p.PublicHost;
+        RecommendMemory = p.RecommendedMemoryMb is not null;
+        VerifyHashes = p.VerifyHashes;
+        RecommendedMemoryMb = Math.Clamp(p.RecommendedMemoryMb ?? DefaultRecommendedMemoryMb, RecommendedMemoryMinMb, RecommendedMemoryMaxMb);
+    }
+
+    private void RefreshPublishStatus()
+    {
         OnPropertyChanged(nameof(IsPublishing));
+        OnPropertyChanged(nameof(SkippedModsText));
         OnPropertyChanged(nameof(PublishStatusText));
         OnPropertyChanged(nameof(PublishError));
         OnPropertyChanged(nameof(PublishUrl));
     }
 
+    // ── Guardado automático ──────────────────────────────────────────────
+    // Cada cambio del formulario se guarda solo tras una breve pausa (al escribir o arrastrar no se guarda
+    // a medias). El botón Guardar sigue funcionando igual.
+
+    private static readonly HashSet<string> PublishFields =
+    [
+        nameof(PublishEnabled), nameof(PublishPortText), nameof(ClientVersion), nameof(IncludeServerMods), nameof(DeleteUnauthorized),
+        nameof(AlwaysOnline), nameof(LockServerUrl), nameof(ProtectPacks), nameof(AutoJoin), nameof(PublicHost), nameof(RecommendMemory),
+        nameof(RecommendedMemoryMb), nameof(VerifyHashes),
+    ];
+
+    public static readonly TimeSpan AutoSaveDelay = TimeSpan.FromMilliseconds(800);
+
+    private bool _refreshingPublish;
+    private bool _savingPublish;
+    private CancellationTokenSource? _autoSave;
+
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (!_refreshingPublish && e.PropertyName is { } name && PublishFields.Contains(name))
+            ScheduleAutoSave();
+    }
+
+    private async void ScheduleAutoSave()
+    {
+        _autoSave?.Cancel();
+        var cts = _autoSave = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(AutoSaveDelay, cts.Token);
+            while (_savingPublish) // un guardado en curso: se espera a que termine
+                await Task.Delay(100, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (PublishFormDiffers())
+            await SavePublishCoreAsync(automatic: true);
+    }
+
+    /// <summary>El formulario tiene algo distinto de lo guardado.</summary>
+    private bool PublishFormDiffers()
+    {
+        var p = Model.Publish;
+        return PublishEnabled != p.Enabled || PublishPortText.Trim() != p.Port.ToString() || ClientVersion.Trim() != p.ClientVersion
+               || IncludeServerMods != p.IncludeServerMods || DeleteUnauthorized != p.DeleteUnauthorized || AlwaysOnline != p.AlwaysOnline
+               || LockServerUrl != p.LockServerUrl || ProtectPacks != p.ProtectPacks || AutoJoin != p.AutoJoin
+               || PublicHost.Trim() != p.PublicHost || (RecommendMemory ? (int?)RecommendedMemoryMb : null) != p.RecommendedMemoryMb
+               || VerifyHashes != p.VerifyHashes;
+    }
+
+    /// <summary>Muestra el aviso de guardado y lo quita a los pocos segundos (si no lo sustituyó otro).</summary>
+    private void FlashSaved(string text)
+    {
+        PublishMessage = null; // un error anterior ya no aplica
+        FlashNotice(text, isError: false);
+    }
+
+    private async void FlashNotice(string text, bool isError)
+    {
+        var id = ++_savedNoticeId;
+        IsNoticeError = isError;
+        SavedNotice = text;
+        await Task.Delay(isError ? 4500 : 2500);
+        if (id == _savedNoticeId)
+            SavedNotice = null;
+    }
+
+    private int _savedNoticeId;
+
+    /// <summary>Aviso flotante «guardado» (se quita solo).</summary>
+    [ObservableProperty] private string? _savedNotice;
+    [ObservableProperty] private bool _isNoticeError;
+
     [RelayCommand]
-    private async Task SavePublishAsync()
+    private Task SavePublishAsync() => SavePublishCoreAsync(automatic: false);
+
+    private async Task SavePublishCoreAsync(bool automatic)
+    {
+        _autoSave?.Cancel();
+        _savingPublish = true;
+        try
+        {
+            // Lo que no se pudo guardar se avisa también en el aviso flotante (el mensaje de abajo puede no verse).
+            if (!await SavePublishInnerAsync(automatic) && automatic && PublishMessage is { } error)
+                FlashNotice(error, isError: true);
+        }
+        finally
+        {
+            _savingPublish = false;
+        }
+    }
+
+    private async Task<bool> SavePublishInnerAsync(bool automatic)
     {
         if (!int.TryParse(PublishPortText, out var port) || port is < 1 or > 65535)
         {
             PublishMessage = "El puerto tiene que ser un número entre 1 y 65535.";
-            return;
+            return false;
         }
 
         if (port == Port)
         {
             PublishMessage = "Ese puerto lo usa el servidor de Minecraft: elige otro.";
-            return;
+            return false;
         }
 
         if (string.IsNullOrWhiteSpace(ClientVersion) || ClientVersion.Trim().Length > 32)
         {
             PublishMessage = "Escribe la versión del cliente (por ejemplo 1.0.0).";
-            return;
+            return false;
         }
 
         var model = Model.Clone();
@@ -898,11 +1099,13 @@ public sealed partial class HostedServerViewModel : ObservableObject
         model.Publish.LockServerUrl = LockServerUrl;
         model.Publish.ProtectPacks = ProtectPacks;
         model.Publish.AutoJoin = AutoJoin;
+        model.Publish.RecommendedMemoryMb = RecommendMemory ? (int)RecommendedMemoryMb : null;
+        model.Publish.VerifyHashes = VerifyHashes;
         var host = PublicHost.Trim();
         if (host.Length > 0 && !Core.Servers.ServerAddress.TryParse(host, out _) || host.Contains(':'))
         {
             PublishMessage = "Dirección pública: solo el dominio o la IP, sin puerto (por ejemplo mi-servidor.com).";
-            return;
+            return false;
         }
 
         model.Publish.PublicHost = host;
@@ -913,15 +1116,17 @@ public sealed partial class HostedServerViewModel : ObservableObject
         catch (IOException ex)
         {
             PublishMessage = $"No se pudo guardar: {ex.Message}";
-            return;
+            return false;
         }
 
         Model = model;
-        PublishMessage = "Guardado.";
+        var saved = automatic ? "Cambios guardados automáticamente." : "Guardado.";
         // Paquete de recursos obligatorio en server.properties (y dirección para entrar directamente).
         var packMessage = await _hosting.PrepareSyncAsync(model);
         if (packMessage is not null)
-            PublishMessage = $"Guardado. {packMessage}{(IsAlive && model.Publish.ProtectPacks ? " Reinicia el servidor para aplicarlo." : string.Empty)}";
+            PublishMessage = $"{saved} {packMessage}{(IsAlive && model.Publish.ProtectPacks ? " Reinicia el servidor para aplicarlo." : string.Empty)}";
+        else
+            FlashSaved(saved);
         try
         {
             // Activar con el servidor en marcha publica ya; desactivar deja de publicar.
@@ -940,7 +1145,12 @@ public sealed partial class HostedServerViewModel : ObservableObject
             PublishMessage = ex.Message;
         }
 
-        RefreshPublish();
+        // Automático: no se recarga el formulario (se perdería lo que se esté escribiendo mientras tanto).
+        if (automatic)
+            RefreshPublishStatus();
+        else
+            RefreshPublish();
+        return true;
     }
 
     /// <summary>Publicar ahora sin iniciar el juego (p. ej. para que los jugadores descarguen antes).</summary>

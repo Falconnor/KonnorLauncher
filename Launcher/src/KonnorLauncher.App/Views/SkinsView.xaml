@@ -73,33 +73,6 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="LatestTab" TargetType="Button" BasedOn="{StaticResource ChoiceSegment}">
-            <Setter Property="MinWidth" Value="104" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsLatest}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource RowSelected}" />
-                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="PopularTab" TargetType="Button" BasedOn="{StaticResource ChoiceSegment}">
-            <Setter Property="MinWidth" Value="104" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsPopular}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource RowSelected}" />
-                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="DownloadedTab" TargetType="Button" BasedOn="{StaticResource ChoiceSegment}">
-            <Setter Property="MinWidth" Value="104" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDownloaded}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource RowSelected}" />
-                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
 
         <!-- Zoom: deslizador vertical discreto (pista fina y tirador pequeño) -->
         <Style x:Key="ZoomRail" TargetType="RepeatButton">
@@ -158,270 +131,294 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-
-        <!-- ─── Galería ─── -->
-        <DockPanel Grid.Column="0" Margin="0,8,0,0">
-            <!-- Búsqueda por nombre -->
-            <Border DockPanel.Dock="Top" CornerRadius="10" Height="44" Padding="16,0,9,0" BorderThickness="1.5">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource FieldQuiet}" />
-                        <Setter Property="BorderBrush" Value="Transparent" />
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource FieldQuietHover}" />
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsKeyboardFocused, ElementName=SearchBox}" Value="True">
-                                <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-                                <Setter Property="Background" Value="{StaticResource Group}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Text="{StaticResource IconSearch}" Style="{StaticResource Icon}" FontSize="14"
-                               Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                    <Grid>
-                        <TextBlock Text="Buscar skins" FontSize="15" Foreground="{StaticResource Ink3}" VerticalAlignment="Center"
-                                   IsHitTestVisible="False" Margin="2,0,0,0"
-                                   Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource TextToVisibility}, ConverterParameter=invert}" />
-                        <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" FontSize="15"
-                                 Background="Transparent" BorderThickness="0" Foreground="{StaticResource Ink}" CaretBrush="{StaticResource Ink}"
-                                 SelectionBrush="{StaticResource Accent}" VerticalAlignment="Center" FocusVisualStyle="{x:Null}"
-                                 AutomationProperties.Name="Buscar skins" />
-                    </Grid>
-                </DockPanel>
-            </Border>
-
-            <!-- Pestañas: galería por recientes o populares (al buscar, populares se apaga: la API no busca
-                 bien entre ellas) y las descargadas -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,12,0,12">
-                <Button Style="{StaticResource LatestTab}" Content="Recientes" Margin="0,0,6,0"
-                        Command="{Binding SetTabCommand}" CommandParameter="latest" />
-                <Button Style="{StaticResource PopularTab}" Content="Populares" Margin="0,0,6,0" IsEnabled="{Binding CanChoosePopular}"
-                        Command="{Binding SetTabCommand}" CommandParameter="popular" />
-                <Button Style="{StaticResource DownloadedTab}" Content="Descargadas"
-                        Command="{Binding SetTabCommand}" CommandParameter="downloaded" />
-            </StackPanel>
-
-            <Grid>
-                <ScrollViewer x:Name="GalleryScroll" Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
-                              ScrollChanged="OnGalleryScrollChanged">
-                    <StackPanel Margin="0,0,6,0">
-                        <ItemsControl ItemsSource="{Binding Skins}" Focusable="False">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:SkinCard}">
-                                    <Button Style="{StaticResource SkinTile}" CommandParameter="{Binding}"
-                                            Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            AutomationProperties.Name="{Binding Name, StringFormat=Skin {0}}">
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="*" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <!-- Vista de frente, píxeles nítidos -->
-                                            <Image Source="{Binding Preview}" Width="56" Height="112" Margin="0,12,0,0"
-                                                   RenderOptions.BitmapScalingMode="NearestNeighbor" VerticalAlignment="Center" />
-                                            <TextBlock Text="Cargando…" FontSize="11.5" HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" Margin="0,12,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Preview}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock x:Name="SkinName" Grid.Row="1" Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource Ink}"
-                                                       TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="8,6,8,10" />
-                                            <!-- En uso -->
-                                            <Border CornerRadius="{StaticResource RadiusSmall}" Background="{StaticResource Accent}" Padding="6,1"
-                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,7,0"
-                                                    Visibility="{Binding IsInUse, Converter={StaticResource BoolToVisibility}}">
-                                                <TextBlock Text="En uso" FontSize="11" Foreground="White" />
-                                            </Border>
-                                        </Grid>
-                                    </Button>
-                                    <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding HasName}" Value="False">
-                                            <Setter TargetName="SkinName" Property="Foreground" Value="{StaticResource Ink3}" />
-                                        </DataTrigger>
-                                    </DataTemplate.Triggers>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- Más resultados (también se cargan solos al llegar al final) -->
-                        <Button Style="{StaticResource GlassButton}" Content="Cargar más" HorizontalAlignment="Center" Margin="0,6,0,10" MinWidth="140"
-                                Command="{Binding LoadMoreCommand}"
-                                Visibility="{Binding HasMore, Converter={StaticResource BoolToVisibility}}" />
+    <DockPanel Margin="0,8,0,0">
+        <!-- ─── Pestañas, subrayadas sobre una línea fina (como en Mods): galería por recientes o populares
+             (al buscar, populares se apaga: la API no busca bien entre ellas) y las descargadas ─── -->
+        <Grid DockPanel.Dock="Top" Height="50" Margin="0,-8,0,18">
+            <Border Height="1" VerticalAlignment="Bottom" Background="{StaticResource Hairline}" />
+            <StackPanel Orientation="Horizontal" KeyboardNavigation.TabNavigation="Once">
+                <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="SkinTabs" IsChecked="{Binding IsLatest}"
+                             AutomationProperties.Name="Recientes" ToolTip="Las últimas skins subidas">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE823;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                        <TextBlock Text="Recientes" VerticalAlignment="Center" />
                     </StackPanel>
-                </ScrollViewer>
+                </RadioButton>
+                <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="SkinTabs" IsChecked="{Binding IsPopular}"
+                             IsEnabled="{Binding CanChoosePopular}" ToolTipService.ShowOnDisabled="True"
+                             AutomationProperties.Name="Populares" ToolTip="Las más vistas (no se puede buscar entre ellas)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE735;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                        <TextBlock Text="Populares" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="SkinTabs" IsChecked="{Binding IsDownloaded}"
+                             AutomationProperties.Name="Descargadas" ToolTip="Las skins que guardaste en este equipo">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE896;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
+                        <TextBlock Text="Descargadas" VerticalAlignment="Center" />
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Grid>
 
-                <TextBlock Text="Cargando…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
-                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}">
-                    <TextBlock Text="{Binding Error}" Foreground="{StaticResource Ink2}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" />
-                    <Button Style="{StaticResource GlassButton}" Content="Reintentar" HorizontalAlignment="Center" Margin="0,12,0,0"
-                            Command="{Binding RetryCommand}" />
-                </StackPanel>
-            </Grid>
-        </DockPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-        <!-- ─── Skin elegida ─── -->
-        <Border Grid.Column="1" Width="340" Margin="20,8,0,0" CornerRadius="{StaticResource RadiusGroup}"
-                Background="{StaticResource Group}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="18,14,18,18"
-                Visibility="{Binding HasSelected, Converter={StaticResource BoolToVisibility}}">
-            <DockPanel>
-                <DockPanel DockPanel.Dock="Top">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Width="28" Height="28" FontSize="11"
-                            Content="{StaticResource IconClose}" Command="{Binding CloseSelectedCommand}"
-                            ToolTip="Cerrar" AutomationProperties.Name="Cerrar la skin" />
-                    <TextBlock Text="{Binding Selected.Name}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center" />
-                </DockPanel>
+            <!-- ─── Galería ─── -->
+            <DockPanel Grid.Column="0">
+                <!-- Búsqueda por nombre -->
+                <Border DockPanel.Dock="Top" CornerRadius="10" Height="44" Padding="16,0,9,0" Margin="0,0,0,12" BorderThickness="1.5">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource FieldQuiet}" />
+                            <Setter Property="BorderBrush" Value="Transparent" />
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource FieldQuietHover}" />
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsKeyboardFocused, ElementName=SearchBox}" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                    <Setter Property="Background" Value="{StaticResource Group}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Left" Text="{StaticResource IconSearch}" Style="{StaticResource Icon}" FontSize="14"
+                                   Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Grid>
+                            <TextBlock Text="Buscar skins" FontSize="15" Foreground="{StaticResource Ink3}" VerticalAlignment="Center"
+                                       IsHitTestVisible="False" Margin="2,0,0,0"
+                                       Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource TextToVisibility}, ConverterParameter=invert}" />
+                            <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" FontSize="15"
+                                     Background="Transparent" BorderThickness="0" Foreground="{StaticResource Ink}" CaretBrush="{StaticResource Ink}"
+                                     SelectionBrush="{StaticResource Accent}" VerticalAlignment="Center" FocusVisualStyle="{x:Null}"
+                                     AutomationProperties.Name="Buscar skins" />
+                        </Grid>
+                    </DockPanel>
+                </Border>
 
-                <StackPanel DockPanel.Dock="Bottom">
-                    <UniformGrid Columns="2" Margin="0,0,0,12">
-                        <Button Style="{StaticResource ClassicSegment}" Content="Clásico" Margin="0,0,4,0"
-                                Command="{Binding SetModelCommand}" CommandParameter="classic" ToolTip="Brazos de 4 píxeles (Steve)" />
-                        <Button Style="{StaticResource SlimSegment}" Content="Delgado" Margin="4,0,0,0"
-                                Command="{Binding SetModelCommand}" CommandParameter="slim" ToolTip="Brazos de 3 píxeles (Alex)" />
-                    </UniformGrid>
-                    <UniformGrid Columns="2">
-                    <Button Style="{StaticResource AccentButton}" Height="34" FontSize="13.5" Margin="0,0,4,0" Command="{Binding ApplyCommand}"
-                            AutomationProperties.Name="Usar esta skin">
-                        <Button.Content>
-                            <TextBlock>
+                <Grid>
+                    <ScrollViewer x:Name="GalleryScroll" Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
+                                  ScrollChanged="OnGalleryScrollChanged">
+                        <StackPanel Margin="0,0,6,0">
+                            <ItemsControl ItemsSource="{Binding Skins}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:SkinCard}">
+                                        <Button Style="{StaticResource SkinTile}" CommandParameter="{Binding}"
+                                                Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Skin {0}}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <!-- Vista de frente, píxeles nítidos -->
+                                                <Image Source="{Binding Preview}" Width="56" Height="112" Margin="0,12,0,0"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" VerticalAlignment="Center" />
+                                                <TextBlock Text="Cargando…" FontSize="11.5" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" Margin="0,12,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Preview}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock x:Name="SkinName" Grid.Row="1" Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource Ink}"
+                                                           TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="8,6,8,10" />
+                                                <!-- En uso -->
+                                                <Border CornerRadius="{StaticResource RadiusSmall}" Background="{StaticResource Accent}" Padding="6,1"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,7,0"
+                                                        Visibility="{Binding IsInUse, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="En uso" FontSize="11" Foreground="White" />
+                                                </Border>
+                                            </Grid>
+                                        </Button>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding HasName}" Value="False">
+                                                <Setter TargetName="SkinName" Property="Foreground" Value="{StaticResource Ink3}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Más resultados (también se cargan solos al llegar al final) -->
+                            <Button Style="{StaticResource GlassButton}" Content="Cargar más" HorizontalAlignment="Center" Margin="0,6,0,10" MinWidth="140"
+                                    Command="{Binding LoadMoreCommand}"
+                                    Visibility="{Binding HasMore, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Text="Cargando…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}">
+                        <TextBlock Text="{Binding Error}" Foreground="{StaticResource Ink2}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" />
+                        <Button Style="{StaticResource GlassButton}" Content="Reintentar" HorizontalAlignment="Center" Margin="0,12,0,0"
+                                Command="{Binding RetryCommand}" />
+                    </StackPanel>
+                </Grid>
+            </DockPanel>
+
+            <!-- ─── Skin elegida ─── -->
+            <Border Grid.Column="1" Width="340" Margin="20,0,0,0" CornerRadius="{StaticResource RadiusGroup}"
+                    Background="{StaticResource Group}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Padding="18,14,18,18"
+                    Visibility="{Binding HasSelected, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Width="28" Height="28" FontSize="11"
+                                Content="{StaticResource IconClose}" Command="{Binding CloseSelectedCommand}"
+                                ToolTip="Cerrar" AutomationProperties.Name="Cerrar la skin" />
+                        <TextBlock Text="{Binding Selected.Name}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <UniformGrid Columns="2" Margin="0,0,0,12">
+                            <Button Style="{StaticResource ClassicSegment}" Content="Clásico" Margin="0,0,4,0"
+                                    Command="{Binding SetModelCommand}" CommandParameter="classic" ToolTip="Brazos de 4 píxeles (Steve)" />
+                            <Button Style="{StaticResource SlimSegment}" Content="Delgado" Margin="4,0,0,0"
+                                    Command="{Binding SetModelCommand}" CommandParameter="slim" ToolTip="Brazos de 3 píxeles (Alex)" />
+                        </UniformGrid>
+                        <UniformGrid Columns="2">
+                        <Button Style="{StaticResource AccentButton}" Height="34" FontSize="13.5" Margin="0,0,4,0" Command="{Binding ApplyCommand}"
+                                AutomationProperties.Name="Usar esta skin">
+                            <Button.Content>
+                                <TextBlock>
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Usar esta skin" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsApplying}" Value="True">
+                                                    <Setter Property="Text" Value="Guardando…" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button.Content>
+                        </Button>
+                        <!-- Solo la guarda en Descargadas, sin aplicarla -->
+                        <Button Height="34" FontSize="13.5" Margin="4,0,0,0" Command="{Binding DownloadCommand}"
+                                AutomationProperties.Name="Descargar skin">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource GlassButton}">
+                                    <Setter Property="Content" Value="Descargar skin" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDownloading}" Value="True">
+                                            <Setter Property="Content" Value="Descargando…" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsSelectedDownloaded}" Value="True">
+                                            <Setter Property="Content" Value="Descargada" />
+                                            <Setter Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
+                                        <!-- En Descargadas su lugar es para «Borrar skin» -->
+                                        <DataTrigger Binding="{Binding CanDeleteSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <!-- Borra la skin de Descargadas (solo ahí) -->
+                        <Button Style="{StaticResource DangerButton}" Height="34" FontSize="13.5" Margin="4,0,0,0" Content="Borrar skin"
+                                Command="{Binding DeleteDownloadedCommand}" AutomationProperties.Name="Borrar skin"
+                                Visibility="{Binding CanDeleteSelected, Converter={StaticResource BoolToVisibility}}" />
+                        </UniformGrid>
+                        <TextBlock Text="{Binding AppliedText}" Foreground="{StaticResource Ok}" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
+                                   Visibility="{Binding AppliedText, Converter={StaticResource TextToVisibility}}" />
+                        <TextBlock Text="{Binding SelectedError}" Foreground="#FCA5A5" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
+                                   Visibility="{Binding SelectedError, Converter={StaticResource TextToVisibility}}" />
+                        <Button Style="{StaticResource ListOption}" Margin="-12,10,0,0" Command="{Binding OpenOnMineSkinCommand}"
+                                AutomationProperties.Name="Ver en MineSkin">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource AccentHover}" Margin="0,0,10,0" />
+                                <TextBlock Text="Ver en MineSkin.org" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Zoom de la vista 3D (se mantiene; con el botón pulsado manda la rueda): la mitad del alto del
+                         recuadro, centrado, con + arriba, − abajo y una marca en el centro (el zoom inicial) -->
+                    <Grid DockPanel.Dock="Right" Margin="8,12,-6,12" Width="14" Panel.ZIndex="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="2*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="1" Text="+" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
+                                   Margin="0,0,0,4" IsHitTestVisible="False" />
+                        <!-- Con el ratón encima, la rueda también mueve el zoom; al cambiarlo aparece un momento el % -->
+                        <Slider x:Name="ZoomSlider" Grid.Row="2" Style="{StaticResource ZoomSlider}"
+                                Minimum="{x:Static vm:SkinsViewModel.MinViewerZoom}" Maximum="{x:Static vm:SkinsViewModel.MaxViewerZoom}"
+                                Value="{Binding ViewerZoom}" AutomationProperties.Name="Zoom de la skin"
+                                MouseWheel="OnZoomWheel" ValueChanged="OnZoomChanged" />
+                        <!-- % del zoom (100 % = el inicial), a la izquierda del tirador, sobre la vista 3D -->
+                        <Canvas Grid.Row="2" IsHitTestVisible="False">
+                            <Border x:Name="ZoomBadge" Canvas.Right="22" Opacity="0" Background="{StaticResource MenuGlass}"
+                                    BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" CornerRadius="6" Padding="7,2">
+                                <TextBlock x:Name="ZoomBadgeText" FontSize="12" Foreground="{StaticResource Ink}" />
+                            </Border>
+                        </Canvas>
+                        <TextBlock Grid.Row="3" Text="−" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
+                                   Margin="0,2,0,0" IsHitTestVisible="False" />
+                    </Grid>
+
+                    <!-- Vista 3D -->
+                    <Border CornerRadius="{StaticResource RadiusGroup}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Margin="0,12,0,12" MinHeight="220">
+                        <Border.Background>
+                            <RadialGradientBrush Center="0.5,0.62" GradientOrigin="0.5,0.62" RadiusX="0.75" RadiusY="0.6">
+                                <GradientStop Color="#333478F6" Offset="0" />
+                                <GradientStop Color="#0DFFFFFF" Offset="0.7" />
+                                <GradientStop Color="#08FFFFFF" Offset="1" />
+                            </RadialGradientBrush>
+                        </Border.Background>
+                        <Grid>
+                            <c:SkinViewer3D Skin="{Binding SelectedPixels}" Slim="{Binding SelectedSlim}" Zoom="{Binding ViewerZoom}"
+                                            MinZoom="{x:Static vm:SkinsViewModel.MinViewerZoom}" MaxZoom="{x:Static vm:SkinsViewModel.MaxViewerZoom}" Margin="0,8,0,22"
+                                            AutomationProperties.Name="Vista 3D de la skin" />
+                            <TextBlock Text="Cargando…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Usar esta skin" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsApplying}" Value="True">
-                                                <Setter Property="Text" Value="Guardando…" />
-                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding IsSelectedLoading}" Value="True" />
+                                                    <Condition Binding="{Binding SelectedPixels}" Value="{x:Null}" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </Button.Content>
-                    </Button>
-                    <!-- Solo la guarda en Descargadas, sin aplicarla -->
-                    <Button Height="34" FontSize="13.5" Margin="4,0,0,0" Command="{Binding DownloadCommand}"
-                            AutomationProperties.Name="Descargar skin">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource GlassButton}">
-                                <Setter Property="Content" Value="Descargar skin" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsDownloading}" Value="True">
-                                        <Setter Property="Content" Value="Descargando…" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsSelectedDownloaded}" Value="True">
-                                        <Setter Property="Content" Value="Descargada" />
-                                        <Setter Property="IsEnabled" Value="False" />
-                                    </DataTrigger>
-                                    <!-- En Descargadas su lugar es para «Borrar skin» -->
-                                    <DataTrigger Binding="{Binding CanDeleteSelected}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <!-- Borra la skin de Descargadas (solo ahí) -->
-                    <Button Style="{StaticResource DangerButton}" Height="34" FontSize="13.5" Margin="4,0,0,0" Content="Borrar skin"
-                            Command="{Binding DeleteDownloadedCommand}" AutomationProperties.Name="Borrar skin"
-                            Visibility="{Binding CanDeleteSelected, Converter={StaticResource BoolToVisibility}}" />
-                    </UniformGrid>
-                    <TextBlock Text="{Binding AppliedText}" Foreground="{StaticResource Ok}" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
-                               Visibility="{Binding AppliedText, Converter={StaticResource TextToVisibility}}" />
-                    <TextBlock Text="{Binding SelectedError}" Foreground="#FCA5A5" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
-                               Visibility="{Binding SelectedError, Converter={StaticResource TextToVisibility}}" />
-                    <Button Style="{StaticResource ListOption}" Margin="-12,10,0,0" Command="{Binding OpenOnMineSkinCommand}"
-                            AutomationProperties.Name="Ver en MineSkin">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource AccentHover}" Margin="0,0,10,0" />
-                            <TextBlock Text="Ver en MineSkin.org" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-
-                <!-- Zoom de la vista 3D (se mantiene; con el botón pulsado manda la rueda): la mitad del alto del
-                     recuadro, centrado, con + arriba, − abajo y una marca en el centro (el zoom inicial) -->
-                <Grid DockPanel.Dock="Right" Margin="8,12,-6,12" Width="14" Panel.ZIndex="1">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="2*" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="1" Text="+" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
-                               Margin="0,0,0,4" IsHitTestVisible="False" />
-                    <!-- Con el ratón encima, la rueda también mueve el zoom; al cambiarlo aparece un momento el % -->
-                    <Slider x:Name="ZoomSlider" Grid.Row="2" Style="{StaticResource ZoomSlider}"
-                            Minimum="{x:Static vm:SkinsViewModel.MinViewerZoom}" Maximum="{x:Static vm:SkinsViewModel.MaxViewerZoom}"
-                            Value="{Binding ViewerZoom}" AutomationProperties.Name="Zoom de la skin"
-                            MouseWheel="OnZoomWheel" ValueChanged="OnZoomChanged" />
-                    <!-- % del zoom (100 % = el inicial), a la izquierda del tirador, sobre la vista 3D -->
-                    <Canvas Grid.Row="2" IsHitTestVisible="False">
-                        <Border x:Name="ZoomBadge" Canvas.Right="22" Opacity="0" Background="{StaticResource MenuGlass}"
-                                BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" CornerRadius="6" Padding="7,2">
-                            <TextBlock x:Name="ZoomBadgeText" FontSize="12" Foreground="{StaticResource Ink}" />
-                        </Border>
-                    </Canvas>
-                    <TextBlock Grid.Row="3" Text="−" FontSize="13" Foreground="{StaticResource Ink3}" HorizontalAlignment="Center"
-                               Margin="0,2,0,0" IsHitTestVisible="False" />
-                </Grid>
-
-                <!-- Vista 3D -->
-                <Border CornerRadius="{StaticResource RadiusGroup}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" Margin="0,12,0,12" MinHeight="220">
-                    <Border.Background>
-                        <RadialGradientBrush Center="0.5,0.62" GradientOrigin="0.5,0.62" RadiusX="0.75" RadiusY="0.6">
-                            <GradientStop Color="#333478F6" Offset="0" />
-                            <GradientStop Color="#0DFFFFFF" Offset="0.7" />
-                            <GradientStop Color="#08FFFFFF" Offset="1" />
-                        </RadialGradientBrush>
-                    </Border.Background>
-                    <Grid>
-                        <c:SkinViewer3D Skin="{Binding SelectedPixels}" Slim="{Binding SelectedSlim}" Zoom="{Binding ViewerZoom}"
-                                        MinZoom="{x:Static vm:SkinsViewModel.MinViewerZoom}" MaxZoom="{x:Static vm:SkinsViewModel.MaxViewerZoom}" Margin="0,8,0,22"
-                                        AutomationProperties.Name="Vista 3D de la skin" />
-                        <TextBlock Text="Cargando…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding IsSelectedLoading}" Value="True" />
-                                                <Condition Binding="{Binding SelectedPixels}" Value="{x:Null}" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </MultiDataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="Mantén pulsado para girar · rueda para acercar" Style="{StaticResource Hint}" FontSize="11.5"
-                                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" IsHitTestVisible="False" />
-                    </Grid>
-                </Border>
-            </DockPanel>
-        </Border>
-    </Grid>
+                            <TextBlock Text="Mantén pulsado para girar · rueda para acercar" Style="{StaticResource Hint}" FontSize="11.5"
+                                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" IsHitTestVisible="False" />
+                        </Grid>
+                    </Border>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
 </UserControl>

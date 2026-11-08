@@ -170,6 +170,39 @@
         </Setter>
     </Style>
 
+    <!-- ═══ Páginas (secciones de la barra lateral) ═══
+         Al cambiar de sección, la página aparece con un fundido y sube 10 px en 180 ms (sin transición si
+         Windows tiene las animaciones desactivadas). -->
+    <Duration x:Key="MotionPage">0:0:0.18</Duration>
+    <Style x:Key="PageTransition" TargetType="Border">
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TranslateTransform />
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsVisible, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="{StaticResource MotionPage}">
+                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="10" To="0"
+                                             Duration="{StaticResource MotionPage}">
+                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiDataTrigger.EnterActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ═══ Diálogos (overlays) ═══
          Mismo cristal que la ventana (más denso), radio 16 y una línea clara de borde. Al aparecer: fundido
          y escala 0.96 → 1 en 160 ms (sin transición si Windows tiene las animaciones desactivadas). -->

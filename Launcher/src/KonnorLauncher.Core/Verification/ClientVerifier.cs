@@ -107,8 +107,11 @@ public sealed partial class ClientVerifier
         _logger = (ILogger?)logger ?? NullLogger.Instance;
     }
 
-    /// <summary>Timeout para descargar el manifest.</summary>
-    public TimeSpan ManifestTimeout { get; init; } = TimeSpan.FromSeconds(15);
+    /// <summary>
+    /// Tiempo máximo para descargar el manifest, reintentos incluidos: si el servidor no responde en ese
+    /// tiempo, la sincronización falla enseguida («servidor no responde»).
+    /// </summary>
+    public TimeSpan ManifestTimeout { get; init; } = TimeSpan.FromSeconds(3);
 
     /// <summary>Timeout de conexión/lectura de cada descarga (no es un límite total).</summary>
     public TimeSpan DownloadTimeout { get; init; } = TimeSpan.FromSeconds(30);
@@ -173,8 +176,21 @@ public sealed partial class ClientVerifier
             // 4-5. Qué hay que reparar (existencia + tamaño; el hash solo valida lo descargado).
             var protectPacks = manifest.ProtectPacks == true;
             var files = SelectFiles(gameDir, manifest.Files, protectPacks, options.InstallPacks, _logger);
-            var repairBlocks = FindBlocksToRepair(gameDir, manifest.AssetBlocks);
-            var repairFiles = FindFilesToRepair(gameDir, files);
+            List<AssetBlock> repairBlocks;
+            List<ManifestFile> repairFiles;
+            if (manifest.VerifyHashes == true)
+            {
+                // Seguridad avanzada: además del tamaño, el SHA-256 de cada archivo (en paralelo).
+                Status("verificando archivos", 0);
+                repairBlocks = await FindBlocksToRepairByHashAsync(gameDir, manifest.AssetBlocks, ct).ConfigureAwait(false);
+                repairFiles = await FindFilesToRepairByHashAsync(gameDir, files, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                repairBlocks = FindBlocksToRepair(gameDir, manifest.AssetBlocks);
+                repairFiles = FindFilesToRepair(gameDir, files);
+            }
+
             _logger.LogInformation("Manifest: {Files} archivos, {Blocks} bloques. A reparar: {RFiles} archivos, {RBlocks} bloques",
                 manifest.Files.Count, manifest.AssetBlocks.Count, repairFiles.Count, repairBlocks.Count);
 
@@ -330,6 +346,53 @@ public sealed partial class ClientVerifier
     /// <summary>Un bloque entero se repara si CUALQUIERA de sus archivos falta o tiene tamaño distinto.</summary>
     public static List<AssetBlock> FindBlocksToRepair(string gameDir, IEnumerable<AssetBlock> blocks) =>
         blocks.Where(b => b.Files.Any(f => !HasExpectedSize(ManifestPath.ToLocalPath(gameDir, f), f.Size))).ToList();
+
+    /// <summary>
+    /// Seguridad avanzada: archivos ausentes, con otro tamaño o con otro SHA-256. Solo se calcula el hash de
+    /// los que tienen el tamaño correcto, varios a la vez.
+    /// </summary>
+    public static async Task<List<ManifestFile>> FindFilesToRepairByHashAsync(string gameDir, IReadOnlyList<ManifestFile> files, CancellationToken ct = default)
+    {
+        var bad = new System.Collections.Concurrent.ConcurrentBag<ManifestFile>();
+        await Parallel.ForEachAsync(files, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = Environment.ProcessorCount },
+            async (file, token) =>
+            {
+                if (!await HasExpectedContentAsync(ManifestPath.ToLocalPath(gameDir, file), file, token).ConfigureAwait(false))
+                    bad.Add(file);
+            }).ConfigureAwait(false);
+        // En el orden del manifest (las descargas y el registro no dependen del orden de los hilos).
+        var set = bad.ToHashSet();
+        return files.Where(set.Contains).ToList();
+    }
+
+    /// <summary>Seguridad avanzada: un bloque se repara si cualquiera de sus archivos falta o no coincide su hash.</summary>
+    public static async Task<List<AssetBlock>> FindBlocksToRepairByHashAsync(string gameDir, IReadOnlyList<AssetBlock> blocks, CancellationToken ct = default)
+    {
+        var result = new List<AssetBlock>();
+        foreach (var block in blocks)
+        {
+            if ((await FindFilesToRepairByHashAsync(gameDir, block.Files, ct).ConfigureAwait(false)).Count > 0)
+                result.Add(block);
+        }
+
+        return result;
+    }
+
+    private static async Task<bool> HasExpectedContentAsync(string path, ManifestFile file, CancellationToken ct)
+    {
+        if (!HasExpectedSize(path, file.Size))
+            return false;
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, BufferSize, useAsync: true);
+            var hash = await SHA256.HashDataAsync(stream, ct).ConfigureAwait(false);
+            return string.Equals(Convert.ToHexString(hash), file.Sha256, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     private static bool HasExpectedSize(string path, long size)
     {
@@ -565,23 +628,21 @@ public sealed partial class ClientVerifier
     private async Task<ClientManifest> DownloadManifestAsync(string url, CancellationToken ct)
     {
         string json;
+        // Un único plazo para todo (intentos y esperas entre ellos), no uno por intento.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(ManifestTimeout);
         try
         {
             json = await WithRetriesAsync(async attemptCt =>
             {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(attemptCt);
-                timeout.CancelAfter(ManifestTimeout);
-                try
-                {
-                    using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-                    response.EnsureSuccessStatusCode();
-                    return await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException ex) when (!attemptCt.IsCancellationRequested)
-                {
-                    throw new TimeoutException("Timeout descargando el manifest", ex);
-                }
-            }, ct).ConfigureAwait(false);
+                using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, attemptCt).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync(attemptCt).ConfigureAwait(false);
+            }, deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
+        {
+            throw new VerificationException(VerificationException.ServerNotResponding, new TimeoutException("Timeout descargando el manifest", ex));
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException)
         {

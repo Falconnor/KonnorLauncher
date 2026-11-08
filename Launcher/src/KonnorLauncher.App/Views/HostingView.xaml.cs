@@ -86,6 +86,27 @@ public partial class HostingView : UserControl
         _viewModel?.OpenCommand.Execute(server);
     }
 
+    /// <summary>Pulsar un jugador (fuera de sus botones) abre su perfil.</summary>
+    private void OnPlayerRowClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.Handled || sender is not FrameworkElement { DataContext: PlayerEntry player } row)
+            return;
+        for (var source = e.OriginalSource as DependencyObject; source is not null && source != sender; source = VisualTreeHelper.GetParent(source))
+        {
+            if (source is ButtonBase)
+                return;
+        }
+
+        for (DependencyObject? parent = row; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is ItemsControl { DataContext: HostedServerViewModel server })
+            {
+                server.OpenPlayerCommand.Execute(player);
+                return;
+            }
+        }
+    }
+
     private void OnCreateClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel is not null)
