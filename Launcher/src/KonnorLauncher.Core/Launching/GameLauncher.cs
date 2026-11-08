@@ -170,6 +170,16 @@ public sealed class GameLauncher
             option.ServerPort = server.Port;
         }
 
+        // Sin el menú de accesibilidad de la primera vez: se entra al juego (o al servidor) directamente.
+        try
+        {
+            GameOptions.SkipAccessibilityOnboarding(request.GameDir);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "No se pudo desactivar el menú de accesibilidad en options.txt");
+        }
+
         var process = await launcher.BuildProcessAsync(request.VersionId, option, ct).ConfigureAwait(false);
         process.StartInfo.WorkingDirectory = request.GameDir; // el juego corre dentro de su carpeta
         process.StartInfo.UseShellExecute = false;

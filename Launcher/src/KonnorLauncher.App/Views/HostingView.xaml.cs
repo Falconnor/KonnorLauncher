@@ -77,27 +77,40 @@ public partial class HostingView : UserControl
     {
         if (e.Handled || sender is not FrameworkElement { DataContext: HostedServerViewModel server })
             return;
-        for (var source = e.OriginalSource as DependencyObject; source is not null && source != sender; source = VisualTreeHelper.GetParent(source))
-        {
-            if (source is ButtonBase)
-                return;
-        }
+        if (IsInsideButton(e.OriginalSource as DependencyObject, sender))
+            return;
 
         _viewModel?.OpenCommand.Execute(server);
     }
+
+    /// <summary>El clic salió de un botón de la fila (entonces no abre nada).</summary>
+    private static bool IsInsideButton(DependencyObject? source, object row)
+    {
+        for (; source is not null && source != row; source = ParentOf(source))
+        {
+            if (source is ButtonBase)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Padre de un elemento. Un <see cref="System.Windows.Documents.Run"/> (texto con formato) no es visual:
+    /// VisualTreeHelper falla con él, su padre es el lógico.
+    /// </summary>
+    private static DependencyObject? ParentOf(DependencyObject child) =>
+        child is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(child) : LogicalTreeHelper.GetParent(child);
 
     /// <summary>Pulsar un jugador (fuera de sus botones) abre su perfil.</summary>
     private void OnPlayerRowClick(object sender, MouseButtonEventArgs e)
     {
         if (e.Handled || sender is not FrameworkElement { DataContext: PlayerEntry player } row)
             return;
-        for (var source = e.OriginalSource as DependencyObject; source is not null && source != sender; source = VisualTreeHelper.GetParent(source))
-        {
-            if (source is ButtonBase)
-                return;
-        }
+        if (IsInsideButton(e.OriginalSource as DependencyObject, sender))
+            return;
 
-        for (DependencyObject? parent = row; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        for (DependencyObject? parent = row; parent is not null; parent = ParentOf(parent))
         {
             if (parent is ItemsControl { DataContext: HostedServerViewModel server })
             {

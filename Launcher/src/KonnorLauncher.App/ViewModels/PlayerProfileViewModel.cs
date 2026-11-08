@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Windows.Media;
+using KonnorLauncher.App.Services;
 using KonnorLauncher.Core.Hosting;
 
 namespace KonnorLauncher.App.ViewModels;
@@ -12,7 +14,20 @@ public sealed record PlayerEntry(string Name, bool IsOnline, PlayerProfile? Prof
     public string ArmorText => Profile is { } p ? p.Armor.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string LevelText => Profile is { } p ? $"Nivel {p.XpLevel}" : string.Empty;
     public string GameModeText => Profile?.GameModeName ?? string.Empty;
+
+    // Iconos del juego para el resumen (si no hay, se escriben las palabras).
+    public bool ShowSprites => HudSprites.Available;
+    public bool ShowWords => !HudSprites.Available;
+    public ImageSource? HeartIcon => HudSprites.Get("heart/full.png");
+    public ImageSource? FoodIcon => HudSprites.Get("food_full.png");
+    public ImageSource? ArmorIcon => HudSprites.Get("armor_full.png");
 }
+
+/// <summary>Un icono del HUD: el fondo (contenedor vacío) y lo que se dibuja encima (lleno, medio o nada).</summary>
+public sealed record HudIcon(ImageSource? Back, ImageSource? Front);
+
+/// <summary>Fila de iconos del perfil: corazones, muslos, armadura o burbujas, con su valor escrito.</summary>
+public sealed record HudRow(string Label, IReadOnlyList<HudIcon> Icons, string Value);
 
 /// <summary>Fila «etiqueta: valor» del perfil.</summary>
 public sealed record ProfileFact(string Label, string Value);
@@ -74,6 +89,21 @@ public sealed class PlayerProfileViewModel
         if (profile.HeldItem is { } held)
             Equipment.Insert(0, new ProfileFact("En la mano", ItemText(held)));
 
+        if (HudSprites.Available)
+        {
+            var maxHearts = (int)Math.Ceiling(Math.Min(profile.MaxHealth, 80) / 2);
+            HudRows =
+            [
+                new("Vida", Points(profile.Health, maxHearts, "heart/container.png", "heart/full.png", "heart/half.png"), Bars[0].Value),
+                new("Hambre", Points(profile.Food, 10, "food_empty.png", "food_full.png", "food_half.png", fromRight: true), Bars[1].Value),
+                new("Armadura", Points(profile.Armor, 10, "armor_empty.png", "armor_full.png", "armor_half.png", standalone: true), Bars[2].Value),
+                new("Aire", Bubbles(profile.Air), Bars[4].Value),
+            ];
+            if (profile.Absorption > 0)
+                HudRows.Insert(1, new("Absorción", Points(profile.Absorption, (int)Math.Ceiling(profile.Absorption / 2), "heart/container.png",
+                    "heart/absorbing_full.png", "heart/absorbing_half.png"), $"+{Half(profile.Absorption)}"));
+        }
+
         Inventory = [.. profile.Inventory.Select(ItemText)];
         EnderChest = [.. profile.EnderChest.Select(ItemText)];
         Effects = [.. profile.Effects.Select(e => $"{e.DisplayName} {Roman(e.Level)}" + (e.SecondsLeft is { } s ? $" · {TimeSpan.FromSeconds(s):m\\:ss}" : " · ∞"))];
@@ -98,6 +128,15 @@ public sealed class PlayerProfileViewModel
     public string SavedText => $"Datos del último guardado del mundo: {Profile.SavedAt.ToString("d MMM yyyy, HH:mm", Es)}";
 
     public IReadOnlyList<ProfileBar> Bars { get; }
+
+    // Iconos del juego (si se pudieron extraer); si no, las barras.
+    public bool ShowSprites => HudSprites.Available;
+    public bool ShowBars => !HudSprites.Available;
+    public List<HudRow> HudRows { get; private set; } = [];
+    public ImageSource? XpBackground => HudSprites.Get("experience_bar_background.png");
+    public ImageSource? XpBar => HudSprites.Get("experience_bar_progress.png");
+    public double XpRatio => Profile.XpProgress;
+    public string XpText => Bars[3].Value;
     public IReadOnlyList<ProfileFact> State { get; }
     public IReadOnlyList<ProfileFact> Location { get; }
     public List<ProfileFact> Equipment { get; }
@@ -114,6 +153,31 @@ public sealed class PlayerProfileViewModel
 
     /// <summary>Medio corazón = 1 punto: 19 → «9,5» corazones se muestra como puntos («19»), con un decimal si hace falta.</summary>
     public static string Half(float value) => value.ToString(value % 1 == 0 ? "0" : "0.#", Es);
+
+    /// <summary>
+    /// Iconos como en el HUD: cada uno vale 2 puntos (lleno, medio o vacío). El hambre se llena de derecha a
+    /// izquierda, como en el juego. <paramref name="standalone"/>: la armadura no lleva contenedor, cada estado es su icono.
+    /// </summary>
+    private static List<HudIcon> Points(float value, int count, string empty, string full, string half, bool fromRight = false, bool standalone = false)
+    {
+        var icons = new List<HudIcon>();
+        for (var i = 0; i < count; i++)
+        {
+            var index = fromRight ? count - 1 - i : i;
+            var left = value - index * 2;
+            var front = left >= 2 ? HudSprites.Get(full) : left >= 1 ? HudSprites.Get(half) : standalone ? HudSprites.Get(empty) : null;
+            icons.Add(new HudIcon(standalone ? null : HudSprites.Get(empty), front));
+        }
+
+        return icons;
+    }
+
+    /// <summary>10 burbujas: 300 de aire = todas llenas.</summary>
+    private static List<HudIcon> Bubbles(int air)
+    {
+        var full = (int)Math.Ceiling(Math.Clamp(air, 0, 300) * 10 / 300.0);
+        return [.. Enumerable.Range(0, 10).Select(i => new HudIcon(null, HudSprites.Get(i < full ? "air.png" : "air_empty.png")))];
+    }
 
     private static double Ratio(double value, double max) => max <= 0 ? 0 : Math.Clamp(value / max, 0, 1);
 

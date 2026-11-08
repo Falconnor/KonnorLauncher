@@ -783,14 +783,10 @@
                             <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:PlayerEntry}">
-                                        <Border Style="{StaticResource ServerRow}" Padding="12,8" Cursor="Hand" MouseLeftButtonUp="OnPlayerRowClick"
+                                        <Border Style="{StaticResource ServerRow}" Padding="14,12" MinHeight="64" Cursor="Hand" MouseLeftButtonUp="OnPlayerRowClick"
                                                 ToolTip="Ver el perfil del jugador">
                                             <DockPanel>
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                                    <Button Style="{StaticResource SmallGlass}" Content="Perfil" ToolTip="Vida, equipo, inventario, ubicación y estadísticas"
-                                                            Visibility="{Binding HasProfile, Converter={StaticResource BoolToVisibility}}"
-                                                            Command="{Binding DataContext.OpenPlayerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Perfil de {0}}" />
                                                     <Button Style="{StaticResource SmallGlass}" Content="Operador"
                                                             Command="{Binding DataContext.PlayerActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding Name, StringFormat=op|{0}}" />
@@ -819,16 +815,25 @@
                                                         </Ellipse.Style>
                                                     </Ellipse>
                                                     <StackPanel VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
-                                                        <!-- Resumen del último guardado: vida, hambre, armadura, nivel y modo -->
-                                                        <TextBlock FontSize="12.5" Foreground="{StaticResource Ink3}" Margin="0,2,0,0"
-                                                                   Visibility="{Binding HasProfile, Converter={StaticResource BoolToVisibility}}">
-                                                            <Run Text="&#x2665;" Foreground="#E5484D" /> <Run Text="{Binding HealthText, Mode=OneWay}" Foreground="{StaticResource Ink2}" />
-                                                            <Run Text="  ·  Hambre" /> <Run Text="{Binding FoodText, Mode=OneWay}" Foreground="{StaticResource Ink2}" />
-                                                            <Run Text="  ·  Armadura" /> <Run Text="{Binding ArmorText, Mode=OneWay}" Foreground="{StaticResource Ink2}" />
-                                                            <Run Text="  ·  " /><Run Text="{Binding LevelText, Mode=OneWay}" Foreground="{StaticResource Ink2}" />
-                                                            <Run Text="  ·  " /><Run Text="{Binding GameModeText, Mode=OneWay}" />
-                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                                        <!-- Resumen del último guardado: vida, hambre, armadura (iconos del juego), nivel y modo -->
+                                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0" TextElement.FontSize="13" TextElement.Foreground="{StaticResource Ink2}"
+                                                                    Visibility="{Binding HasProfile, Converter={StaticResource BoolToVisibility}}">
+                                                            <Image Source="{Binding HeartIcon}" Width="16" Height="16" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="0,0,5,0"
+                                                                   Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="Vida " Foreground="{StaticResource Ink3}" Visibility="{Binding ShowWords, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="{Binding HealthText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                                            <Image Source="{Binding FoodIcon}" Width="16" Height="16" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="0,0,5,0"
+                                                                   Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="Hambre " Foreground="{StaticResource Ink3}" Visibility="{Binding ShowWords, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="{Binding FoodText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                                            <Image Source="{Binding ArmorIcon}" Width="16" Height="16" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="0,0,5,0"
+                                                                   Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="Armadura " Foreground="{StaticResource Ink3}" Visibility="{Binding ShowWords, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Text="{Binding ArmorText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                                            <TextBlock Text="{Binding LevelText}" VerticalAlignment="Center" Foreground="#7BD45C" Margin="0,0,14,0" />
+                                                            <TextBlock Text="{Binding GameModeText}" VerticalAlignment="Center" Foreground="{StaticResource Ink3}" />
+                                                        </StackPanel>
                                                     </StackPanel>
                                                 </StackPanel>
                                             </DockPanel>
@@ -885,7 +890,59 @@
                             <Border Style="{StaticResource Section}">
                                 <StackPanel>
                                     <TextBlock Text="Salud" Style="{StaticResource SectionTitle}" />
-                                    <ItemsControl ItemsSource="{Binding Bars}" Focusable="False">
+                                    <!-- Iconos del juego: corazones, muslos, armadura y burbujas -->
+                                    <ItemsControl ItemsSource="{Binding HudRows}" Focusable="False" Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:HudRow}">
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" />
+                                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Icons}" Focusable="False" VerticalAlignment="Center">
+                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel MaxWidth="380" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:HudIcon}">
+                                                                <Grid Width="18" Height="18" Margin="0,0,1,1">
+                                                                    <Image Source="{Binding Back}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                                    <Image Source="{Binding Front}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center" Margin="14,0,0,0"
+                                                               TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- Barra de experiencia del juego, con el nivel encima -->
+                                    <Grid Margin="0,0,0,12" Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Experiencia" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                        <StackPanel Grid.Column="1" HorizontalAlignment="Left">
+                                            <Grid Width="364" Height="10" HorizontalAlignment="Left">
+                                                <Image Source="{Binding XpBackground}" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                <Border HorizontalAlignment="Left" ClipToBounds="True">
+                                                    <Border.Width>
+                                                        <MultiBinding Converter="{StaticResource RatioWidth}">
+                                                            <Binding Path="XpRatio" />
+                                                            <Binding Path="ActualWidth" RelativeSource="{RelativeSource AncestorType=Grid}" />
+                                                        </MultiBinding>
+                                                    </Border.Width>
+                                                    <Image Source="{Binding XpBar}" Width="364" Height="10" Stretch="Fill" HorizontalAlignment="Left"
+                                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding XpText}" FontSize="13" Foreground="{StaticResource Ink}" Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Bars}" Focusable="False" Visibility="{Binding ShowBars, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:ProfileBar}">
                                                 <Grid Margin="0,0,0,10">
