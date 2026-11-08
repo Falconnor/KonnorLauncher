@@ -10,6 +10,7 @@
     <UserControl.Resources>
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
 
         <SolidColorBrush x:Key="RowFill" Color="#0AFFFFFF" />
         <SolidColorBrush x:Key="RowFillHover" Color="#12FFFFFF" />
@@ -61,12 +62,12 @@
         <!-- Un filtro: «Región: Todas ▾» y su menú (con barra si es largo: versiones, categorías) -->
         <DataTemplate x:Key="FilterSelect" DataType="{x:Type vm:ServerFilter}">
             <Grid Margin="0,0,16,0">
-                <ToggleButton x:Name="Toggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsOpen}" AutomationProperties.Name="{Binding Name}">
+                <ToggleButton x:Name="Toggle" IsHitTestVisible="{Binding IsOpen, ElementName=TogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsOpen}" AutomationProperties.Name="{Binding Name}">
                     <TextBlock>
                         <Run Text="{Binding Name, Mode=OneWay}" /><Run Text=":" /> <Run Text="{Binding SelectedLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                     </TextBlock>
                 </ToggleButton>
-                <Popup IsOpen="{Binding IsOpen}" PlacementTarget="{Binding ElementName=Toggle}" Placement="Bottom"
+                <Popup x:Name="TogglePopup" IsOpen="{Binding IsOpen}" PlacementTarget="{Binding ElementName=Toggle}" Placement="Bottom"
                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="200">
                     <Border Style="{StaticResource MenuPanel}">
                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="360" VerticalScrollBarVisibility="Auto">

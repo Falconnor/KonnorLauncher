@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
+             xmlns:core="clr-namespace:KonnorLauncher.Core.Hosting;assembly=KonnorLauncher.Core"
              xmlns:conv="clr-namespace:KonnorLauncher.App.Converters"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:HostingViewModel}">
@@ -65,12 +66,12 @@
         <!-- «Versión: 1.21.4 ▾» y su menú -->
         <DataTemplate x:Key="FilterSelect" DataType="{x:Type vm:ServerFilter}">
             <Grid Margin="0,0,16,0">
-                <ToggleButton x:Name="Toggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsOpen}" AutomationProperties.Name="{Binding Name}">
+                <ToggleButton x:Name="Toggle" IsHitTestVisible="{Binding IsOpen, ElementName=TogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsOpen}" AutomationProperties.Name="{Binding Name}">
                     <TextBlock>
                         <Run Text="{Binding Name, Mode=OneWay}" /><Run Text=":" /> <Run Text="{Binding SelectedLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                     </TextBlock>
                 </ToggleButton>
-                <Popup IsOpen="{Binding IsOpen}" PlacementTarget="{Binding ElementName=Toggle}" Placement="Bottom"
+                <Popup x:Name="TogglePopup" IsOpen="{Binding IsOpen}" PlacementTarget="{Binding ElementName=Toggle}" Placement="Bottom"
                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="200">
                     <Border Style="{StaticResource MenuPanel}">
                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="360" VerticalScrollBarVisibility="Auto">
@@ -654,26 +655,76 @@
                         <Border Style="{StaticResource Section}">
                             <StackPanel>
                                 <TextBlock Text="General" Style="{StaticResource SectionTitle}" />
-                                <TextBlock Text="Mensaje de la lista de servidores (MOTD)" Style="{StaticResource FieldLabel}" />
-                                <TextBox Style="{StaticResource GlassTextBox}" MaxLength="120" Text="{Binding Motd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="MOTD" />
-                                <UniformGrid Columns="3" Margin="0,14,0,0">
+                                <!-- Icono y MOTD: lo que se ve en la lista de servidores del juego -->
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Left" Margin="0,0,16,0">
+                                        <TextBlock Text="Icono" Style="{StaticResource FieldLabel}" />
+                                        <Border Width="72" Height="72" CornerRadius="8" Background="{StaticResource Group}" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                                ToolTip="Imagen cuadrada de 64×64: cualquier imagen se recorta al centro y se ajusta">
+                                            <Grid>
+                                                <Image Source="{Binding ServerIcon}" Width="64" Height="64" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                       AutomationProperties.Name="Icono del servidor" />
+                                                <TextBlock Text="&#xEB9F;" Style="{StaticResource Icon}" FontSize="22" Foreground="{StaticResource Ink3}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding HasServerIcon, Converter={StaticResource InverseBoolToVisibility}}" />
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Button Style="{StaticResource IconOnlyButton}" Width="32" Height="30" FontSize="12" Content="&#xE8E5;"
+                                                    Command="{Binding ChooseServerIconCommand}" ToolTip="Elegir imagen…" AutomationProperties.Name="Elegir icono" />
+                                            <Button Style="{StaticResource IconOnlyButton}" Width="32" Height="30" FontSize="12" Content="{StaticResource IconDelete}" Margin="8,0,0,0"
+                                                    Command="{Binding RemoveServerIconCommand}" ToolTip="Quitar el icono" AutomationProperties.Name="Quitar icono"
+                                                    Visibility="{Binding HasServerIcon, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Mensaje de la lista de servidores (MOTD)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="160" Text="{Binding Motd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="MOTD"
+                                                 AcceptsReturn="True" TextWrapping="Wrap" Height="64" VerticalContentAlignment="Top" Padding="10,8" />
+                                        <TextBlock Text="Hasta dos líneas (Intro para la segunda). Admite colores con § (por ejemplo §a verde)." Style="{StaticResource Hint}" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <UniformGrid Columns="2" Margin="0,14,0,0">
                                     <StackPanel Margin="0,0,12,0">
                                         <TextBlock Text="Puerto" Style="{StaticResource FieldLabel}" />
                                         <TextBox Style="{StaticResource GlassTextBox}" MaxLength="5" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Puerto" />
                                     </StackPanel>
-                                    <StackPanel Margin="0,0,12,0">
+                                    <StackPanel>
                                         <TextBlock Text="Jugadores máximos" Style="{StaticResource FieldLabel}" />
                                         <TextBox Style="{StaticResource GlassTextBox}" MaxLength="4" Text="{Binding MaxPlayersText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Jugadores máximos" />
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Text="Distancia de renderizado" Style="{StaticResource FieldLabel}" />
-                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="2" Text="{Binding ViewDistanceText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Distancia de renderizado" />
                                     </StackPanel>
                                 </UniformGrid>
                                 <WrapPanel Margin="0,14,0,0">
                                     <ContentControl Content="{Binding Difficulty}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
                                     <ContentControl Content="{Binding GameMode}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" />
                                 </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Distancias que admite el servidor (las de los jugadores no pueden superarlas) -->
+                        <Border Style="{StaticResource Section}">
+                            <StackPanel>
+                                <TextBlock Text="Distancia" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="Distancia de renderizado" Style="{StaticResource FieldLabel}" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Width="80" TextAlignment="Right" Text="{Binding ViewDistanceLabel}" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
+                                    <Slider Style="{StaticResource GlassSlider}" VerticalAlignment="Center" AutomationProperties.Name="Distancia de renderizado"
+                                            Minimum="{x:Static vm:HostedServerViewModel.ViewDistanceMin}" Maximum="{x:Static vm:HostedServerViewModel.ViewDistanceMax}"
+                                            Value="{Binding ViewDistance}" TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="4" />
+                                </DockPanel>
+                                <TextBlock Text="Hasta dónde ven los jugadores el mundo. Aunque un jugador ponga más en su juego, el servidor no envía más que esto."
+                                           Style="{StaticResource Hint}" Margin="0,6,0,14" TextWrapping="Wrap" />
+                                <TextBlock Text="Distancia de simulación" Style="{StaticResource FieldLabel}" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Width="80" TextAlignment="Right" Text="{Binding SimulationDistanceLabel}" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
+                                    <Slider Style="{StaticResource GlassSlider}" VerticalAlignment="Center" AutomationProperties.Name="Distancia de simulación"
+                                            Minimum="{x:Static vm:HostedServerViewModel.SimulationDistanceMin}" Maximum="{x:Static vm:HostedServerViewModel.SimulationDistanceMax}"
+                                            Value="{Binding SimulationDistance}" TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="4" />
+                                </DockPanel>
+                                <TextBlock Text="Hasta dónde se mueven criaturas, crecen cultivos y funciona la redstone. Las dos consumen CPU y RAM del servidor: con muchos jugadores, mejor valores bajos."
+                                           Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
 
@@ -758,27 +809,62 @@
                 <!-- ── Jugadores ── -->
                 <Grid x:Name="PlayersTabRoot" Visibility="{Binding IsPlayersTab, Converter={StaticResource BoolToVisibility}}">
                 <DockPanel Visibility="{Binding IsPlayerProfileOpen, Converter={StaticResource InverseBoolToVisibility}}">
-                    <Border DockPanel.Dock="Top" Style="{StaticResource Section}">
-                        <StackPanel>
-                            <TextBlock Text="Gestionar un jugador" Style="{StaticResource SectionTitle}" />
-                            <TextBox Style="{StaticResource GlassTextBox}" MaxLength="16" Tag="Nombre del jugador" MaxWidth="360" HorizontalAlignment="Left" Width="360"
+                    <!-- Gestionar un jugador por su nombre: una sola línea (los cambios necesitan el servidor en marcha) -->
+                    <Border DockPanel.Dock="Top" Style="{StaticResource Section}" Padding="14,10"
+                            ToolTip="Los cambios se aplican con el servidor en marcha (como los comandos de la consola)">
+                        <WrapPanel VerticalAlignment="Center">
+                            <TextBlock Text="Gestionar" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" VerticalAlignment="Center" Margin="2,0,12,4" />
+                            <TextBox Style="{StaticResource GlassTextBox}" Height="32" MaxLength="16" Tag="Nombre del jugador" Width="190" Margin="0,0,10,4"
                                      Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nombre del jugador" />
-                            <WrapPanel Margin="0,12,0,0">
-                                <Button Style="{StaticResource SmallGlass}" Content="Hacer operador" Command="{Binding PlayerActionCommand}" CommandParameter="op" />
-                                <Button Style="{StaticResource SmallGlass}" Content="Quitar operador" Command="{Binding PlayerActionCommand}" CommandParameter="deop" />
-                                <Button Style="{StaticResource SmallGlass}" Content="Añadir a la lista blanca" Command="{Binding PlayerActionCommand}" CommandParameter="whitelist add" />
-                                <Button Style="{StaticResource SmallGlass}" Content="Quitar de la lista blanca" Command="{Binding PlayerActionCommand}" CommandParameter="whitelist remove" />
-                                <Button Style="{StaticResource SmallGlass}" Content="Desbanear" Command="{Binding PlayerActionCommand}" CommandParameter="pardon" />
-                            </WrapPanel>
-                            <TextBlock Text="Los cambios se aplican con el servidor en marcha (como los comandos de la consola)." Style="{StaticResource Hint}" Margin="0,10,0,0" />
-                        </StackPanel>
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,6,4" Content="Operador" ToolTip="Hacer operador" Command="{Binding PlayerActionCommand}" CommandParameter="op" />
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,6,4" Content="Quitar operador" Command="{Binding PlayerActionCommand}" CommandParameter="deop" />
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,6,4" Content="A la lista blanca" ToolTip="Añadir a la lista blanca" Command="{Binding PlayerActionCommand}" CommandParameter="whitelist add" />
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,0,4" Content="Desbanear" Command="{Binding PlayerActionCommand}" CommandParameter="pardon" />
+                        </WrapPanel>
                     </Border>
-                    <DockPanel DockPanel.Dock="Top" Margin="2,6,0,10">
+                    <!-- Todos los jugadores o la lista blanca -->
+                    <DockPanel DockPanel.Dock="Top" Margin="0,2,0,10">
                         <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Width="30" Height="30" FontSize="12" Content="{StaticResource IconSync}"
                                 Command="{Binding RefreshPlayersCommand}" ToolTip="Actualizar" AutomationProperties.Name="Actualizar jugadores" />
-                        <TextBlock Text="Jugadores" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource TopTabSmall}" Height="38" GroupName="PlayerLists" IsChecked="{Binding ShowAllPlayers}"
+                                         Content="Jugadores" AutomationProperties.Name="Jugadores" />
+                            <RadioButton Style="{StaticResource TopTabSmall}" Height="38" GroupName="PlayerLists" IsChecked="{Binding ShowWhitelist}"
+                                         Content="{Binding WhitelistTabText}" AutomationProperties.Name="Lista blanca" />
+                        </StackPanel>
                     </DockPanel>
                     <Grid>
+                    <!-- Lista blanca: quién puede entrar, y retirarlo -->
+                    <DockPanel Visibility="{Binding ShowWhitelist, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding WhitelistNotice}" Foreground="{StaticResource Warn}" FontSize="12.5" TextWrapping="Wrap" Margin="2,0,0,10"
+                                   Visibility="{Binding WhitelistNotice, Converter={StaticResource TextToVisibility}}" />
+                        <Grid>
+                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding WhitelistEntries}" Margin="0,0,6,0" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type core:WhitelistEntry}">
+                                            <Border Style="{StaticResource ServerRow}" Padding="14,10">
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallGlass}" Margin="0" Content="Retirar"
+                                                            ToolTip="Quitar de la lista blanca (ya no podrá entrar)"
+                                                            Command="{Binding DataContext.RemoveFromWhitelistCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Retirar a {0} de la lista blanca}" />
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                                        <TextBlock Text="{Binding Uuid}" Style="{StaticResource Meta}" Margin="0,2,0,0" FontFamily="Consolas" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <TextBlock Text="Nadie en la lista blanca. Añade jugadores con «A la lista blanca» (con el servidor en marcha)." Foreground="{StaticResource Ink2}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                                       Visibility="{Binding HasWhitelistEntries, Converter={StaticResource InverseBoolToVisibility}}" />
+                        </Grid>
+                    </DockPanel>
+                    <Grid Visibility="{Binding ShowAllPlayers, Converter={StaticResource BoolToVisibility}}">
                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0" Focusable="False">
                                 <ItemsControl.ItemTemplate>
@@ -844,6 +930,7 @@
                         </ScrollViewer>
                         <TextBlock Text="Todavía no entró nadie a este servidor." Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Visibility="{Binding HasPlayers, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </Grid>
                     </Grid>
                 </DockPanel>
 

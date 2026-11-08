@@ -460,6 +460,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasPlayers));
         OnPropertyChanged(nameof(PlayersText));
+        RefreshWhitelist();
     }
 
     private PlayerProfile? ReadProfile(string name, Guid uuid)
@@ -472,6 +473,74 @@ public sealed partial class HostedServerViewModel : ObservableObject
         {
             return null;
         }
+    }
+
+    // ── Lista blanca ─────────────────────────────────────────────────────
+
+    /// <summary>Se ve la lista blanca en lugar de todos los jugadores.</summary>
+    [ObservableProperty] private bool _showWhitelist;
+
+    public bool ShowAllPlayers
+    {
+        get => !ShowWhitelist;
+        set { if (value) ShowWhitelist = false; }
+    }
+
+    public ObservableCollection<WhitelistEntry> WhitelistEntries { get; } = [];
+    public bool HasWhitelistEntries => WhitelistEntries.Count > 0;
+    public string WhitelistTabText => $"Lista blanca ({WhitelistEntries.Count})";
+
+    /// <summary>Aviso si la lista existe pero no se aplica (white-list=false en server.properties).</summary>
+    public string? WhitelistNotice => ServerPropertiesFile.Load(PropertiesPath).GetBool("white-list", false)
+        ? null
+        : "La lista blanca está desactivada: entra cualquiera. Actívala en Configuración → Reglas.";
+
+    partial void OnShowWhitelistChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAllPlayers));
+        if (value)
+            RefreshWhitelist();
+    }
+
+    [RelayCommand]
+    private void RefreshWhitelist()
+    {
+        WhitelistEntries.Clear();
+        foreach (var entry in WhitelistFile.Load(Directory))
+            WhitelistEntries.Add(entry);
+        OnPropertyChanged(nameof(HasWhitelistEntries));
+        OnPropertyChanged(nameof(WhitelistTabText));
+        OnPropertyChanged(nameof(WhitelistNotice));
+    }
+
+    /// <summary>
+    /// Retira a un jugador de la lista blanca: con el servidor en marcha, con <c>/whitelist remove</c> (lo guarda el propio
+    /// servidor); detenido, editando <c>whitelist.json</c>.
+    /// </summary>
+    [RelayCommand]
+    private async Task RemoveFromWhitelistAsync(WhitelistEntry? entry)
+    {
+        if (entry is null)
+            return;
+        try
+        {
+            if (IsAlive)
+            {
+                _runner.SendCommand($"whitelist remove {entry.Name}");
+                for (var i = 0; i < 20 && WhitelistFile.Load(Directory).Any(e => e.Name.Equals(entry.Name, StringComparison.OrdinalIgnoreCase)); i++)
+                    await Task.Delay(100);
+            }
+            else
+            {
+                WhitelistFile.Remove(Directory, entry.Name);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            Error = $"No se pudo quitar a {entry.Name} de la lista blanca: {ex.Message}";
+        }
+
+        RefreshWhitelist();
     }
 
     // ── Perfil de un jugador ─────────────────────────────────────────────
@@ -542,6 +611,15 @@ public sealed partial class HostedServerViewModel : ObservableObject
         Error = null;
         if (parts.Length == 1)
             PlayerName = string.Empty;
+        if (parts[0].StartsWith("whitelist", StringComparison.Ordinal))
+            _ = RefreshWhitelistSoonAsync();
+    }
+
+    /// <summary>El servidor escribe whitelist.json al momento de aplicar el comando.</summary>
+    private async Task RefreshWhitelistSoonAsync()
+    {
+        await Task.Delay(800);
+        RefreshWhitelist();
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -556,7 +634,8 @@ public sealed partial class HostedServerViewModel : ObservableObject
     [ObservableProperty] private string _motd = string.Empty;
     [ObservableProperty] private string _portText = string.Empty;
     [ObservableProperty] private string _maxPlayersText = string.Empty;
-    [ObservableProperty] private string _viewDistanceText = string.Empty;
+    [ObservableProperty] private double _viewDistance = 10;
+    [ObservableProperty] private double _simulationDistance = 10;
     [ObservableProperty] private string _seed = string.Empty;
     [ObservableProperty] private bool _onlineMode;
     [ObservableProperty] private bool _pvp;
@@ -582,16 +661,78 @@ public sealed partial class HostedServerViewModel : ObservableObject
 
     partial void OnMemoryMbChanged(double value) => OnPropertyChanged(nameof(MemoryText));
 
+    // Distancias que admite el servidor, en chunks: renderizado (lo que ven los jugadores) 2-32 y simulación
+    // (dónde se mueven criaturas, cultivos, redstone…) 5-32. Cuanto más, más CPU y RAM del servidor.
+    public const double ViewDistanceMin = 2, ViewDistanceMax = 32, SimulationDistanceMin = 5, SimulationDistanceMax = 32;
+    public string ViewDistanceLabel => $"{(int)ViewDistance} chunks";
+    public string SimulationDistanceLabel => $"{(int)SimulationDistance} chunks";
+    partial void OnViewDistanceChanged(double value) => OnPropertyChanged(nameof(ViewDistanceLabel));
+    partial void OnSimulationDistanceChanged(double value) => OnPropertyChanged(nameof(SimulationDistanceLabel));
+
+    /// <summary>El MOTD admite dos líneas (en server.properties se guardan con <c>\n</c>).</summary>
+    public const int MotdMaxLines = 2;
+
+    // ── Icono del servidor (server-icon.png, 64×64) ──────────────────────
+
+    [ObservableProperty] private System.Windows.Media.ImageSource? _serverIcon;
+    public bool HasServerIcon => ServerIcon is not null;
+    partial void OnServerIconChanged(System.Windows.Media.ImageSource? value) => OnPropertyChanged(nameof(HasServerIcon));
+
+    private string IconPath => Path.Combine(Directory, ServerIconFile.FileName);
+
+    private void LoadServerIcon() => ServerIcon = ServerIconFile.Load(IconPath);
+
+    /// <summary>Elige una imagen; se recorta al centro y se escala a 64×64 (lo que exige Minecraft).</summary>
+    [RelayCommand]
+    private void ChooseServerIcon()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Icono del servidor",
+            Filter = "Imágenes|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|Todos los archivos|*.*",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+        try
+        {
+            ServerIconFile.SaveFrom(dialog.FileName, IconPath);
+            LoadServerIcon();
+            SettingsMessage = IsAlive ? "Icono guardado. Se verá en la lista de servidores al reiniciar el servidor." : "Icono guardado.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException
+                                       or System.Runtime.InteropServices.COMException)
+        {
+            SettingsMessage = "No se pudo usar esa imagen: " + ex.Message;
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveServerIcon()
+    {
+        try
+        {
+            File.Delete(IconPath);
+            ServerIcon = null;
+            SettingsMessage = IsAlive ? "Icono quitado. Se aplica al reiniciar el servidor." : "Icono quitado.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SettingsMessage = $"No se pudo quitar: {ex.Message}";
+        }
+    }
+
     /// <summary>Si el mundo aún no existe, la semilla se aplica; después ya no cambia nada.</summary>
     public bool HasWorld => System.IO.Directory.Exists(Path.Combine(Directory, ServerPropertiesFile.Load(PropertiesPath).Get("level-name", "world")));
 
     private void LoadSettings()
     {
         var props = ServerPropertiesFile.Load(PropertiesPath);
-        Motd = props.Get("motd", "A Minecraft Server");
+        Motd = props.Get("motd", "A Minecraft Server").Replace("\n", Environment.NewLine);
         PortText = props.Port.ToString();
         MaxPlayersText = props.GetInt("max-players", 20).ToString();
-        ViewDistanceText = props.GetInt("view-distance", 10).ToString();
+        ViewDistance = Math.Clamp(props.GetInt("view-distance", 10), ViewDistanceMin, ViewDistanceMax);
+        SimulationDistance = Math.Clamp(props.GetInt("simulation-distance", 10), SimulationDistanceMin, SimulationDistanceMax);
+        LoadServerIcon();
         Seed = props.Get("level-seed", string.Empty);
         OnlineMode = props.GetBool("online-mode", true);
         Pvp = props.GetBool("pvp", true);
@@ -623,9 +764,12 @@ public sealed partial class HostedServerViewModel : ObservableObject
             return;
         }
 
-        if (!int.TryParse(ViewDistanceText, out var viewDistance) || viewDistance is < 2 or > 32)
+        var motdLines = Motd.Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd()).ToList();
+        while (motdLines.Count > 0 && motdLines[^1].Length == 0)
+            motdLines.RemoveAt(motdLines.Count - 1);
+        if (motdLines.Count > MotdMaxLines)
         {
-            SettingsMessage = "Distancia de renderizado: entre 2 y 32 chunks.";
+            SettingsMessage = "El MOTD admite como mucho dos líneas.";
             return;
         }
 
@@ -638,11 +782,12 @@ public sealed partial class HostedServerViewModel : ObservableObject
         try
         {
             var props = ServerPropertiesFile.Load(PropertiesPath);
-            props.Set("motd", Motd.Trim());
+            props.Set("motd", string.Join('\n', motdLines).Trim());
             props.Set("server-port", port);
             props.Set("query.port", port);
             props.Set("max-players", maxPlayers);
-            props.Set("view-distance", viewDistance);
+            props.Set("view-distance", (int)ViewDistance);
+            props.Set("simulation-distance", (int)SimulationDistance);
             props.Set("level-seed", Seed.Trim());
             props.Set("online-mode", OnlineMode);
             if (HasPvpSetting)

@@ -11,6 +11,7 @@
     <UserControl.Resources>
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <conv:InverseBoolConverter x:Key="InverseBool" />
         <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
 
         <!-- ── Superficies: las del estilo de la ventana (contenedor agrupado y líneas finas) ── -->
@@ -567,12 +568,12 @@
                             </Grid>
 
                             <Grid DockPanel.Dock="Left">
-                                <ToggleButton x:Name="SortToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsSortOpen}" AutomationProperties.Name="Ordenar por">
+                                <ToggleButton x:Name="SortToggle" IsHitTestVisible="{Binding IsOpen, ElementName=SortTogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsSortOpen}" AutomationProperties.Name="Ordenar por">
                                     <TextBlock>
                                         <Run Text="Ordenar por:" /> <Run Text="{Binding SortLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                                     </TextBlock>
                                 </ToggleButton>
-                                <Popup IsOpen="{Binding IsSortOpen}" PlacementTarget="{Binding ElementName=SortToggle}" Placement="Bottom"
+                                <Popup x:Name="SortTogglePopup" IsOpen="{Binding IsSortOpen}" PlacementTarget="{Binding ElementName=SortToggle}" Placement="Bottom"
                                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="200">
                                     <Border Style="{StaticResource MenuPanel}">
                                         <ItemsControl ItemsSource="{Binding SortOptions}">
@@ -589,12 +590,12 @@
                             </Grid>
 
                             <Grid DockPanel.Dock="Left" Margin="8,0,0,0">
-                                <ToggleButton x:Name="SizeToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsPageSizeOpen}" AutomationProperties.Name="Resultados por página">
+                                <ToggleButton x:Name="SizeToggle" IsHitTestVisible="{Binding IsOpen, ElementName=SizeTogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsPageSizeOpen}" AutomationProperties.Name="Resultados por página">
                                     <TextBlock>
                                         <Run Text="Ver:" /> <Run Text="{Binding PageSize, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                                     </TextBlock>
                                 </ToggleButton>
-                                <Popup IsOpen="{Binding IsPageSizeOpen}" PlacementTarget="{Binding ElementName=SizeToggle}" Placement="Bottom"
+                                <Popup x:Name="SizeTogglePopup" IsOpen="{Binding IsPageSizeOpen}" PlacementTarget="{Binding ElementName=SizeToggle}" Placement="Bottom"
                                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="110">
                                     <Border Style="{StaticResource MenuPanel}">
                                         <ItemsControl ItemsSource="{Binding PageSizes}">
@@ -910,13 +911,13 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,2"
                                         Visibility="{Binding IsVersions, Converter={StaticResource BoolToVisibility}}">
                                 <Grid>
-                                    <ToggleButton x:Name="VersionFilterToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsVersionFilterOpen}"
+                                    <ToggleButton x:Name="VersionFilterToggle" IsHitTestVisible="{Binding IsOpen, ElementName=VersionFilterTogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsVersionFilterOpen}"
                                                   AutomationProperties.Name="Filtrar por versión de Minecraft">
                                         <TextBlock>
                                             <Run Text="Minecraft:" /> <Run Text="{Binding VersionFilterLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                                         </TextBlock>
                                     </ToggleButton>
-                                    <Popup IsOpen="{Binding IsVersionFilterOpen}" PlacementTarget="{Binding ElementName=VersionFilterToggle}" Placement="Bottom"
+                                    <Popup x:Name="VersionFilterTogglePopup" IsOpen="{Binding IsVersionFilterOpen}" PlacementTarget="{Binding ElementName=VersionFilterToggle}" Placement="Bottom"
                                            StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="150">
                                         <Border Style="{StaticResource MenuPanel}">
                                             <ScrollViewer Template="{StaticResource GlassScrollViewer}" MaxHeight="320" VerticalScrollBarVisibility="Auto">
@@ -942,13 +943,13 @@
                                     </Popup>
                                 </Grid>
                                 <Grid Margin="14,0,0,0">
-                                    <ToggleButton x:Name="LoaderFilterToggle" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsLoaderFilterOpen}"
+                                    <ToggleButton x:Name="LoaderFilterToggle" IsHitTestVisible="{Binding IsOpen, ElementName=LoaderFilterTogglePopup, Converter={StaticResource InverseBool}}" Style="{StaticResource GlassSelect}" IsChecked="{Binding IsLoaderFilterOpen}"
                                                   AutomationProperties.Name="Filtrar por cargador">
                                         <TextBlock>
                                             <Run Text="Cargador:" /> <Run Text="{Binding LoaderFilterLabel, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
                                         </TextBlock>
                                     </ToggleButton>
-                                    <Popup IsOpen="{Binding IsLoaderFilterOpen}" PlacementTarget="{Binding ElementName=LoaderFilterToggle}" Placement="Bottom"
+                                    <Popup x:Name="LoaderFilterTogglePopup" IsOpen="{Binding IsLoaderFilterOpen}" PlacementTarget="{Binding ElementName=LoaderFilterToggle}" Placement="Bottom"
                                            StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" MinWidth="150">
                                         <Border Style="{StaticResource MenuPanel}">
                                             <ItemsControl ItemsSource="{Binding LoaderChoices}">
