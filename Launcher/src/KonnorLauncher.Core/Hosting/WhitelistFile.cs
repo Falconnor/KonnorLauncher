@@ -3,30 +3,35 @@ using System.Text.Json.Nodes;
 
 namespace KonnorLauncher.Core.Hosting;
 
-/// <summary>Jugador de la lista blanca.</summary>
-public sealed record WhitelistEntry(string Name, string Uuid);
+/// <summary>Jugador de una lista del servidor (lista blanca o baneados). <paramref name="Reason"/>, quién y cuándo: solo en baneos.</summary>
+public sealed record WhitelistEntry(string Name, string Uuid, string? Reason = null, string? Source = null, string? Created = null, string? Expires = null)
+{
+    /// <summary>«Motivo · por quién · hasta cuándo» (baneados); vacío en la lista blanca.</summary>
+    public string Details => string.Join(" · ", new[]
+    {
+        string.IsNullOrWhiteSpace(Reason) ? null : Reason,
+        string.IsNullOrWhiteSpace(Source) ? null : $"por {Source}",
+        string.IsNullOrWhiteSpace(Expires) || Expires == "forever" ? null : $"hasta {Expires}",
+    }.Where(t => t is not null));
+}
 
 /// <summary>
-/// <c>whitelist.json</c> del servidor: <c>[{"uuid": "…", "name": "Steve"}]</c>. Con el servidor en marcha los cambios se
-/// hacen con <c>/whitelist</c> (el servidor tiene la lista en memoria y reescribe el archivo); detenido, se edita aquí.
+/// Listas de jugadores del servidor en JSON: <c>whitelist.json</c> (<c>[{"uuid", "name"}]</c>) y
+/// <c>banned-players.json</c> (además <c>reason</c>, <c>source</c>, <c>created</c>, <c>expires</c>). Con el servidor en
+/// marcha los cambios se hacen con comandos (el servidor tiene la lista en memoria y reescribe el archivo); detenido,
+/// se edita el archivo.
 /// </summary>
-public static class WhitelistFile
+public static class PlayerListFile
 {
-    public const string FileName = "whitelist.json";
-
-    public static string PathFor(string serverDir) => Path.Combine(serverDir, FileName);
-
-    /// <summary>Jugadores de la lista, por nombre. Dañada o ausente: vacía.</summary>
-    public static IReadOnlyList<WhitelistEntry> Load(string serverDir)
+    public static IReadOnlyList<WhitelistEntry> Load(string path)
     {
         try
         {
-            if (!File.Exists(PathFor(serverDir)))
-                return [];
-            if (JsonNode.Parse(File.ReadAllText(PathFor(serverDir))) is not JsonArray array)
+            if (!File.Exists(path) || JsonNode.Parse(File.ReadAllText(path)) is not JsonArray array)
                 return [];
             return [.. array.OfType<JsonObject>()
-                .Select(e => new WhitelistEntry(e["name"]?.GetValue<string>() ?? string.Empty, e["uuid"]?.GetValue<string>() ?? string.Empty))
+                .Select(e => new WhitelistEntry(Text(e, "name") ?? string.Empty, Text(e, "uuid") ?? string.Empty,
+                    Text(e, "reason"), Text(e, "source"), Text(e, "created"), Text(e, "expires")))
                 .Where(e => e.Name.Length > 0)
                 .OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase)];
         }
@@ -36,14 +41,12 @@ public static class WhitelistFile
         }
     }
 
-    /// <summary>Quita a <paramref name="name"/> del archivo (sin distinguir mayúsculas). Devuelve si estaba.</summary>
-    public static bool Remove(string serverDir, string name)
+    /// <summary>Quita a <paramref name="name"/> (sin distinguir mayúsculas). Devuelve si estaba.</summary>
+    public static bool Remove(string path, string name)
     {
-        var path = PathFor(serverDir);
         if (!File.Exists(path) || JsonNode.Parse(File.ReadAllText(path)) is not JsonArray array)
             return false;
-        var match = array.OfType<JsonObject>()
-            .FirstOrDefault(e => string.Equals(e["name"]?.GetValue<string>(), name, StringComparison.OrdinalIgnoreCase));
+        var match = array.OfType<JsonObject>().FirstOrDefault(e => string.Equals(Text(e, "name"), name, StringComparison.OrdinalIgnoreCase));
         if (match is null)
             return false;
         array.Remove(match);
@@ -52,4 +55,27 @@ public static class WhitelistFile
         File.Move(tmp, path, overwrite: true);
         return true;
     }
+
+    private static string? Text(JsonObject entry, string name) =>
+        entry[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+}
+
+/// <summary><c>whitelist.json</c>.</summary>
+public static class WhitelistFile
+{
+    public const string FileName = "whitelist.json";
+
+    public static string PathFor(string serverDir) => Path.Combine(serverDir, FileName);
+    public static IReadOnlyList<WhitelistEntry> Load(string serverDir) => PlayerListFile.Load(PathFor(serverDir));
+    public static bool Remove(string serverDir, string name) => PlayerListFile.Remove(PathFor(serverDir), name);
+}
+
+/// <summary><c>banned-players.json</c>.</summary>
+public static class BannedPlayersFile
+{
+    public const string FileName = "banned-players.json";
+
+    public static string PathFor(string serverDir) => Path.Combine(serverDir, FileName);
+    public static IReadOnlyList<WhitelistEntry> Load(string serverDir) => PlayerListFile.Load(PathFor(serverDir));
+    public static bool Remove(string serverDir, string name) => PlayerListFile.Remove(PathFor(serverDir), name);
 }

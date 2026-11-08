@@ -26,14 +26,26 @@ public sealed record PlayerEntry(string Name, bool IsOnline, PlayerProfile? Prof
 /// <summary>Un icono del HUD: el fondo (contenedor vacío) y lo que se dibuja encima (lleno, medio o nada).</summary>
 public sealed record HudIcon(ImageSource? Back, ImageSource? Front);
 
-/// <summary>Fila de iconos del perfil: corazones, muslos, armadura o burbujas, con su valor escrito.</summary>
-public sealed record HudRow(string Label, IReadOnlyList<HudIcon> Icons, string Value);
+/// <summary>Botón de acción junto a una fila del perfil (<paramref name="Action"/> va a <c>PlayerCommand</c>).</summary>
+public sealed record ProfileAction(string Label, string Action, string ToolTip, bool IsDanger = false);
+
+/// <summary>
+/// Fila de iconos del perfil: corazones, muslos, armadura o burbujas, con su valor escrito y sus acciones.
+/// <paramref name="Mirror"/>: los iconos se dibujan en espejo (los muslos, como pidió el diseño).
+/// </summary>
+public sealed record HudRow(string Label, IReadOnlyList<HudIcon> Icons, string Value, IReadOnlyList<ProfileAction> Actions, bool Mirror = false)
+{
+    public bool HasActions => Actions.Count > 0;
+}
 
 /// <summary>Fila «etiqueta: valor» del perfil.</summary>
 public sealed record ProfileFact(string Label, string Value);
 
 /// <summary>Barra del perfil (vida, hambre, armadura, experiencia, aire).</summary>
-public sealed record ProfileBar(string Label, string Value, double Ratio, string Color);
+public sealed record ProfileBar(string Label, string Value, double Ratio, string Color, IReadOnlyList<ProfileAction>? Actions = null)
+{
+    public IReadOnlyList<ProfileAction> ActionList => Actions ?? [];
+}
 
 /// <summary>Perfil de un jugador en el mundo del servidor, con los textos ya formateados.</summary>
 public sealed class PlayerProfileViewModel
@@ -52,11 +64,11 @@ public sealed class PlayerProfileViewModel
         Bars =
         [
             new("Vida", $"{Half(profile.Health)} / {Half(profile.MaxHealth)}" + (profile.Absorption > 0 ? $" (+{Half(profile.Absorption)})" : string.Empty),
-                Ratio(profile.Health, profile.MaxHealth), "#E5484D"),
-            new("Hambre", $"{profile.Food} / 20 · saturación {Half(profile.Saturation)}", Ratio(profile.Food, 20), "#E2A336"),
+                Ratio(profile.Health, profile.MaxHealth), "#E5484D", HealthActions),
+            new("Hambre", $"{profile.Food} / 20 · saturación {Half(profile.Saturation)}", Ratio(profile.Food, 20), "#E2A336", FoodActions),
             new("Armadura", $"{profile.Armor} / 20", Ratio(profile.Armor, 20), "#9BA8B8"),
             new("Experiencia", $"Nivel {profile.XpLevel} · {profile.XpProgress:P0} del siguiente · {profile.XpTotal} puntos en total", profile.XpProgress, "#7BD45C"),
-            new("Aire", profile.Air >= 300 ? "Lleno" : $"{Math.Max(0, profile.Air) / 20} s", Ratio(profile.Air, 300), "#5AA9E6"),
+            new("Aire", profile.Air >= 300 ? "Lleno" : $"{Math.Max(0, profile.Air) / 20} s", Ratio(profile.Air, 300), "#5AA9E6", AirActions),
         ];
 
         State =
@@ -94,14 +106,15 @@ public sealed class PlayerProfileViewModel
             var maxHearts = (int)Math.Ceiling(Math.Min(profile.MaxHealth, 80) / 2);
             HudRows =
             [
-                new("Vida", Points(profile.Health, maxHearts, "heart/container.png", "heart/full.png", "heart/half.png"), Bars[0].Value),
-                new("Hambre", Points(profile.Food, 10, "food_empty.png", "food_full.png", "food_half.png", fromRight: true), Bars[1].Value),
-                new("Armadura", Points(profile.Armor, 10, "armor_empty.png", "armor_full.png", "armor_half.png", standalone: true), Bars[2].Value),
-                new("Aire", Bubbles(profile.Air), Bars[4].Value),
+                new("Vida", Points(profile.Health, maxHearts, "heart/container.png", "heart/full.png", "heart/half.png"), Bars[0].Value, HealthActions),
+                // Los muslos se vacían hacia el mismo lado que los corazones y se dibujan en espejo.
+                new("Hambre", Points(profile.Food, 10, "food_empty.png", "food_full.png", "food_half.png"), Bars[1].Value, FoodActions, Mirror: true),
+                new("Armadura", Points(profile.Armor, 10, "armor_empty.png", "armor_full.png", "armor_half.png", standalone: true), Bars[2].Value, []),
+                new("Aire", Bubbles(profile.Air), Bars[4].Value, AirActions),
             ];
             if (profile.Absorption > 0)
                 HudRows.Insert(1, new("Absorción", Points(profile.Absorption, (int)Math.Ceiling(profile.Absorption / 2), "heart/container.png",
-                    "heart/absorbing_full.png", "heart/absorbing_half.png"), $"+{Half(profile.Absorption)}"));
+                    "heart/absorbing_full.png", "heart/absorbing_half.png"), $"+{Half(profile.Absorption)}", []));
         }
 
         Inventory = [.. profile.Inventory.Select(ItemText)];
@@ -120,7 +133,23 @@ public sealed class PlayerProfileViewModel
         ];
     }
 
+    private static readonly ProfileAction[] HealthActions =
+    [
+        new("Dañar", "damage", "Quita medio corazón"),
+        new("Curar", "heal", "Cura un corazón"),
+        new("Matar", "kill", "Mata al jugador", IsDanger: true),
+    ];
+
+    private static readonly ProfileAction[] FoodActions =
+    [
+        new("Alimentar", "feed", "Añade 3 muslos de hambre"),
+        new("Saturar", "saturate", "Añade 5 muslos de saturación (y algo de hambre)"),
+    ];
+
+    private static readonly ProfileAction[] AirActions = [new("Llenar", "air", "Recupera todo el oxígeno")];
+
     public PlayerProfile Profile { get; }
+    public int GameMode => Profile.GameMode;
     public string Name => Profile.Name;
     public bool IsOnline { get; }
     public string Initial { get; }

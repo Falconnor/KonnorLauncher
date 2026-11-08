@@ -284,6 +284,8 @@ public sealed partial class HostedServerViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(State));
         OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(CanControlPlayer));
+        OnPropertyChanged(nameof(ControlHint));
         OnPropertyChanged(nameof(IsStarting));
         OnPropertyChanged(nameof(IsStopping));
         OnPropertyChanged(nameof(IsAlive));
@@ -475,32 +477,31 @@ public sealed partial class HostedServerViewModel : ObservableObject
         }
     }
 
-    // ── Lista blanca ─────────────────────────────────────────────────────
+    // ── Listas: todos los jugadores, lista blanca y baneados ─────────────
 
-    /// <summary>Se ve la lista blanca en lugar de todos los jugadores.</summary>
-    [ObservableProperty] private bool _showWhitelist;
+    /// <summary>Lista que se ve: <c>all</c>, <c>whitelist</c> o <c>banned</c>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAllPlayers), nameof(ShowWhitelist), nameof(ShowBanned))]
+    private string _playerList = "all";
 
-    public bool ShowAllPlayers
-    {
-        get => !ShowWhitelist;
-        set { if (value) ShowWhitelist = false; }
-    }
+    public bool ShowAllPlayers { get => PlayerList == "all"; set { if (value) PlayerList = "all"; } }
+    public bool ShowWhitelist { get => PlayerList == "whitelist"; set { if (value) PlayerList = "whitelist"; } }
+    public bool ShowBanned { get => PlayerList == "banned"; set { if (value) PlayerList = "banned"; } }
 
     public ObservableCollection<WhitelistEntry> WhitelistEntries { get; } = [];
     public bool HasWhitelistEntries => WhitelistEntries.Count > 0;
     public string WhitelistTabText => $"Lista blanca ({WhitelistEntries.Count})";
+
+    public ObservableCollection<WhitelistEntry> BannedEntries { get; } = [];
+    public bool HasBannedEntries => BannedEntries.Count > 0;
+    public string BannedTabText => $"Baneados ({BannedEntries.Count})";
 
     /// <summary>Aviso si la lista existe pero no se aplica (white-list=false en server.properties).</summary>
     public string? WhitelistNotice => ServerPropertiesFile.Load(PropertiesPath).GetBool("white-list", false)
         ? null
         : "La lista blanca está desactivada: entra cualquiera. Actívala en Configuración → Reglas.";
 
-    partial void OnShowWhitelistChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShowAllPlayers));
-        if (value)
-            RefreshWhitelist();
-    }
+    partial void OnPlayerListChanged(string value) => RefreshWhitelist();
 
     [RelayCommand]
     private void RefreshWhitelist()
@@ -508,17 +509,27 @@ public sealed partial class HostedServerViewModel : ObservableObject
         WhitelistEntries.Clear();
         foreach (var entry in WhitelistFile.Load(Directory))
             WhitelistEntries.Add(entry);
+        BannedEntries.Clear();
+        foreach (var entry in BannedPlayersFile.Load(Directory))
+            BannedEntries.Add(entry);
         OnPropertyChanged(nameof(HasWhitelistEntries));
         OnPropertyChanged(nameof(WhitelistTabText));
         OnPropertyChanged(nameof(WhitelistNotice));
+        OnPropertyChanged(nameof(HasBannedEntries));
+        OnPropertyChanged(nameof(BannedTabText));
     }
 
-    /// <summary>
-    /// Retira a un jugador de la lista blanca: con el servidor en marcha, con <c>/whitelist remove</c> (lo guarda el propio
-    /// servidor); detenido, editando <c>whitelist.json</c>.
-    /// </summary>
+    /// <summary>Retira a un jugador de la lista blanca (<c>/whitelist remove</c> en marcha; detenido, el archivo).</summary>
     [RelayCommand]
-    private async Task RemoveFromWhitelistAsync(WhitelistEntry? entry)
+    private Task RemoveFromWhitelistAsync(WhitelistEntry? entry) =>
+        RemoveFromListAsync(entry, "whitelist remove", WhitelistFile.PathFor(Directory), "la lista blanca");
+
+    /// <summary>Levanta el baneo de un jugador (<c>/pardon</c> en marcha; detenido, el archivo).</summary>
+    [RelayCommand]
+    private Task PardonAsync(WhitelistEntry? entry) =>
+        RemoveFromListAsync(entry, "pardon", BannedPlayersFile.PathFor(Directory), "los baneados");
+
+    private async Task RemoveFromListAsync(WhitelistEntry? entry, string command, string file, string listName)
     {
         if (entry is null)
             return;
@@ -526,18 +537,19 @@ public sealed partial class HostedServerViewModel : ObservableObject
         {
             if (IsAlive)
             {
-                _runner.SendCommand($"whitelist remove {entry.Name}");
-                for (var i = 0; i < 20 && WhitelistFile.Load(Directory).Any(e => e.Name.Equals(entry.Name, StringComparison.OrdinalIgnoreCase)); i++)
+                // El servidor tiene la lista en memoria: el comando la cambia y reescribe el archivo.
+                _runner.SendCommand($"{command} {entry.Name}");
+                for (var i = 0; i < 20 && PlayerListFile.Load(file).Any(e => e.Name.Equals(entry.Name, StringComparison.OrdinalIgnoreCase)); i++)
                     await Task.Delay(100);
             }
             else
             {
-                WhitelistFile.Remove(Directory, entry.Name);
+                PlayerListFile.Remove(file, entry.Name);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
-            Error = $"No se pudo quitar a {entry.Name} de la lista blanca: {ex.Message}";
+            Error = $"No se pudo quitar a {entry.Name} de {listName}: {ex.Message}";
         }
 
         RefreshWhitelist();
@@ -546,12 +558,48 @@ public sealed partial class HostedServerViewModel : ObservableObject
     // ── Perfil de un jugador ─────────────────────────────────────────────
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPlayerProfileOpen))]
+    [NotifyPropertyChangedFor(nameof(IsPlayerProfileOpen), nameof(CanControlPlayer), nameof(ControlHint))]
     private PlayerProfileViewModel? _profileView;
 
     [ObservableProperty] private bool _isLoadingProfile;
 
     public bool IsPlayerProfileOpen => ProfileView is not null;
+
+    /// <summary>Las acciones (dañar, curar, teletransportar…) son comandos: el servidor en marcha y el jugador dentro.</summary>
+    public bool CanControlPlayer => ProfileView is { IsOnline: true } && IsRunning;
+
+    public string? ControlHint => ProfileView is null || CanControlPlayer ? null
+        : !IsRunning ? "Inicia el servidor para usar las acciones sobre el jugador."
+        : "El jugador tiene que estar conectado para usar las acciones.";
+
+    // Campos de las acciones: niveles de experiencia y destino del teletransporte.
+    [ObservableProperty] private string _xpLevelsText = string.Empty;
+    [ObservableProperty] private string _teleportX = string.Empty;
+    [ObservableProperty] private string _teleportY = string.Empty;
+    [ObservableProperty] private string _teleportZ = string.Empty;
+    public ServerFilter TeleportDimension { get; } = CreateDimensionFilter();
+
+    private static ServerFilter CreateDimensionFilter()
+    {
+        var filter = new ServerFilter("Dimensión", () => { });
+        filter.SetOptions([("minecraft:overworld", "Mundo normal"), ("minecraft:the_nether", "Nether"), ("minecraft:the_end", "End")], allLabel: null);
+        return filter;
+    }
+
+    /// <summary>Al abrir o actualizar el perfil: los campos parten de su estado actual.</summary>
+    partial void OnProfileViewChanged(PlayerProfileViewModel? value)
+    {
+        if (value?.Profile is not { } profile)
+            return;
+        XpLevelsText = profile.XpLevel.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (profile.Position is { } pos)
+        {
+            TeleportX = Math.Floor(pos.X).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            TeleportY = Math.Floor(pos.Y).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            TeleportZ = Math.Floor(pos.Z).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            TeleportDimension.SetOptions(TeleportDimension.Options.Select(o => (o.Value, o.Label)).ToList(), allLabel: null, pos.Dimension);
+        }
+    }
 
     /// <summary>
     /// Abre el perfil. Si el jugador está conectado, antes se pide al servidor que guarde (<c>save-all</c>) para ver
@@ -563,9 +611,16 @@ public sealed partial class HostedServerViewModel : ObservableObject
         if (entry?.Profile is not { } profile)
             return;
         ProfileView = new PlayerProfileViewModel(profile, entry.IsOnline);
-        if (!entry.IsOnline || !IsRunning)
-            return;
+        if (entry.IsOnline && IsRunning)
+            await ReloadProfileAsync();
+    }
 
+    /// <summary>Guarda el mundo (<c>save-all</c>), espera a que se escriba el archivo del jugador y vuelve a leerlo.</summary>
+    private async Task ReloadProfileAsync()
+    {
+        if (ProfileView is not { } view)
+            return;
+        var profile = view.Profile;
         var file = PlayerProfileReader.FindDataFile(Directory, profile.Uuid);
         var before = file is null ? DateTime.MinValue : File.GetLastWriteTimeUtc(file);
         IsLoadingProfile = true;
@@ -576,12 +631,66 @@ public sealed partial class HostedServerViewModel : ObservableObject
                 await Task.Delay(100);
             await Task.Delay(150); // que termine de escribirse
             if (ProfileView?.Profile.Uuid == profile.Uuid && ReadProfile(profile.Name, profile.Uuid) is { } fresh)
-                ProfileView = new PlayerProfileViewModel(fresh, entry.IsOnline);
+                ProfileView = new PlayerProfileViewModel(fresh, view.IsOnline);
         }
         finally
         {
             IsLoadingProfile = false;
         }
+    }
+
+    /// <summary>
+    /// Acción del perfil. Minecraft no tiene comandos para curar, dar hambre o aire, así que se usan efectos con el
+    /// resultado exacto: regeneración II 3 s = 2 de vida (un corazón); saturación (instantánea) de nivel N+1 = N+1 de hambre
+    /// y el doble de saturación; respiración acuática = el aire se recupera.
+    /// </summary>
+    [RelayCommand]
+    private async Task PlayerCommandAsync(string? action)
+    {
+        if (ProfileView is not { } view || !CanControlPlayer)
+            return;
+        var name = view.Name;
+        string? command = action switch
+        {
+            "damage" => $"damage {name} 1",
+            "heal" => $"effect give {name} minecraft:regeneration 3 1 true",
+            "kill" => $"kill {name}",
+            "feed" => $"effect give {name} minecraft:saturation 1 5 true",      // +6 de hambre (3 muslos)
+            "saturate" => $"effect give {name} minecraft:saturation 1 4 true",  // +10 de saturación (5 muslos)
+            "air" => $"effect give {name} minecraft:water_breathing 5 0 true",
+            "xp-add" => $"xp add {name} 21 points",                              // 3 botellas (7 puntos de media)
+            "xp-set" => int.TryParse(XpLevelsText.Trim(), out var levels) && levels is >= 0 and <= 21863 ? $"xp set {name} {levels} levels" : null,
+            "teleport" => TeleportCommand(name),
+            "survival" or "creative" or "adventure" or "spectator" => $"gamemode {action} {name}",
+            _ => null,
+        };
+        if (command is null)
+        {
+            Error = action switch
+            {
+                "xp-set" => "Niveles: un número entre 0 y 21863.",
+                "teleport" => "Coordenadas: números enteros o decimales (la Y entre -64 y 320 en el mundo normal).",
+                _ => null,
+            };
+            return;
+        }
+
+        Error = null;
+        _runner.SendCommand(command);
+        // Los efectos tardan unos ticks (la regeneración, 3 s): se espera antes de volver a leer su estado.
+        await Task.Delay(action is "heal" ? 3200 : action is "air" ? 2000 : 400);
+        await ReloadProfileAsync();
+    }
+
+    private string? TeleportCommand(string name)
+    {
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        bool Parse(string text, out double value) =>
+            double.TryParse(text.Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, culture, out value) && Math.Abs(value) <= 30_000_000;
+        if (!Parse(TeleportX, out var x) || !Parse(TeleportY, out var y) || !Parse(TeleportZ, out var z) || y is < -2048 or > 2048)
+            return null;
+        var dimension = TeleportDimension.Value ?? "minecraft:overworld";
+        return string.Create(culture, $"execute in {dimension} run tp {name} {x} {y} {z}");
     }
 
     [RelayCommand]

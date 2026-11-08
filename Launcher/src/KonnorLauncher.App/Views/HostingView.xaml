@@ -828,9 +828,11 @@
                                 Command="{Binding RefreshPlayersCommand}" ToolTip="Actualizar" AutomationProperties.Name="Actualizar jugadores" />
                         <StackPanel Orientation="Horizontal">
                             <RadioButton Style="{StaticResource TopTabSmall}" Height="38" GroupName="PlayerLists" IsChecked="{Binding ShowAllPlayers}"
-                                         Content="Jugadores" AutomationProperties.Name="Jugadores" />
+                                         Content="Jugadores" AutomationProperties.Name="Todos los jugadores" />
                             <RadioButton Style="{StaticResource TopTabSmall}" Height="38" GroupName="PlayerLists" IsChecked="{Binding ShowWhitelist}"
                                          Content="{Binding WhitelistTabText}" AutomationProperties.Name="Lista blanca" />
+                            <RadioButton Style="{StaticResource TopTabSmall}" Height="38" GroupName="PlayerLists" IsChecked="{Binding ShowBanned}"
+                                         Content="{Binding BannedTabText}" AutomationProperties.Name="Baneados" />
                         </StackPanel>
                     </DockPanel>
                     <Grid>
@@ -864,6 +866,32 @@
                                        Visibility="{Binding HasWhitelistEntries, Converter={StaticResource InverseBoolToVisibility}}" />
                         </Grid>
                     </DockPanel>
+                    <!-- Baneados: motivo, quién y hasta cuándo; Desbanear -->
+                    <Grid Visibility="{Binding ShowBanned, Converter={StaticResource BoolToVisibility}}">
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding BannedEntries}" Margin="0,0,6,0" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type core:WhitelistEntry}">
+                                        <Border Style="{StaticResource ServerRow}" Padding="14,10">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource SmallGlass}" Margin="0" Content="Desbanear"
+                                                        ToolTip="Levanta el baneo (podrá volver a entrar)"
+                                                        Command="{Binding DataContext.PardonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Desbanear a {0}}" />
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                                    <TextBlock Text="{Binding Details}" FontSize="12.5" Foreground="{StaticResource Ink2}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                               Visibility="{Binding Details, Converter={StaticResource TextToVisibility}}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="No hay jugadores baneados." Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding HasBannedEntries, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </Grid>
                     <Grid Visibility="{Binding ShowAllPlayers, Converter={StaticResource BoolToVisibility}}">
                         <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Players}" Margin="0,0,6,0" Focusable="False">
@@ -977,22 +1005,38 @@
                             <Border Style="{StaticResource Section}">
                                 <StackPanel>
                                     <TextBlock Text="Salud" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Text="{Binding DataContext.ControlHint, ElementName=PlayersTabRoot}" Foreground="{StaticResource Warn}" FontSize="12.5"
+                                               TextWrapping="Wrap" Margin="0,-4,0,12"
+                                               Visibility="{Binding DataContext.ControlHint, ElementName=PlayersTabRoot, Converter={StaticResource TextToVisibility}}" />
                                     <!-- Iconos del juego: corazones, muslos, armadura y burbujas -->
                                     <ItemsControl ItemsSource="{Binding HudRows}" Focusable="False" Visibility="{Binding ShowSprites, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:HudRow}">
-                                                <Grid Margin="0,0,0,12">
+                                                <Grid Margin="0,0,0,12" MinHeight="28">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="110" />
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" />
                                                     <ItemsControl Grid.Column="1" ItemsSource="{Binding Icons}" Focusable="False" VerticalAlignment="Center">
                                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel MaxWidth="380" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate DataType="{x:Type vm:HudIcon}">
-                                                                <Grid Width="18" Height="18" Margin="0,0,1,1">
+                                                                <Grid Width="18" Height="18" Margin="0,0,1,1" RenderTransformOrigin="0.5,0.5">
+                                                                    <Grid.Style>
+                                                                        <Style TargetType="Grid">
+                                                                            <Style.Triggers>
+                                                                                <!-- Muslos en espejo -->
+                                                                                <DataTrigger Binding="{Binding DataContext.Mirror, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                                                                                    <Setter Property="RenderTransform">
+                                                                                        <Setter.Value><ScaleTransform ScaleX="-1" /></Setter.Value>
+                                                                                    </Setter>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Grid.Style>
                                                                     <Image Source="{Binding Back}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                                     <Image Source="{Binding Front}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                                 </Grid>
@@ -1001,6 +1045,29 @@
                                                     </ItemsControl>
                                                     <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center" Margin="14,0,0,0"
                                                                TextWrapping="Wrap" />
+                                                    <ContentControl Grid.Column="3" Focusable="False" Content="{Binding}">
+                                                        <ContentControl.ContentTemplate>
+                                                            <DataTemplate>
+                                                    <ItemsControl ItemsSource="{Binding Actions}" Focusable="False" VerticalAlignment="Center" Margin="12,0,0,0">
+                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:ProfileAction}">
+                                                                <Grid>
+                                                                    <Button Style="{StaticResource SmallGlass}" Height="28" FontSize="12.5" Padding="12,0" Margin="0,0,6,0"
+                                                                            Content="{Binding Label}" ToolTip="{Binding ToolTip}" CommandParameter="{Binding Action}"
+                                                                            Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}"
+                                                                            Visibility="{Binding IsDanger, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                                    <Button Style="{StaticResource DangerButton}" Height="28" FontSize="12.5" Padding="12,0" Margin="12,0,0,0"
+                                                                            Content="{Binding Label}" ToolTip="{Binding ToolTip}" CommandParameter="{Binding Action}"
+                                                                            Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}"
+                                                                            Visibility="{Binding IsDanger, Converter={StaticResource BoolToVisibility}}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                            </DataTemplate>
+                                                        </ContentControl.ContentTemplate>
+                                                    </ContentControl>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -1028,6 +1095,21 @@
                                             </Grid>
                                             <TextBlock Text="{Binding XpText}" FontSize="13" Foreground="{StaticResource Ink}" Margin="0,6,0,0" />
                                         </StackPanel>
+                                        <!-- Niveles: se cambian escribiendo (Intro o Fijar); Añadir = 3 botellas de experiencia -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                            <TextBlock Text="Niveles" FontSize="12.5" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBox Style="{StaticResource GlassTextBox}" Width="64" Height="28" MaxLength="5" HorizontalContentAlignment="Center" Padding="4,0"
+                                                     Text="{Binding DataContext.XpLevelsText, ElementName=PlayersTabRoot, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" AutomationProperties.Name="Niveles de experiencia">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Return" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" CommandParameter="xp-set" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <Button Style="{StaticResource SmallGlass}" Height="28" FontSize="12.5" Padding="12,0" Margin="6,0,6,0" Content="Fijar"
+                                                    ToolTip="Pone exactamente esos niveles" CommandParameter="xp-set" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                            <Button Style="{StaticResource SmallGlass}" Height="28" FontSize="12.5" Padding="12,0" Margin="0" Content="Añadir"
+                                                    ToolTip="El equivalente a 3 botellas de experiencia" CommandParameter="xp-add" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                        </StackPanel>
                                     </Grid>
                                     <ItemsControl ItemsSource="{Binding Bars}" Focusable="False" Visibility="{Binding ShowBars, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemTemplate>
@@ -1039,7 +1121,26 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" />
                                                     <StackPanel Grid.Column="1">
-                                                        <TextBlock Text="{Binding Value}" FontSize="13" Foreground="{StaticResource Ink}" Margin="0,0,0,4" />
+                                                        <DockPanel Margin="0,0,0,4">
+                                                            <ItemsControl ItemsSource="{Binding ActionList}" Focusable="False" VerticalAlignment="Center" Margin="12,0,0,0" DockPanel.Dock="Right">
+                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type vm:ProfileAction}">
+                                                                <Grid>
+                                                                    <Button Style="{StaticResource SmallGlass}" Height="28" FontSize="12.5" Padding="12,0" Margin="0,0,6,0"
+                                                                            Content="{Binding Label}" ToolTip="{Binding ToolTip}" CommandParameter="{Binding Action}"
+                                                                            Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}"
+                                                                            Visibility="{Binding IsDanger, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                                    <Button Style="{StaticResource DangerButton}" Height="28" FontSize="12.5" Padding="12,0" Margin="12,0,0,0"
+                                                                            Content="{Binding Label}" ToolTip="{Binding ToolTip}" CommandParameter="{Binding Action}"
+                                                                            Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}"
+                                                                            Visibility="{Binding IsDanger, Converter={StaticResource BoolToVisibility}}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                            <TextBlock Text="{Binding Value}" FontSize="13" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
+                                                        </DockPanel>
                                                         <Grid Height="6">
                                                             <Border Background="{StaticResource Group}" CornerRadius="3" />
                                                             <Border Background="{Binding Color}" CornerRadius="3" HorizontalAlignment="Left">
@@ -1072,6 +1173,43 @@
                                 <StackPanel>
                                     <TextBlock Text="Ubicación" Style="{StaticResource SectionTitle}" />
                                     <ItemsControl ItemsSource="{Binding Location}" ItemTemplate="{StaticResource FactRow}" Focusable="False" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Teletransportar a unas coordenadas (parten de su posición actual) -->
+                            <Border Style="{StaticResource Section}" DataContext="{Binding DataContext, ElementName=PlayersTabRoot}">
+                                <StackPanel>
+                                    <TextBlock Text="Teletransportar" Style="{StaticResource SectionTitle}" />
+                                    <WrapPanel>
+                                        <TextBlock Text="X" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportX, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada X" />
+                                        <TextBlock Text="Y" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportY, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Y" />
+                                        <TextBlock Text="Z" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportZ, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Z" />
+                                        <ContentControl Content="{Binding TeleportDimension}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" Margin="0,0,0,8"
+                                                        VerticalAlignment="Center" IsEnabled="{Binding CanControlPlayer}" />
+                                        <Button Style="{StaticResource AccentButton}" Height="32" Padding="16,0" Margin="0,0,0,8" Content="Teletransportar"
+                                                Command="{Binding PlayerCommandCommand}" CommandParameter="teleport" IsEnabled="{Binding CanControlPlayer}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Modo de juego -->
+                            <Border Style="{StaticResource Section}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionTitle}">
+                                        <Run Text="Modo de juego" /><Run Text="  ·  " Foreground="{StaticResource Ink3}" /><Run Text="{Binding Profile.GameModeName, Mode=OneWay}" FontWeight="Normal" Foreground="{StaticResource Ink2}" />
+                                    </TextBlock>
+                                    <WrapPanel>
+                                        <Button Style="{StaticResource SmallGlass}" Content="Supervivencia" CommandParameter="survival" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                        <Button Style="{StaticResource SmallGlass}" Content="Creativo" CommandParameter="creative" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                        <Button Style="{StaticResource SmallGlass}" Content="Aventura" CommandParameter="adventure" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                        <Button Style="{StaticResource SmallGlass}" Content="Espectador" CommandParameter="spectator" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                    </WrapPanel>
                                 </StackPanel>
                             </Border>
 
