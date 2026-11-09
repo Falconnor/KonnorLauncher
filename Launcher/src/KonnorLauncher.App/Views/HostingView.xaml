@@ -1165,6 +1165,11 @@
                                             <DataTemplate><Border Style="{StaticResource ItemChip}"><TextBlock Text="{Binding}" FontSize="12.5" Foreground="{StaticResource Ink}" /></Border></DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                    <!-- Modo de juego: se aplica al elegirlo -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <ContentControl Content="{Binding DataContext.PlayerGameMode, ElementName=PlayersTabRoot}" ContentTemplate="{StaticResource FilterSelect}"
+                                                        Focusable="False" VerticalAlignment="Center" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -1173,43 +1178,21 @@
                                 <StackPanel>
                                     <TextBlock Text="Ubicación" Style="{StaticResource SectionTitle}" />
                                     <ItemsControl ItemsSource="{Binding Location}" ItemTemplate="{StaticResource FactRow}" Focusable="False" />
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Teletransportar a unas coordenadas (parten de su posición actual) -->
-                            <Border Style="{StaticResource Section}" DataContext="{Binding DataContext, ElementName=PlayersTabRoot}">
-                                <StackPanel>
-                                    <TextBlock Text="Teletransportar" Style="{StaticResource SectionTitle}" />
-                                    <WrapPanel>
-                                        <TextBlock Text="X" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
-                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportX, UpdateSourceTrigger=PropertyChanged}"
-                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada X" />
-                                        <TextBlock Text="Y" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
-                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportY, UpdateSourceTrigger=PropertyChanged}"
-                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Y" />
-                                        <TextBlock Text="Z" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Margin="0,0,6,8" />
-                                        <TextBox Style="{StaticResource GlassTextBox}" Width="96" Height="32" Margin="0,0,14,8" Text="{Binding TeleportZ, UpdateSourceTrigger=PropertyChanged}"
-                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Z" />
-                                        <ContentControl Content="{Binding TeleportDimension}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" Margin="0,0,0,8"
+                                    <!-- Teletransportar: parte de su posición actual -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" DataContext="{Binding DataContext, ElementName=PlayersTabRoot}">
+                                        <TextBlock Text="Teletransportar" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" Width="110" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="70" Height="28" Margin="0,0,4,0" Padding="6,0" Text="{Binding TeleportX, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada X" ToolTip="X" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="70" Height="28" Margin="0,0,4,0" Padding="6,0" Text="{Binding TeleportY, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Y" ToolTip="Y" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" Width="70" Height="28" Margin="0,0,8,0" Padding="6,0" Text="{Binding TeleportZ, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsEnabled="{Binding CanControlPlayer}" AutomationProperties.Name="Coordenada Z" ToolTip="Z" />
+                                        <ContentControl Content="{Binding TeleportDimension}" ContentTemplate="{StaticResource FilterSelect}" Focusable="False" Margin="0"
                                                         VerticalAlignment="Center" IsEnabled="{Binding CanControlPlayer}" />
-                                        <Button Style="{StaticResource AccentButton}" Height="32" Padding="16,0" Margin="0,0,0,8" Content="Teletransportar"
+                                        <Button Style="{StaticResource SmallGlass}" Height="28" FontSize="12.5" Padding="12,0" Margin="0" Content="Ir"
+                                                ToolTip="Teletransportar a X, Y, Z" AutomationProperties.Name="Teletransportar"
                                                 Command="{Binding PlayerCommandCommand}" CommandParameter="teleport" IsEnabled="{Binding CanControlPlayer}" />
-                                    </WrapPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Modo de juego -->
-                            <Border Style="{StaticResource Section}">
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionTitle}">
-                                        <Run Text="Modo de juego" /><Run Text="  ·  " Foreground="{StaticResource Ink3}" /><Run Text="{Binding Profile.GameModeName, Mode=OneWay}" FontWeight="Normal" Foreground="{StaticResource Ink2}" />
-                                    </TextBlock>
-                                    <WrapPanel>
-                                        <Button Style="{StaticResource SmallGlass}" Content="Supervivencia" CommandParameter="survival" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
-                                        <Button Style="{StaticResource SmallGlass}" Content="Creativo" CommandParameter="creative" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
-                                        <Button Style="{StaticResource SmallGlass}" Content="Aventura" CommandParameter="adventure" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
-                                        <Button Style="{StaticResource SmallGlass}" Content="Espectador" CommandParameter="spectator" Command="{Binding DataContext.PlayerCommandCommand, ElementName=PlayersTabRoot}" IsEnabled="{Binding DataContext.CanControlPlayer, ElementName=PlayersTabRoot}" />
-                                    </WrapPanel>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 

@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>1.3.1</Version>
+    <Version>2.2.0</Version>
     <Company>Falconnor</Company>
     <Product>Konnor Launcher</Product>
     <Copyright>© Falconnor</Copyright>

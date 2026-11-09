@@ -579,6 +579,21 @@ public sealed partial class HostedServerViewModel : ObservableObject
     [ObservableProperty] private string _teleportZ = string.Empty;
     public ServerFilter TeleportDimension { get; } = CreateDimensionFilter();
 
+    /// <summary>Modo de juego del jugador: al elegir otro se aplica con <c>/gamemode</c>.</summary>
+    public ServerFilter PlayerGameMode => _playerGameMode ??= CreateGameModeFilter();
+    private ServerFilter? _playerGameMode;
+
+    private ServerFilter CreateGameModeFilter()
+    {
+        ServerFilter? filter = null;
+        filter = new ServerFilter("Modo de juego", () => _ = PlayerCommandAsync(filter!.Value));
+        filter.SetOptions(GameModes, allLabel: null);
+        return filter;
+    }
+
+    private static readonly (string? Value, string Label)[] GameModes =
+        [("survival", "Supervivencia"), ("creative", "Creativo"), ("adventure", "Aventura"), ("spectator", "Espectador")];
+
     private static ServerFilter CreateDimensionFilter()
     {
         var filter = new ServerFilter("Dimensión", () => { });
@@ -592,6 +607,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
         if (value?.Profile is not { } profile)
             return;
         XpLevelsText = profile.XpLevel.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        PlayerGameMode.SetOptions(GameModes, allLabel: null, GameModes[Math.Clamp(profile.GameMode, 0, 3)].Value);
         if (profile.Position is { } pos)
         {
             TeleportX = Math.Floor(pos.X).ToString(System.Globalization.CultureInfo.InvariantCulture);

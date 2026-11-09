@@ -192,7 +192,14 @@
                         <!-- Grupo Explorar: abre la página en esa pestaña (o la sección Skins) -->
                         <StackPanel Grid.Row="1" Margin="14,10,14,28">
                             <TextBlock Text="Explorar" Style="{StaticResource SidebarGroupLabel}" />
-                            <ItemsControl ItemsSource="{Binding SidebarLinks}" Focusable="False">
+                            <Grid x:Name="SidebarLinksHost">
+                            <!-- Marca de la página actual: se desliza hasta la pestaña elegida (MainWindow.xaml.cs) -->
+                            <Border x:Name="SidebarPill" Height="38" VerticalAlignment="Top" Background="{StaticResource RowSelected}"
+                                    CornerRadius="{StaticResource RadiusRow}" Opacity="0" IsHitTestVisible="False">
+                                <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
+                                <Border Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource Accent}" HorizontalAlignment="Left" Margin="2,0,0,0" />
+                            </Border>
+                            <ItemsControl x:Name="SidebarLinksList" ItemsSource="{Binding SidebarLinks}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:SidebarLink}">
                                         <Button Command="{Binding DataContext.OpenSidebarLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -200,15 +207,43 @@
                                             <Button.Style>
                                                 <Style TargetType="Button" BasedOn="{StaticResource SidebarAction}">
                                                     <Style.Triggers>
-                                                        <!-- Marcado: es la página que se está viendo -->
+                                                        <!-- Marcado: es la página que se está viendo (el fondo lo pone la marca deslizante) -->
                                                         <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource RowSelected}" />
+                                                            <Setter Property="Background" Value="Transparent" />
                                                             <Setter Property="Foreground" Value="{StaticResource Ink}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <StackPanel Orientation="Horizontal">
+                                            <StackPanel Orientation="Horizontal" RenderTransformOrigin="0,0.5">
+                                                <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Style.Triggers>
+                                                            <!-- El icono y el texto se apartan un poco al quedar marcados -->
+                                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                <DataTrigger.EnterActions>
+                                                                    <BeginStoryboard>
+                                                                        <Storyboard>
+                                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X" To="4" Duration="0:0:0.22">
+                                                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                                                            </DoubleAnimation>
+                                                                        </Storyboard>
+                                                                    </BeginStoryboard>
+                                                                </DataTrigger.EnterActions>
+                                                                <DataTrigger.ExitActions>
+                                                                    <BeginStoryboard>
+                                                                        <Storyboard>
+                                                                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X" To="0" Duration="0:0:0.22">
+                                                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                                                            </DoubleAnimation>
+                                                                        </Storyboard>
+                                                                    </BeginStoryboard>
+                                                                </DataTrigger.ExitActions>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
                                                 <TextBlock Text="{Binding Icon}" Style="{StaticResource Icon}" Width="18" Margin="0,0,12,0" />
                                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
@@ -216,6 +251,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            </Grid>
                         </StackPanel>
 
                         <!-- Grupo Instancias: etiqueta, contador de actualizaciones y nueva instancia -->

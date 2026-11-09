@@ -24,6 +24,68 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
         Closing += OnClosing;
+        foreach (var link in viewModel.SidebarLinks)
+            link.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SidebarLink.IsCurrent))
+                    ScheduleSidebarPill();
+            };
+        Loaded += (_, _) => ScheduleSidebarPill();
+        SidebarLinksHost.SizeChanged += (_, _) => ScheduleSidebarPill(animate: false);
+    }
+
+    // ── Marca deslizante del grupo Explorar ──────────────────────────────
+
+    private bool _pillScheduled;
+    private bool _pillAnimate = true;
+
+    /// <summary>
+    /// Al cambiar de página se desmarca una pestaña y se marca otra en dos avisos seguidos: se mueve una vez, cuando
+    /// ya están las dos.
+    /// </summary>
+    private void ScheduleSidebarPill(bool animate = true)
+    {
+        _pillAnimate &= animate;
+        if (_pillScheduled)
+            return;
+        _pillScheduled = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _pillScheduled = false;
+            var withAnimation = _pillAnimate;
+            _pillAnimate = true;
+            MoveSidebarPill(withAnimation);
+        });
+    }
+
+    private void MoveSidebarPill(bool animate)
+    {
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(animate ? 260 : 0);
+        var current = _viewModel.SidebarLinks.FirstOrDefault(l => l.IsCurrent);
+        var container = current is null ? null : SidebarLinksList.ItemContainerGenerator.ContainerFromItem(current) as FrameworkElement;
+        if (container is null || !container.IsLoaded)
+        {
+            SidebarPill.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(animate ? 160 : 0)));
+            return;
+        }
+
+        var y = container.TranslatePoint(new Point(0, 0), SidebarLinksHost).Y;
+        var transform = (TranslateTransform)SidebarPill.RenderTransform;
+        var wasHidden = SidebarPill.Opacity < 0.01;
+        if (wasHidden)
+        {
+            // Aparece donde toca (sin venir de otra pestaña) y con un leve fundido.
+            transform.BeginAnimation(TranslateTransform.YProperty, null);
+            transform.Y = y;
+        }
+        else
+        {
+            transform.BeginAnimation(TranslateTransform.YProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(y, duration) { EasingFunction = ease });
+        }
+        SidebarPill.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(animate ? 160 : 0)));
     }
 
     private bool _serversStopped;
