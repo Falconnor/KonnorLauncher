@@ -129,6 +129,48 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Tarjeta de una skin (galería, predeterminadas y descargadas) -->
+        <DataTemplate x:Key="SkinCardTemplate" DataType="{x:Type vm:SkinCard}">
+            <Button Style="{StaticResource SkinTile}" CommandParameter="{Binding}"
+                    Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    AutomationProperties.Name="{Binding Name, StringFormat=Skin {0}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <!-- Vista de frente, píxeles nítidos -->
+                    <Image Source="{Binding Preview}" Width="56" Height="112" Margin="0,12,0,0"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor" VerticalAlignment="Center" />
+                    <TextBlock Text="Cargando…" FontSize="11.5" HorizontalAlignment="Center"
+                               VerticalAlignment="Center" Margin="0,12,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Preview}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock x:Name="SkinName" Grid.Row="1" Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource Ink}"
+                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="8,6,8,10" />
+                    <!-- En uso -->
+                    <Border CornerRadius="{StaticResource RadiusSmall}" Background="{StaticResource Accent}" Padding="6,1"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,7,0"
+                            Visibility="{Binding IsInUse, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="En uso" FontSize="11" Foreground="White" />
+                    </Border>
+                </Grid>
+            </Button>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasName}" Value="False">
+                    <Setter TargetName="SkinName" Property="Foreground" Value="{StaticResource Ink3}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
     </UserControl.Resources>
 
     <DockPanel Margin="0,8,0,0">
@@ -209,53 +251,27 @@
                     <ScrollViewer x:Name="GalleryScroll" Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
                                   ScrollChanged="OnGalleryScrollChanged">
                         <StackPanel Margin="0,0,6,0">
-                            <ItemsControl ItemsSource="{Binding Skins}" Focusable="False">
+                            <!-- Descargadas: primero las predeterminadas de Minecraft (no se pueden borrar) -->
+                            <StackPanel Visibility="{Binding IsDownloaded, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Predeterminadas" Style="{StaticResource GroupLabel}" Margin="2,4,0,10"
+                                           Visibility="{Binding ShowDefaultSkins, Converter={StaticResource BoolToVisibility}}" />
+                                <ItemsControl ItemsSource="{Binding DefaultSkinCards}" ItemTemplate="{StaticResource SkinCardTemplate}" Focusable="False"
+                                              Visibility="{Binding ShowDefaultSkins, Converter={StaticResource BoolToVisibility}}" AutomationProperties.Name="Skins predeterminadas">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="2,0,0,12"
+                                           Text="Las skins predeterminadas (Steve, Alex…) se sacan del juego: aparecen al instalar o jugar la 1.19.3 o una más nueva."
+                                           Visibility="{Binding ShowDefaultSkinsHint, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="Tus descargadas" Style="{StaticResource GroupLabel}" Margin="2,14,0,10" />
+                                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource Ink2}" Margin="2,0,0,10"
+                                           Visibility="{Binding ShowNoDownloadsText, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding Skins}" ItemTemplate="{StaticResource SkinCardTemplate}" Focusable="False">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:SkinCard}">
-                                        <Button Style="{StaticResource SkinTile}" CommandParameter="{Binding}"
-                                                Command="{Binding DataContext.SelectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                AutomationProperties.Name="{Binding Name, StringFormat=Skin {0}}">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="*" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-                                                <!-- Vista de frente, píxeles nítidos -->
-                                                <Image Source="{Binding Preview}" Width="56" Height="112" Margin="0,12,0,0"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" VerticalAlignment="Center" />
-                                                <TextBlock Text="Cargando…" FontSize="11.5" HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center" Margin="0,12,0,0">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Preview}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                                <TextBlock x:Name="SkinName" Grid.Row="1" Text="{Binding Name}" FontSize="12.5" Foreground="{StaticResource Ink}"
-                                                           TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="8,6,8,10" />
-                                                <!-- En uso -->
-                                                <Border CornerRadius="{StaticResource RadiusSmall}" Background="{StaticResource Accent}" Padding="6,1"
-                                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,7,0"
-                                                        Visibility="{Binding IsInUse, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="En uso" FontSize="11" Foreground="White" />
-                                                </Border>
-                                            </Grid>
-                                        </Button>
-                                        <DataTemplate.Triggers>
-                                            <DataTrigger Binding="{Binding HasName}" Value="False">
-                                                <Setter TargetName="SkinName" Property="Foreground" Value="{StaticResource Ink3}" />
-                                            </DataTrigger>
-                                        </DataTemplate.Triggers>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
                             <!-- Más resultados (también se cargan solos al llegar al final) -->
@@ -330,6 +346,11 @@
                                             <Setter Property="Content" Value="Descargada" />
                                             <Setter Property="IsEnabled" Value="False" />
                                         </DataTrigger>
+                                        <!-- Viene con Minecraft: ni se descarga ni se borra -->
+                                        <DataTrigger Binding="{Binding IsSelectedDefault}" Value="True">
+                                            <Setter Property="Content" Value="Predeterminada" />
+                                            <Setter Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
                                         <!-- En Descargadas su lugar es para «Borrar skin» -->
                                         <DataTrigger Binding="{Binding CanDeleteSelected}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -348,7 +369,8 @@
                         <TextBlock Text="{Binding SelectedError}" Foreground="#FCA5A5" FontSize="12.5" TextWrapping="Wrap" Margin="0,10,0,0"
                                    Visibility="{Binding SelectedError, Converter={StaticResource TextToVisibility}}" />
                         <Button Style="{StaticResource ListOption}" Margin="-12,10,0,0" Command="{Binding OpenOnMineSkinCommand}"
-                                AutomationProperties.Name="Ver en MineSkin">
+                                AutomationProperties.Name="Ver en MineSkin"
+                                Visibility="{Binding IsSelectedDefault, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource AccentHover}" Margin="0,0,10,0" />
                                 <TextBlock Text="Ver en MineSkin.org" VerticalAlignment="Center" />

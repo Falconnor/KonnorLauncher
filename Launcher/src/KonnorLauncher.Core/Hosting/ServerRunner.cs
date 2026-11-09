@@ -28,6 +28,7 @@ public sealed partial class ServerRunner : IDisposable
     private readonly object _sync = new();
     private readonly List<string> _lines = [];
     private readonly SortedSet<string> _players = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _addresses = new(StringComparer.OrdinalIgnoreCase);
     private Process? _process;
     private TaskCompletionSource? _exited;
 
@@ -57,6 +58,12 @@ public sealed partial class ServerRunner : IDisposable
         get { lock (_sync) return [.. _players]; }
     }
 
+    /// <summary>IP desde la que se conectó <paramref name="player"/> (de su línea «logged in»); null si no se sabe.</summary>
+    public string? AddressOf(string player)
+    {
+        lock (_sync) return _addresses.GetValueOrDefault(player);
+    }
+
     public bool IsAlive => State != ServerState.Stopped;
 
     /// <summary>
@@ -71,6 +78,7 @@ public sealed partial class ServerRunner : IDisposable
                 throw new InvalidOperationException("El servidor ya está en marcha");
             _lines.Clear();
             _players.Clear();
+            _addresses.Clear();
         }
 
         var start = new ProcessStartInfo(java)
@@ -197,6 +205,7 @@ public sealed partial class ServerRunner : IDisposable
         AddLine($"[Konnor] El servidor se detuvo (código {LastExitCode}).");
         lock (_sync)
             _players.Clear();
+            _addresses.Clear();
         PlayersChanged?.Invoke(this, EventArgs.Empty);
         _process = null;
         process.Dispose();
@@ -215,11 +224,21 @@ public sealed partial class ServerRunner : IDisposable
         if (State == ServerState.Starting && DoneLine().IsMatch(line))
             SetState(ServerState.Running);
 
+        if (ParseLogin(line) is { } login)
+        {
+            lock (_sync)
+                _addresses[login.Name] = login.Address;
+        }
+
         if (ParsePlayerEvent(line) is { } evt)
         {
             bool changed;
             lock (_sync)
+            {
                 changed = evt.Joined ? _players.Add(evt.Name) : _players.Remove(evt.Name);
+                if (!evt.Joined)
+                    _addresses.Remove(evt.Name);
+            }
             if (changed)
                 PlayersChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -256,6 +275,22 @@ public sealed partial class ServerRunner : IDisposable
             return null;
         return (match.Groups["name"].Value, match.Groups["what"].Value == "joined");
     }
+
+    /// <summary>
+    /// <c>[12:00:00] [Server thread/INFO]: Steve[/1.2.3.4:51234] logged in with entity id 1 at (…)</c> → (Steve, 1.2.3.4).
+    /// IPv6 entre corchetes (<c>[/[::1]:51234]</c>) o sin ellos (<c>[/0:0:0:0:0:0:0:1:51234]</c>).
+    /// </summary>
+    public static (string Name, string Address)? ParseLogin(string line)
+    {
+        var match = LoginLine().Match(line);
+        if (!match.Success)
+            return null;
+        var address = match.Groups["addr"].Value.Trim('[', ']');
+        return (match.Groups["name"].Value, address);
+    }
+
+    [GeneratedRegex(@"\]: (?<name>[A-Za-z0-9_]{1,16})\[/(?<addr>[^\]\s]+?|\[[^\]]+\]):\d+\] logged in with entity id")]
+    private static partial Regex LoginLine();
 
     [GeneratedRegex(@"\x1B\[[0-9;?]*[A-Za-z]")]
     private static partial Regex Ansi();

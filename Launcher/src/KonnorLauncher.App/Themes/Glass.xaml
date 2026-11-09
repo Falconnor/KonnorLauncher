@@ -793,6 +793,22 @@
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource InstanceSelected}" />
                         </Trigger>
+                        <!-- Con otra sección abierta (Mods, Skins…) la instancia sigue elegida pero no se resalta:
+                             solo se marca lo que se está viendo. -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                                <Condition Binding="{Binding DataContext.IsAwayFromInstance, RelativeSource={RelativeSource AncestorType=ListBox}}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="Transparent" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                <Condition Binding="{Binding DataContext.IsAwayFromInstance, RelativeSource={RelativeSource AncestorType=ListBox}}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                        </MultiDataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

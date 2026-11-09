@@ -181,6 +181,34 @@ public sealed class HostingTests : IDisposable
     public void Chat_and_other_lines_are_not_player_events(string line) =>
         ServerRunner.ParsePlayerEvent(line).ShouldBeNull();
 
+    [Theory]
+    [InlineData("[12:00:00] [Server thread/INFO]: Steve[/190.104.1.2:51234] logged in with entity id 41 at (1.5, 64.0, -3.5)", "Steve", "190.104.1.2")]
+    [InlineData("[12:00:00] [Server thread/INFO]: Alex_99[/127.0.0.1:60000] logged in with entity id 7 at ([world]0.5, 70.0, 0.5)", "Alex_99", "127.0.0.1")]
+    [InlineData("[12:00:00] [Server thread/INFO]: Kai[/[0:0:0:0:0:0:0:1]:5555] logged in with entity id 3 at (0, 0, 0)", "Kai", "0:0:0:0:0:0:0:1")]
+    [InlineData("[12:00:00] [Server thread/INFO]: Kai[/0:0:0:0:0:0:0:1:5555] logged in with entity id 3 at (0, 0, 0)", "Kai", "0:0:0:0:0:0:0:1")]
+    public void Login_lines_give_the_player_address(string line, string name, string address) =>
+        ServerRunner.ParseLogin(line).ShouldBe((name, address));
+
+    [Theory]
+    [InlineData("[12:00:00] [Server thread/INFO]: <Steve> Bob[/1.2.3.4:5] logged in with entity id 1")]
+    [InlineData("[12:00:00] [Server thread/INFO]: Steve joined the game")]
+    public void Chat_is_not_a_login_line(string line) =>
+        ServerRunner.ParseLogin(line).ShouldBeNull();
+
+    [Theory]
+    [InlineData(null, 0)]
+    [InlineData(-1L, 0)]
+    [InlineData(0L, 5)]
+    [InlineData(149L, 5)]
+    [InlineData(150L, 4)]
+    [InlineData(299L, 4)]
+    [InlineData(300L, 3)]
+    [InlineData(600L, 2)]
+    [InlineData(999L, 2)]
+    [InlineData(1000L, 1)]
+    public void Ping_bars_follow_the_game_thresholds(long? ms, int bars) =>
+        ConnectionQuality.Bars(ms).ShouldBe(bars);
+
     [Fact]
     public void Java_arguments_have_memory_utf8_and_nogui()
     {

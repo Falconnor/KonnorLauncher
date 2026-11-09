@@ -9,28 +9,31 @@ namespace KonnorLauncher.App.Services;
 /// <summary>
 /// Iconos del HUD del juego (corazones, muslos, armadura, burbujas y barra de experiencia) para el perfil de los
 /// jugadores. No se incluyen en el launcher: se extraen una vez del jar de cliente que ya haya descargado (1.20.2 en
-/// adelante, que guarda cada icono en <c>textures/gui/sprites/hud</c>) y se guardan en la caché. Si no hay ninguno,
+/// adelante, que guarda cada icono en <c>textures/gui/sprites</c>) y se guardan en la caché. Si no hay ninguno,
 /// <see cref="Available"/> es false y el perfil muestra barras.
 /// </summary>
 public static class HudSprites
 {
-    private const string Prefix = "assets/minecraft/textures/gui/sprites/hud/";
+    private const string Prefix = "assets/minecraft/textures/gui/sprites/";
 
     /// <summary>Iconos que se usan (ruta dentro de <see cref="Prefix"/>).</summary>
     private static readonly string[] Names =
     [
-        "heart/container.png", "heart/full.png", "heart/half.png", "heart/absorbing_full.png", "heart/absorbing_half.png",
-        "food_empty.png", "food_full.png", "food_half.png",
-        "armor_empty.png", "armor_full.png", "armor_half.png",
-        "air.png", "air_empty.png",
-        "experience_bar_background.png", "experience_bar_progress.png",
+        "hud/heart/container.png", "hud/heart/full.png", "hud/heart/half.png", "hud/heart/absorbing_full.png", "hud/heart/absorbing_half.png",
+        "hud/food_empty.png", "hud/food_full.png", "hud/food_half.png",
+        "hud/armor_empty.png", "hud/armor_full.png", "hud/armor_half.png",
+        "hud/air.png", "hud/air_empty.png",
+        "hud/experience_bar_background.png", "hud/experience_bar_progress.png",
+        // Calidad de la conexión (lista de jugadores)
+        "icon/ping_1.png", "icon/ping_2.png", "icon/ping_3.png", "icon/ping_4.png", "icon/ping_5.png", "icon/ping_unknown.png",
     ];
 
     private static readonly Lazy<Dictionary<string, BitmapSource>> Sprites = new(Load);
 
     public static bool Available => Sprites.Value.Count == Names.Length;
 
-    public static ImageSource? Get(string name) => Sprites.Value.GetValueOrDefault(name);
+    /// <summary>Icono por su ruta en <c>gui/sprites</c> (<c>icon/ping_5.png</c>); los del HUD, también sin <c>hud/</c>.</summary>
+    public static ImageSource? Get(string name) => Sprites.Value.GetValueOrDefault(name) ?? Sprites.Value.GetValueOrDefault("hud/" + name);
 
     private static string CacheDir => Path.Combine(LauncherPaths.CacheDir, "hud");
 
@@ -79,7 +82,7 @@ public static class HudSprites
     }
 
     /// <summary><c>versions/&lt;id&gt;/&lt;id&gt;.jar</c> (los de servidor y cargadores no llevan texturas), el más reciente primero.</summary>
-    private static IEnumerable<string> ClientJars()
+    internal static IEnumerable<string> ClientJars()
     {
         var roots = new List<string> { Path.Combine(LauncherPaths.MetaDir, "versions") };
         if (Directory.Exists(LauncherPaths.InstancesDir))

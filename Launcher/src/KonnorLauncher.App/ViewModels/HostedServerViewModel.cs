@@ -66,6 +66,8 @@ public sealed partial class HostedServerViewModel : ObservableObject
     private readonly ConcurrentQueue<string> _pending = new();
     private readonly DispatcherTimer _flush;
     private readonly DispatcherTimer _uptime;
+    private readonly DispatcherTimer _ping;
+    private bool _measuringPing;
     private readonly Dispatcher _dispatcher = Application.Current.Dispatcher;
     private CancellationTokenSource? _work;
 
@@ -82,6 +84,8 @@ public sealed partial class HostedServerViewModel : ObservableObject
         // La consola se vuelca a la vista por tandas: un servidor arrancando escribe cientos de líneas por segundo.
         _flush = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Background, (_, _) => FlushConsole(), _dispatcher) { IsEnabled = false };
         _uptime = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => OnPropertyChanged(nameof(UptimeText)), _dispatcher) { IsEnabled = false };
+        // Calidad de la conexión de los conectados: se mide cada 5 s mientras haya alguno.
+        _ping = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, async (_, _) => await MeasurePingsAsync(), _dispatcher) { IsEnabled = false };
         foreach (var line in _runner.Lines.TakeLast(MaxConsoleLines))
             Console.Add(ConsoleLine.From(line));
         _runner.LineReceived += (_, line) =>
@@ -451,18 +455,42 @@ public sealed partial class HostedServerViewModel : ObservableObject
 
         // Resumen de cada uno (vida, hambre, nivel…) del último guardado del mundo.
         var uuids = known.ToDictionary(k => k.Name, k => k.Uuid, StringComparer.OrdinalIgnoreCase);
+        var lastPing = Players.Where(p => p.IsOnline).ToDictionary(p => p.Name, p => p.PingMs, StringComparer.OrdinalIgnoreCase);
         Players.Clear();
         foreach (var name in known.Select(k => k.Name).Union(online, StringComparer.OrdinalIgnoreCase)
                      .OrderByDescending(online.Contains)
                      .ThenBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
             var profile = uuids.TryGetValue(name, out var uuid) ? ReadProfile(name, uuid) : null;
-            Players.Add(new PlayerEntry(name, online.Contains(name), profile));
+            Players.Add(new PlayerEntry(name, online.Contains(name), profile) { PingMs = lastPing.GetValueOrDefault(name) });
         }
+
+        _ping.IsEnabled = online.Count > 0;
+        if (online.Count > 0)
+            _ = MeasurePingsAsync();
 
         OnPropertyChanged(nameof(HasPlayers));
         OnPropertyChanged(nameof(PlayersText));
         RefreshWhitelist();
+    }
+
+    /// <summary>Latencia hasta la IP de cada conectado (la de su línea «logged in» en la consola).</summary>
+    private async Task MeasurePingsAsync()
+    {
+        if (_measuringPing)
+            return;
+        _measuringPing = true;
+        try
+        {
+            var online = Players.Where(p => p.IsOnline).ToList();
+            var results = await Task.WhenAll(online.Select(p => ConnectionQuality.MeasureAsync(_runner.AddressOf(p.Name))));
+            for (var i = 0; i < online.Count; i++)
+                online[i].PingMs = results[i];
+        }
+        finally
+        {
+            _measuringPing = false;
+        }
     }
 
     private PlayerProfile? ReadProfile(string name, Guid uuid)

@@ -5,10 +5,38 @@ using KonnorLauncher.Core.Hosting;
 
 namespace KonnorLauncher.App.ViewModels;
 
-/// <summary>Jugador de la lista: nombre, conectado y su estado guardado (null si aún no hay datos).</summary>
-public sealed record PlayerEntry(string Name, bool IsOnline, PlayerProfile? Profile = null)
+/// <summary>Jugador de la lista: nombre, conectado, su estado guardado (null si aún no hay datos) y su conexión.</summary>
+public sealed partial class PlayerEntry(string name, bool isOnline, PlayerProfile? profile = null) : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
 {
+    public string Name { get; } = name;
+    public bool IsOnline { get; } = isOnline;
+    public PlayerProfile? Profile { get; } = profile;
+
     public bool HasProfile => Profile is not null;
+
+    // ── Calidad de la conexión (solo conectados): latencia medida hasta su IP ──
+
+    /// <summary>Latencia en ms; null mientras no se sabe (aún sin medir, o su red no responde).</summary>
+    [CommunityToolkit.Mvvm.ComponentModel.ObservableProperty]
+    [CommunityToolkit.Mvvm.ComponentModel.NotifyPropertyChangedFor(nameof(PingIcon), nameof(PingText), nameof(PingToolTip), nameof(PingColor))]
+    private long? _pingMs;
+
+    /// <summary>Barras del juego (<c>ping_1</c>…<c>ping_5</c>; <c>ping_unknown</c> sin dato).</summary>
+    public ImageSource? PingIcon => ConnectionQuality.Bars(PingMs) is > 0 and var bars
+        ? HudSprites.Get($"icon/ping_{bars}.png")
+        : HudSprites.Get("icon/ping_unknown.png");
+
+    public bool ShowPing => IsOnline;
+    public bool ShowPingIcon => IsOnline && HudSprites.Get("icon/ping_5.png") is not null;
+    public string PingText => PingMs is { } ms ? $"{ms} ms" : "—";
+    public string PingColor => ConnectionQuality.Bars(PingMs) switch { 5 or 4 => "#7BD45C", 3 => "#E8C547", 0 => "#8A8F98", _ => "#E5604D" };
+
+    public string PingToolTip => PingMs switch
+    {
+        null => "Conexión: sin datos (su red no responde a la medición)",
+        0 => "Conexión: en este mismo equipo",
+        var ms => $"Conexión: {ms} ms ({ConnectionQuality.Bars(ms) switch { 5 => "excelente", 4 => "buena", 3 => "regular", 2 => "mala", _ => "muy mala" }})",
+    };
     public string HealthText => Profile is { } p ? PlayerProfileViewModel.Half(p.Health) : string.Empty;
     public string FoodText => Profile is { } p ? p.Food.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string ArmorText => Profile is { } p ? p.Armor.ToString(CultureInfo.InvariantCulture) : string.Empty;

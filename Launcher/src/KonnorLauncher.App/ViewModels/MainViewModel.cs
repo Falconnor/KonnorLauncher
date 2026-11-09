@@ -350,7 +350,9 @@ public sealed partial class MainViewModel : ObservableObject
             link.IsCurrent = link.Tab is { } tab ? IsBrowsing && tab.IsActive : link == _serversLink ? IsServers : link == _hostingLink ? IsHosting : IsSkins;
     }
 
-    [RelayCommand]
+    // AllowConcurrentExecutions: mientras una sección carga (la galería de Skins, el directorio de servidores…) los
+    // accesos siguen activos; si no, el comando en curso los desactiva todos (se oscurecen) hasta que termina la descarga.
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task OpenSidebarLinkAsync(SidebarLink? link)
     {
         if (link is null)

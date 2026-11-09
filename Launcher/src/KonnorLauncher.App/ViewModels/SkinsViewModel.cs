@@ -34,6 +34,12 @@ public sealed partial class SkinCard(SkinSummary skin, bool? knownSlim = null) :
 
     /// <summary>La textura, ya descargada y validada (para el visor 3D y para aplicarla).</summary>
     internal SkinComposer.Pixels? Pixels { get; set; }
+
+    /// <summary>Skin predeterminada de Minecraft (Steve, Alex…): no se descarga ni se borra.</summary>
+    public bool IsDefault => DefaultSkins.IsKey(Skin.Texture);
+
+    /// <summary>Textura que se ve y se aplica. En las predeterminadas cambia con el modelo (clásico o fino).</summary>
+    internal string CurrentTexture { get; set; } = skin.Texture;
 }
 
 /// <summary>
@@ -67,6 +73,17 @@ public sealed partial class SkinsViewModel : ObservableObject
 
     public ObservableCollection<SkinCard> Skins { get; } = [];
 
+    /// <summary>Predeterminadas de Minecraft (en Descargadas, encima de las del jugador).</summary>
+    public ObservableCollection<SkinCard> DefaultSkinCards { get; } = [];
+
+    public bool ShowDefaultSkins => IsDownloaded && DefaultSkinCards.Count > 0;
+
+    /// <summary>En Descargadas, sin descargadas propias (las predeterminadas siguen viéndose arriba).</summary>
+    public bool ShowNoDownloadsText => IsDownloaded && !IsLoading && Error is null && Skins.Count == 0;
+
+    /// <summary>Sin jar 1.19.3+ no hay de dónde sacar las predeterminadas.</summary>
+    public bool ShowDefaultSkinsHint => IsDownloaded && !DefaultSkins.Available && string.IsNullOrWhiteSpace(SearchText);
+
     [ObservableProperty] private string _searchText = string.Empty;
 
     /// <summary>Recientes, populares o descargadas (al buscar en la galería se busca entre todas, por recientes).</summary>
@@ -88,6 +105,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     [ObservableProperty] private bool _isApplying;
     [ObservableProperty] private bool _isDownloading;
     [ObservableProperty] private bool _isSelectedDownloaded;
+    [ObservableProperty] private bool _isSelectedDefault;
     [ObservableProperty] private string? _selectedError;
     [ObservableProperty] private string? _appliedText;
 
@@ -99,7 +117,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     public const double MaxViewerZoom = 1.89;
 
     /// <summary>En Descargadas, el segundo botón borra la skin en vez de descargarla.</summary>
-    public bool CanDeleteSelected => IsDownloaded && IsSelectedDownloaded;
+    public bool CanDeleteSelected => IsDownloaded && IsSelectedDownloaded && !IsSelectedDefault;
 
     /// <summary>Páginas que se piden seguidas si una no trae ninguna skin nueva (populares repite muchas).</summary>
     private const int MaxEmptyPages = 3;
@@ -130,7 +148,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     private SkinListOrder ApiOrder => Tab == SkinsTab.Popular && CanChoosePopular ? SkinListOrder.Popular : SkinListOrder.Latest;
 
     public bool HasSelected => Selected is not null;
-    public bool IsEmpty => !IsLoading && Error is null && Skins.Count == 0;
+    public bool IsEmpty => !IsDownloaded && !IsLoading && Error is null && Skins.Count == 0;
 
     public string EmptyText => IsDownloaded
         ? string.IsNullOrWhiteSpace(SearchText) ? "Todavía no has descargado ninguna skin." : "No hay skins descargadas con ese nombre."
@@ -145,6 +163,8 @@ public sealed partial class SkinsViewModel : ObservableObject
     /// <summary>Archivo de la textura: el de las descargadas si está, si no el de la caché.</summary>
     private string TexturePath(string texture)
     {
+        if (DefaultSkins.IsKey(texture))
+            return DefaultSkins.PathFor(texture);
         var downloaded = _library.TexturePath(texture);
         return File.Exists(downloaded) ? downloaded : CachePath(texture);
     }
@@ -183,8 +203,17 @@ public sealed partial class SkinsViewModel : ObservableObject
         _ => SkinsTab.Latest,
     };
 
-    partial void OnIsLoadingChanged(bool value) => OnPropertyChanged(nameof(IsEmpty));
-    partial void OnErrorChanged(string? value) => OnPropertyChanged(nameof(IsEmpty));
+    partial void OnIsLoadingChanged(bool value) => NotifyEmpty();
+    partial void OnErrorChanged(string? value) => NotifyEmpty();
+    partial void OnIsSelectedDefaultChanged(bool value) => OnPropertyChanged(nameof(CanDeleteSelected));
+
+    private void NotifyEmpty()
+    {
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(ShowNoDownloadsText));
+        OnPropertyChanged(nameof(ShowDefaultSkins));
+        OnPropertyChanged(nameof(ShowDefaultSkinsHint));
+    }
     partial void OnSelectedChanged(SkinCard? value) => OnPropertyChanged(nameof(HasSelected));
     partial void OnSelectedSlimChanged(bool value) => OnPropertyChanged(nameof(SelectedModelText));
 
@@ -203,6 +232,7 @@ public sealed partial class SkinsViewModel : ObservableObject
             IsLoading = true;
             Error = null;
             Skins.Clear();
+            DefaultSkinCards.Clear();
             _seenTextures.Clear();
             HasMore = false;
             _nextAfter = null;
@@ -225,7 +255,7 @@ public sealed partial class SkinsViewModel : ObservableObject
             {
                 IsLoading = false;
                 OnPropertyChanged(nameof(EmptyText));
-                OnPropertyChanged(nameof(IsEmpty));
+                NotifyEmpty();
             }
         }
     }
@@ -233,10 +263,25 @@ public sealed partial class SkinsViewModel : ObservableObject
     /// <summary>Las descargadas (de la más reciente a la más antigua), filtradas por nombre si se busca.</summary>
     private async Task ShowDownloadedAsync(CancellationToken ct)
     {
+        var available = await Task.Run(() => DefaultSkins.Available, ct);
         var all = await Task.Run(_library.LoadAll, ct);
         if (ct.IsCancellationRequested)
             return;
         var filter = SearchText.Trim();
+        if (available)
+        {
+            foreach (var (id, name, slim) in DefaultSkins.All)
+            {
+                if (filter.Length > 0 && !name.Contains(filter, StringComparison.CurrentCultureIgnoreCase))
+                    continue;
+                var card = new SkinCard(new SkinSummary(string.Empty, name, DefaultSkins.Key(id, slim), 0), slim);
+                if (Selected?.IsDefault == true && DefaultSkins.IdOf(Selected.Skin.Texture) == id)
+                    card.IsSelected = true;
+                DefaultSkinCards.Add(card);
+                _ = LoadPreviewAsync(card);
+            }
+        }
+
         foreach (var skin in all)
         {
             if (filter.Length > 0 && skin.Name?.Contains(filter, StringComparison.CurrentCultureIgnoreCase) != true)
@@ -322,7 +367,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     /// <summary>Descarga la textura (o la toma de la caché o de las descargadas) y prepara la vista de frente.</summary>
     private async Task LoadPreviewAsync(SkinCard card)
     {
-        var pixels = await LoadTextureAsync(card.Skin.Texture);
+        var pixels = await LoadTextureAsync(card.CurrentTexture);
         if (pixels is null)
             return;
         card.Pixels = pixels;
@@ -337,7 +382,11 @@ public sealed partial class SkinsViewModel : ObservableObject
         try
         {
             if (!File.Exists(path))
+            {
+                if (DefaultSkins.IsKey(texture))
+                    return null;
                 await _client.DownloadTextureAsync(texture, path);
+            }
             var (skin, _, error) = await Task.Run(() => PlayerImages.LoadSkin(path));
             if (skin is null)
             {
@@ -382,7 +431,8 @@ public sealed partial class SkinsViewModel : ObservableObject
         Selected = card;
         SelectedError = null;
         AppliedText = card.IsInUse ? "Es tu skin actual." : null;
-        IsSelectedDownloaded = _library.Contains(card.Skin.Texture);
+        IsSelectedDefault = card.IsDefault;
+        IsSelectedDownloaded = !card.IsDefault && _library.Contains(card.Skin.Texture);
         SelectedPixels = card.Pixels;
         SelectedSlim = card.KnownSlim ?? (card.Pixels is { } p && SkinTexture.LooksSlim(p));
         IsSelectedLoading = true;
@@ -390,7 +440,7 @@ public sealed partial class SkinsViewModel : ObservableObject
         {
             // El modelo (brazos finos o clásicos) lo dice la ficha; la textura puede no estar aún.
             var details = card.KnownSlim is null && card.Skin.Uuid.Length > 0 ? _client.GetAsync(card.Skin.Uuid) : null;
-            card.Pixels ??= await LoadTextureAsync(card.Skin.Texture);
+            card.Pixels ??= await LoadTextureAsync(card.CurrentTexture);
             if (Selected != card)
                 return;
             SelectedPixels = card.Pixels;
@@ -417,7 +467,23 @@ public sealed partial class SkinsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void SetModel(string model) => SelectedSlim = model == "slim";
+    private async Task SetModelAsync(string model)
+    {
+        SelectedSlim = model == "slim";
+        if (Selected is not { IsDefault: true } card)
+            return;
+        var texture = DefaultSkins.Key(DefaultSkins.IdOf(card.Skin.Texture), SelectedSlim);
+        if (texture == card.CurrentTexture)
+            return;
+        card.CurrentTexture = texture;
+        var pixels = await LoadTextureAsync(texture);
+        if (pixels is null || card.CurrentTexture != texture)
+            return;
+        card.Pixels = pixels;
+        card.Preview = await Task.Run(() => PlayerImages.ToBitmap(SkinComposer.ComposeFront(pixels)));
+        if (Selected == card)
+            SelectedPixels = pixels;
+    }
 
     /// <summary>Usa la skin elegida como la del jugador (se guarda al momento).</summary>
     [RelayCommand]
@@ -428,11 +494,11 @@ public sealed partial class SkinsViewModel : ObservableObject
         IsApplying = true;
         try
         {
-            var error = await Task.Run(() => _account.ApplySkin(TexturePath(card.Skin.Texture), SelectedSlim));
+            var error = await Task.Run(() => _account.ApplySkin(TexturePath(card.CurrentTexture), SelectedSlim));
             SelectedError = error;
             if (error is not null)
                 return;
-            foreach (var other in Skins)
+            foreach (var other in Skins.Concat(DefaultSkinCards))
                 other.IsInUse = false;
             card.IsInUse = true;
             AppliedText = "Listo: es tu skin (la puedes ver en tu cuenta).";
@@ -447,7 +513,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     [RelayCommand]
     private async Task DownloadAsync()
     {
-        if (Selected is not { Pixels: not null } card || IsDownloading)
+        if (Selected is not { Pixels: not null, IsDefault: false } card || IsDownloading)
             return;
         IsDownloading = true;
         try
@@ -481,7 +547,7 @@ public sealed partial class SkinsViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteDownloadedAsync()
     {
-        if (Selected is not { } card || !IsSelectedDownloaded)
+        if (Selected is not { IsDefault: false } card || !IsSelectedDownloaded)
             return;
         try
         {
@@ -504,7 +570,7 @@ public sealed partial class SkinsViewModel : ObservableObject
             _seenTextures.Remove(card.Skin.Texture);
             CloseSelected();
             OnPropertyChanged(nameof(EmptyText));
-            OnPropertyChanged(nameof(IsEmpty));
+            NotifyEmpty();
         }
     }
 
