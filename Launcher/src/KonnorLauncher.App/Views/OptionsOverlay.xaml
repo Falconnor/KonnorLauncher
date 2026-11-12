@@ -312,6 +312,26 @@
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,0" TextWrapping="Wrap"
                                            Text="El cristal, el fondo y la aurora toman el tono del color elegido. Los colores de estado (correcto, aviso, error) no cambian." />
 
+                                <TextBlock Text="Tipo de fondo" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="ThemeMode" Content="Translúcido" Margin="0,0,6,0"
+                                                 IsChecked="{Binding IsTranslucentBackground}" />
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="ThemeMode" Content="Sólido"
+                                                 IsChecked="{Binding SolidBackground}" />
+                                </StackPanel>
+                                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                            <Setter Property="Text" Value="Cristal sobre la imagen de fondo, con su desenfoque." />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SolidBackground}" Value="True">
+                                                    <Setter Property="Text" Value="Superficies opacas, sin imagen ni transparencias (como VS Code o Modrinth). También es el más ligero." />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
                                 <TextBlock Text="Color de acento propio" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
                                 <DockPanel>
                                     <Border DockPanel.Dock="Left" Width="38" Height="38" CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0"
@@ -322,6 +342,7 @@
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
                                            Text="Un color hexadecimal para botones, selección y JUGAR. Vacío = el del tema elegido." />
 
+                                <StackPanel Visibility="{Binding IsTranslucentBackground, Converter={StaticResource BoolToVisibility}}">
                                 <DockPanel Margin="0,22,0,4">
                                     <TextBlock DockPanel.Dock="Right" Text="{Binding GlassPercent, StringFormat={}{0} %}" Foreground="{StaticResource Ink2}" />
                                     <TextBlock Text="Opacidad del cristal" Style="{StaticResource FieldLabel}" Margin="0" />
@@ -347,6 +368,7 @@
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
+                                </StackPanel>
 
                                 <Button Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="0,22,0,0"
                                         Content="Restablecer tema" Command="{Binding ResetThemeCommand}" />

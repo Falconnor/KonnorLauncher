@@ -55,6 +55,9 @@ public sealed class LauncherSettings
     public const string KeyThemeGlass = "theme.glass";
     public const string KeyThemeBackground = "theme.background";
 
+    /// <summary>Tipo de fondo: <c>translucent</c> (cristal sobre la imagen) o <c>solid</c> (opaco).</summary>
+    public const string KeyThemeMode = "theme.mode";
+
     /// <summary>Memoria por defecto si el archivo no dice nada.</summary>
     public const string DefaultMemory = "4G";
 
@@ -101,7 +104,8 @@ public sealed class LauncherSettings
         int.TryParse(Properties.Get(KeyThemeGlass).Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var glass)
             ? Math.Clamp(glass, ThemeEngine.MinGlassPercent, ThemeEngine.MaxGlassPercent)
             : 100,
-        NullIfEmpty(Properties.Get(KeyThemeBackground)));
+        NullIfEmpty(Properties.Get(KeyThemeBackground)),
+        Properties.Get(KeyThemeMode).Trim().Equals("solid", StringComparison.OrdinalIgnoreCase));
 
     public bool OpenLogOnCrash => ParseBool(Properties.Get(KeyOpenLogOnCrash));
 

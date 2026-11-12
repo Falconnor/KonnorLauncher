@@ -117,7 +117,11 @@ public sealed record ThemePreset(string Id, string Name, string Accent, string? 
 /// <param name="CustomAccent">Color de acento propio (<c>#RRGGBB</c>); null = el del tema.</param>
 /// <param name="GlassPercent">Opacidad del cristal: 100 = la del diseño.</param>
 /// <param name="BackgroundPath">Imagen de fondo propia; null = la del launcher.</param>
-public sealed record ThemeSettings(string PresetId, string? CustomAccent = null, int GlassPercent = 100, string? BackgroundPath = null)
+/// <param name="Solid">
+/// Fondo sólido (como VS Code o Modrinth): superficies opacas, sin imagen, aurora ni desenfoque. false = cristal
+/// translúcido sobre la imagen de fondo.
+/// </param>
+public sealed record ThemeSettings(string PresetId, string? CustomAccent = null, int GlassPercent = 100, string? BackgroundPath = null, bool Solid = false)
 {
     public static ThemeSettings Default { get; } = new(ThemeEngine.DefaultPresetId);
 }
@@ -162,6 +166,21 @@ public static class ThemeEngine
         ("WindowBase", "#0B0E13"), ("FallbackTop", "#0D1C2E"), ("FallbackBottom", "#0A1220"),
     ];
 
+    /// <summary>
+    /// Fondo sólido: las mismas capas, opacas y casi neutras (gris azulado muy oscuro, como los editores y las webs
+    /// en modo oscuro). La barra lateral es la más oscura; diálogos y menús, un escalón más claros que la ventana.
+    /// Las velos de los diálogos oscurecen más, porque detrás ya no hay desenfoque.
+    /// </summary>
+    private static readonly Dictionary<string, string> SolidNeutrals = new(StringComparer.Ordinal)
+    {
+        ["WindowTint"] = "#16191F",
+        ["GlassTint"] = "#1C1F26",
+        ["SidebarTint"] = "#111318",
+        ["DialogTint"] = "#1C1F27",
+        ["MenuGlass"] = "#1F222A",
+        ["ModalScrim"] = "#B3020305",
+    };
+
     /// <summary>Cristal cuya opacidad ajusta el jugador.</summary>
     private static readonly HashSet<string> Glass = ["GlassTint", "WindowTint", "SidebarTint", "MenuGlass", "DialogTint"];
 
@@ -198,10 +217,11 @@ public static class ThemeEngine
         var glass = Math.Clamp(settings.GlassPercent, MinGlassPercent, MaxGlassPercent) / 100.0;
 
         var palette = new Dictionary<string, Argb>(StringComparer.Ordinal);
-        foreach (var (key, hex) in Neutrals)
+        foreach (var (key, neutral) in Neutrals)
         {
+            var hex = settings.Solid && SolidNeutrals.TryGetValue(key, out var solid) ? solid : neutral;
             var color = Rotate(Argb.Parse(hex), rotation, tint);
-            if (Glass.Contains(key))
+            if (Glass.Contains(key) && !settings.Solid)
                 color = color.WithAlpha((byte)Math.Clamp(Math.Round(color.A * glass), 0, 255));
             palette[key] = color;
         }

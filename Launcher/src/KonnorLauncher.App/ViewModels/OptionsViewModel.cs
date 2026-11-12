@@ -132,6 +132,18 @@ public sealed partial class OptionsViewModel : ObservableObject
     [ObservableProperty] private int _glassPercent = 100;
     [ObservableProperty] private string? _backgroundPath;
 
+    /// <summary>Tipo de fondo: sólido (opaco, como VS Code o Modrinth) o translúcido (cristal sobre la imagen).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTranslucentBackground))]
+    private bool _solidBackground;
+
+    /// <summary>Segmento "Translúcido" (el contrario de <see cref="SolidBackground"/>).</summary>
+    public bool IsTranslucentBackground
+    {
+        get => !SolidBackground;
+        set => SolidBackground = !value;
+    }
+
     /// <summary>Tema guardado al abrir: CANCELAR vuelve a él.</summary>
     private ThemeSettings _savedTheme = ThemeSettings.Default;
 
@@ -155,7 +167,8 @@ public sealed partial class OptionsViewModel : ObservableObject
         SelectedThemePreset?.Id ?? ThemeEngine.DefaultPresetId,
         Argb.TryParse(CustomAccent, out var accent) ? accent.WithAlpha(0xFF).ToString() : null,
         GlassPercent,
-        BackgroundPath);
+        BackgroundPath,
+        SolidBackground);
 
     partial void OnSelectedThemePresetChanged(ThemePresetItem? value)
     {
@@ -167,6 +180,7 @@ public sealed partial class OptionsViewModel : ObservableObject
 
     partial void OnCustomAccentChanged(string value) => PreviewTheme();
     partial void OnGlassPercentChanged(int value) => PreviewTheme();
+    partial void OnSolidBackgroundChanged(bool value) => PreviewTheme();
 
     partial void OnBackgroundPathChanged(string? value)
     {
@@ -363,6 +377,7 @@ public sealed partial class OptionsViewModel : ObservableObject
             new(LauncherSettings.KeyThemeAccent, theme.CustomAccent ?? string.Empty),
             new(LauncherSettings.KeyThemeGlass, theme.GlassPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new(LauncherSettings.KeyThemeBackground, theme.BackgroundPath ?? string.Empty),
+            new(LauncherSettings.KeyThemeMode, theme.Solid ? "solid" : "translucent"),
         ]);
         _savedTheme = theme;
         ThemePalette.Current.Apply(theme);
@@ -394,6 +409,7 @@ public sealed partial class OptionsViewModel : ObservableObject
         CustomAccent = theme.CustomAccent ?? string.Empty;
         GlassPercent = theme.GlassPercent;
         BackgroundPath = theme.BackgroundPath;
+        SolidBackground = theme.Solid;
         _loadingTheme = false;
         PreviewTheme();
     }

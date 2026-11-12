@@ -134,11 +134,40 @@ public class ThemeTests
     {
         using var dir = new TempDir();
         var path = dir.Combine("launcher.properties");
-        File.WriteAllText(path, "theme.preset=Violeta\ntheme.accent=e91e63\ntheme.glass=85\ntheme.background=C:/fondo.png\n");
+        File.WriteAllText(path, "theme.preset=Violeta\ntheme.accent=e91e63\ntheme.glass=85\ntheme.background=C:/fondo.png\ntheme.mode=Solid\n");
 
         var theme = new LauncherSettings(new LauncherProperties(path)).Theme;
 
-        theme.ShouldBe(new ThemeSettings("violeta", "#E91E63", 85, "C:/fondo.png"));
+        theme.ShouldBe(new ThemeSettings("violeta", "#E91E63", 85, "C:/fondo.png", Solid: true));
+    }
+
+    [Theory]
+    [InlineData(ThemeEngine.DefaultPresetId)]
+    [InlineData("violeta")]
+    [InlineData("grafito")]
+    public void A_solid_background_is_opaque_and_ignores_the_glass_opacity(string preset)
+    {
+        var solid = ThemeEngine.Build(new ThemeSettings(preset, GlassPercent: 60, Solid: true));
+
+        foreach (var key in new[] { "WindowTint", "GlassTint", "SidebarTint", "DialogTint", "MenuGlass" })
+            solid[key].A.ShouldBe((byte)0xFF, key);
+
+        // Oscuro y casi neutro, como los temas oscuros de los editores: se lee la tinta encima.
+        solid["WindowTint"].ToHsl().L.ShouldBeLessThan(0.15);
+        Argb.Contrast(solid["Ink"], solid["WindowTint"]).ShouldBeGreaterThan(12);
+        // Escalones: barra lateral más oscura que la ventana; diálogos más claros.
+        solid["SidebarTint"].Luminance().ShouldBeLessThan(solid["WindowTint"].Luminance());
+        solid["DialogTint"].Luminance().ShouldBeGreaterThan(solid["WindowTint"].Luminance());
+        // El acento no cambia por el tipo de fondo.
+        solid["Accent"].ShouldBe(ThemeEngine.Build(new ThemeSettings(preset))["Accent"]);
+    }
+
+    [Fact]
+    public void A_solid_background_keeps_the_hue_of_the_theme()
+    {
+        var violet = ThemeEngine.Build(new ThemeSettings("violeta", Solid: true));
+        var blue = ThemeEngine.Build(new ThemeSettings(ThemeEngine.DefaultPresetId, Solid: true));
+        Math.Abs(Hue(violet["WindowTint"]) - Hue(blue["WindowTint"])).ShouldBeGreaterThan(30);
     }
 
     [Fact]

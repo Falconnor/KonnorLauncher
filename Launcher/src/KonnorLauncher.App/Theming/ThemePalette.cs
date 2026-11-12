@@ -33,6 +33,12 @@ public sealed class ThemePalette : INotifyPropertyChanged
     /// <summary>Imagen de fondo de la ventana: la elegida por el jugador o la del launcher.</summary>
     public ImageSource? Background => _background ??= LoadDefaultBackground();
 
+    /// <summary>Fondo sólido: sin imagen, aurora ni desenfoque (los paneles de cristal se pintan opacos).</summary>
+    public bool IsSolid => Settings.Solid;
+
+    /// <summary>Cristal translúcido sobre la imagen de fondo (lo contrario de <see cref="IsSolid"/>).</summary>
+    public bool IsTranslucent => !Settings.Solid;
+
     /// <summary>Tema aplicado ahora mismo.</summary>
     public ThemeSettings Settings { get; private set; } = ThemeSettings.Default;
 
@@ -41,9 +47,15 @@ public sealed class ThemePalette : INotifyPropertyChanged
     {
         var backgroundChanged = !string.Equals(settings.BackgroundPath, Settings.BackgroundPath, StringComparison.OrdinalIgnoreCase)
                                 || _background is null;
+        var modeChanged = settings.Solid != Settings.Solid;
         Settings = settings;
         _colors = Convert(ThemeEngine.Build(settings));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+        if (modeChanged)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSolid)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTranslucent)));
+        }
 
         if (!backgroundChanged)
             return true;

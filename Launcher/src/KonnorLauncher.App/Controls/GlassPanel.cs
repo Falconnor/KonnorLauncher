@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
+using KonnorLauncher.App.Theming;
 
 namespace KonnorLauncher.App.Controls;
 
@@ -13,6 +14,10 @@ namespace KonnorLauncher.App.Controls;
 /// <para>
 /// El fondo se toma con un <see cref="VisualBrush"/> cuyo <c>Viewbox</c> se recalcula cuando el panel
 /// se mueve o cambia de tamaño, así que el desenfoque siempre coincide con lo que hay detrás.
+/// </para>
+/// <para>
+/// Con el fondo sólido del tema (<see cref="ThemePalette.IsSolid"/>) no se pinta ni se desenfoca nada detrás: el panel
+/// es solo su tinte, que entonces es opaco. Así ese modo además ahorra el trabajo del desenfoque.
 /// </para>
 /// </summary>
 public class GlassPanel : ContentControl
@@ -62,8 +67,17 @@ public class GlassPanel : ContentControl
 
     public GlassPanel()
     {
-        Loaded += (_, _) => { LayoutUpdated += OnLayoutUpdated; UpdateViewbox(); };
-        Unloaded += (_, _) => LayoutUpdated -= OnLayoutUpdated;
+        Loaded += (_, _) =>
+        {
+            LayoutUpdated += OnLayoutUpdated;
+            System.ComponentModel.PropertyChangedEventManager.AddHandler(ThemePalette.Current, OnThemeModeChanged, nameof(ThemePalette.IsSolid));
+            UpdateBrushVisual();
+        };
+        Unloaded += (_, _) =>
+        {
+            LayoutUpdated -= OnLayoutUpdated;
+            System.ComponentModel.PropertyChangedEventManager.RemoveHandler(ThemePalette.Current, OnThemeModeChanged, nameof(ThemePalette.IsSolid));
+        };
         SizeChanged += (_, _) => { UpdateClip(); UpdateViewbox(); };
         UpdateBlur();
     }
@@ -74,10 +88,7 @@ public class GlassPanel : ContentControl
         _root = GetTemplateChild("PART_Root") as FrameworkElement;
         _backdropRect = GetTemplateChild("PART_Backdrop") as Rectangle;
         if (_backdropRect is not null)
-        {
             _backdropRect.Fill = _brush;
-            _backdropRect.Effect = _blur;
-        }
 
         UpdateBlur();
         UpdateClip();
@@ -90,9 +101,19 @@ public class GlassPanel : ContentControl
             panel.UpdateBrushVisual();
     }
 
+    private void OnThemeModeChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => UpdateBrushVisual();
+
+    /// <summary>Fondo desenfocado detrás del panel; con el fondo sólido, ninguno (ni pincel ni efecto).</summary>
     private void UpdateBrushVisual()
     {
-        _brush.Visual = GetBackdrop(this);
+        var solid = ThemePalette.Current.IsSolid;
+        _brush.Visual = solid ? null : GetBackdrop(this);
+        if (_backdropRect is not null)
+        {
+            _backdropRect.Visibility = solid ? Visibility.Collapsed : Visibility.Visible;
+            _backdropRect.Effect = solid ? null : _blur;
+        }
+
         _lastViewbox = Rect.Empty;
         UpdateViewbox();
     }

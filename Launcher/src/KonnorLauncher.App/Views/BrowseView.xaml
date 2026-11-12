@@ -190,12 +190,13 @@
             </Setter>
         </Style>
 
-        <!-- ── Botón Instalar: de contorno; con el ratón sobre la tarjeta, relleno gris claro (más claro sobre el botón).
-             Instalado: verde (estado "listo"). ── -->
+        <!-- ── Botón Instalar: relleno del acento, como el resto de botones principales del launcher (más claro con el
+             ratón sobre la tarjeta o sobre el botón). Instalado: verde (estado "listo"). ── -->
         <Style x:Key="InstallButton" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource Ink}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{StaticResource PillOutline}" />
+            <Setter Property="Foreground" Value="{StaticResource OnAccent}" />
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Height" Value="34" />
             <Setter Property="MinWidth" Value="130" />
@@ -218,20 +219,22 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
-                <!-- Con el ratón sobre la tarjeta (o la fila) -->
+                <!-- Con el ratón sobre la tarjeta (o la fila) o sobre el propio botón -->
                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ContentPresenter}}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource HoverFillStrong}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource HoverFillStrong}" />
-                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                    <Setter Property="Background" Value="{StaticResource AccentHover}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentHover}" />
                 </DataTrigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource SelectedFillStrong}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource SelectedFillStrong}" />
-                    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                    <Setter Property="Background" Value="{StaticResource AccentHover}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentHover}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentPress}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentPress}" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderBrush" Value="{StaticResource InnerStroke}" />
+                    <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
                     <Setter Property="Foreground" Value="{StaticResource Ink3}" />
                     <Setter Property="Cursor" Value="Arrow" />
                 </Trigger>
