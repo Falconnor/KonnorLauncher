@@ -77,6 +77,39 @@ public readonly record struct Argb(byte A, byte R, byte G, byte B)
         }
     }
 
+    // ── HSV (rueda de color: ángulo = tono, distancia al centro = saturación) ──
+
+    /// <summary>Tono (0-360), saturación y brillo (0-1).</summary>
+    public (double H, double S, double V) ToHsv()
+    {
+        double r = R / 255.0, g = G / 255.0, b = B / 255.0;
+        var max = Math.Max(r, Math.Max(g, b));
+        var min = Math.Min(r, Math.Min(g, b));
+        var d = max - min;
+        var s = max <= 0 ? 0 : d / max;
+        return (ToHsl().H, s, max);
+    }
+
+    public static Argb FromHsv(double h, double s, double v, byte alpha = 0xFF)
+    {
+        h = ((h % 360) + 360) % 360;
+        s = Math.Clamp(s, 0, 1);
+        v = Math.Clamp(v, 0, 1);
+        var c = v * s;
+        var x = c * (1 - Math.Abs(h / 60 % 2 - 1));
+        var m = v - c;
+        var (r, g, b) = (int)(h / 60) switch
+        {
+            0 => (c, x, 0.0),
+            1 => (x, c, 0.0),
+            2 => (0.0, c, x),
+            3 => (0.0, x, c),
+            4 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+        return new Argb(alpha, ToByte(r + m), ToByte(g + m), ToByte(b + m));
+    }
+
     /// <summary>Mismo color con la luminosidad y la saturación desplazadas (en puntos de 0 a 1).</summary>
     public Argb Shift(double lightness, double saturation = 0)
     {
@@ -149,7 +182,7 @@ public static class ThemeEngine
         new(DefaultPresetId, "Azul", "#3478F6", Brand: "#27AE60"),
         new("indigo", "Índigo", "#5865F2"),
         new("violeta", "Violeta", "#A970FF", TintSaturation: 1.5, TintLift: 0.03),
-        new("rosa", "Rosa", "#FF7AC6", TintSaturation: 2.2, TintLift: 0.05),
+        new("rosa", "Rosa", "#FF4DB8", TintSaturation: 2.4, TintLift: 0.05),
         new("rojo", "Rojo", "#FF3B30"),
         new("naranja", "Naranja", "#FF9A1F", TintSaturation: 2.0, TintLift: 0.04),
         new("verde", "Verde", "#1DB954"),
@@ -215,6 +248,9 @@ public static class ThemeEngine
 
     public static ThemePreset FindPreset(string? id) =>
         Presets.FirstOrDefault(p => string.Equals(p.Id, id?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? Presets[0];
+
+    /// <summary>Brillo mínimo de un color propio: más oscuro no se distinguiría sobre el cristal.</summary>
+    public const double MinCustomBrightness = 0.35;
 
     /// <summary>Acento efectivo: el propio si es válido; si no, el del tema.</summary>
     public static Argb AccentOf(ThemeSettings settings) =>

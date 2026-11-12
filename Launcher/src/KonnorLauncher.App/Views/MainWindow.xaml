@@ -508,7 +508,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                     <!-- JUGAR y la tuerca de editar, arriba a la derecha -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,32,0">
                                         <Button Style="{StaticResource GlassPlayButton}" Width="200" Height="46" MinHeight="46" TabIndex="1"
                                                 Content="{Binding DataContext.PlayButtonText, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}"

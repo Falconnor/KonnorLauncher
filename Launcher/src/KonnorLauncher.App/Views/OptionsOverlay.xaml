@@ -192,10 +192,7 @@
                 <Border Grid.Column="0" Background="{StaticResource SidebarShade}" CornerRadius="16,0,0,16"
                         BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,1,0">
                     <DockPanel Margin="14,24,14,18">
-                        <TextBlock DockPanel.Dock="Top" Text="Opciones" Style="{StaticResource H2}" FontSize="21" Margin="10,0,0,4" />
-                        <TextBlock DockPanel.Dock="Top" Text="Comunes a todas las instancias" Style="{StaticResource Hint}" Margin="10,0,0,22" />
-                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="10,0,0,0" TextWrapping="Wrap"
-                                   Text="El nombre y la skin están en tu cuenta (abajo a la izquierda del launcher)." />
+                        <TextBlock DockPanel.Dock="Top" Text="Opciones" Style="{StaticResource H2}" FontSize="21" Margin="10,0,0,22" />
                         <ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}"
                                  ItemContainerStyle="{StaticResource SectionItem}" Background="Transparent" BorderThickness="0" Padding="0"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyboardNavigation.TabNavigation="Once"
@@ -218,10 +215,7 @@
                     <DockPanel DockPanel.Dock="Top" Margin="32,22,20,8">
                         <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconClose}"
                                 FontSize="11" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar" VerticalAlignment="Top" />
-                        <StackPanel>
-                            <TextBlock Text="{Binding SelectedSection.Label}" Style="{StaticResource H2}" FontSize="21" />
-                            <TextBlock Text="{Binding SelectedSection.Description}" Style="{StaticResource Hint}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                        </StackPanel>
+                        <TextBlock Text="{Binding SelectedSection.Label}" Style="{StaticResource H2}" FontSize="21" VerticalAlignment="Center" />
                     </DockPanel>
 
                     <!-- Pie -->
@@ -246,9 +240,6 @@
                                         <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                                     </ListBox.ItemsPanel>
                                 </ListBox>
-                                <TextBlock Text="{Binding SystemMemoryText}" Style="{StaticResource Hint}" Margin="0,2,0,0" TextWrapping="Wrap" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                           Text="Cada instancia puede usar la suya (Editar instancia) y los servidores pueden recomendar otra." />
 
                                 <TextBlock Text="Java" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
                                 <DockPanel>
@@ -261,8 +252,6 @@
                                 <TextBlock Text="Argumentos de Java" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
                                 <TextBox Style="{StaticResource GlassTextBox}" Tag="Ninguno (p. ej. -XX:+UseG1GC)"
                                          Text="{Binding JavaArgs, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Argumentos de Java" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Solo para usuarios avanzados. La memoria se elige arriba: -Xmx y -Xms aquí se ignoran." />
 
                                 <Button Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="0,22,0,0"
                                         Content="Restablecer valores recomendados" Command="{Binding ResetGameCommand}" />
@@ -285,16 +274,10 @@
                                     <TextBox Style="{StaticResource GlassTextBox}" Width="120" Tag="Alto"
                                              Text="{Binding GameHeight, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Alto de la ventana" />
                                 </StackPanel>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Vacío = el tamaño de Minecraft. Se aplica al abrir el juego; después puedes cambiarlo arrastrando." />
 
                                 <Border Style="{StaticResource GroupedList}" Padding="16,14" Margin="0,24,0,0">
                                     <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding Fullscreen}" AutomationProperties.Name="Pantalla completa">
-                                        <StackPanel>
-                                            <TextBlock Text="Pantalla completa" Style="{StaticResource RowTitle}" />
-                                            <TextBlock Text="El juego se abre ocupando toda la pantalla (F11 la quita dentro del juego)." Style="{StaticResource Hint}"
-                                                       Margin="0,2,0,0" TextWrapping="Wrap" />
-                                        </StackPanel>
+                                        <TextBlock Text="Pantalla completa" Style="{StaticResource RowTitle}" />
                                     </CheckBox>
                                 </Border>
                             </StackPanel>
@@ -309,38 +292,33 @@
                                         <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                                     </ListBox.ItemsPanel>
                                 </ListBox>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,0" TextWrapping="Wrap"
-                                           Text="El cristal, el fondo y la aurora toman el tono del color elegido. Los colores de estado (correcto, aviso, error) no cambian." />
-
-                                <TextBlock Text="Tipo de fondo" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                                <TextBlock Text="Tipo de fondo" Style="{StaticResource FieldLabel}" Margin="0,12,0,8" />
                                 <StackPanel Orientation="Horizontal">
                                     <RadioButton Style="{StaticResource SegmentButton}" GroupName="ThemeMode" Content="Translúcido" Margin="0,0,6,0"
                                                  IsChecked="{Binding IsTranslucentBackground}" />
                                     <RadioButton Style="{StaticResource SegmentButton}" GroupName="ThemeMode" Content="Sólido"
                                                  IsChecked="{Binding SolidBackground}" />
                                 </StackPanel>
-                                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
-                                            <Setter Property="Text" Value="Cristal sobre la imagen de fondo, con su desenfoque." />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SolidBackground}" Value="True">
-                                                    <Setter Property="Text" Value="Superficies opacas, sin imagen ni transparencias (como VS Code o Modrinth). También es el más ligero." />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
 
-                                <TextBlock Text="Color de acento propio" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
-                                <DockPanel>
-                                    <Border DockPanel.Dock="Left" Width="38" Height="38" CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0"
-                                            Background="{Binding AccentPreview}" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" />
-                                    <TextBox Style="{StaticResource GlassTextBox}" Width="220" HorizontalAlignment="Left" Tag="Ej.: #E91E63"
-                                             Text="{Binding CustomAccent, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Color de acento propio" />
-                                </DockPanel>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Un color hexadecimal para botones, selección y JUGAR. Vacío = el del tema elegido." />
+                                <TextBlock Text="Color propio" Style="{StaticResource FieldLabel}" Margin="0,22,0,10" />
+                                <StackPanel Orientation="Horizontal">
+                                    <c:ColorWheel Width="170" Height="170" Hue="{Binding AccentHue}" Saturation="{Binding AccentSaturation}"
+                                                  Brightness="{Binding AccentBrightness}" AutomationProperties.Name="Color propio" />
+                                    <StackPanel Margin="24,0,0,0" VerticalAlignment="Center" Width="220">
+                                        <Border Width="56" Height="56" CornerRadius="{StaticResource RadiusGroup}" HorizontalAlignment="Left"
+                                                Background="{Binding AccentPreview}" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" />
+                                        <DockPanel Margin="0,16,0,0">
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding AccentBrightness, StringFormat={}{0:P0}}" Foreground="{StaticResource Ink2}" />
+                                            <TextBlock Text="Brillo" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        </DockPanel>
+                                        <Slider Style="{StaticResource GlassSlider}" Minimum="{Binding MinAccentBrightness}" Maximum="1"
+                                                Value="{Binding AccentBrightness}" SmallChange="0.05" LargeChange="0.1"
+                                                AutomationProperties.Name="Brillo del color propio" />
+                                        <Button Style="{StaticResource QuietButton}" Content="Usar el del tema" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                                Command="{Binding ClearCustomAccentCommand}"
+                                                Visibility="{Binding HasCustomAccent, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+                                </StackPanel>
 
                                 <StackPanel Visibility="{Binding IsTranslucentBackground, Converter={StaticResource BoolToVisibility}}">
                                 <DockPanel Margin="0,22,0,4">
@@ -350,8 +328,6 @@
                                 <Slider Style="{StaticResource GlassSlider}" Minimum="{Binding MinGlassPercent}" Maximum="{Binding MaxGlassPercent}"
                                         Value="{Binding GlassPercent}" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10"
                                         AutomationProperties.Name="Opacidad del cristal" />
-                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
-                                           Text="Menos = se ve más el fondo a través del cristal. 100 % = el diseño original." />
 
                                 <Border Style="{StaticResource GroupedList}" Padding="16,12" Margin="0,22,0,0">
                                     <DockPanel>
@@ -385,17 +361,11 @@
                                     <RadioButton Style="{StaticResource SegmentButton}" GroupName="OnPlay" Content="Ocultar"
                                                  IsChecked="{Binding OnPlayHide}" />
                                 </StackPanel>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="Cuando el juego se abre. Al cerrarlo, el launcher vuelve a aparecer. Los servidores del hosting siguen en marcha." />
 
                                 <Border Style="{StaticResource GroupedList}" Padding="16,14" Margin="0,24,0,0">
                                     <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OpenLogOnCrash}"
                                               AutomationProperties.Name="Abrir el registro si el juego falla">
-                                        <StackPanel>
-                                            <TextBlock Text="Abrir el registro si el juego falla" Style="{StaticResource RowTitle}" />
-                                            <TextBlock Text="Si Minecraft se cierra con un error, se abre su registro para ver qué pasó." Style="{StaticResource Hint}"
-                                                       Margin="0,2,0,0" TextWrapping="Wrap" />
-                                        </StackPanel>
+                                        <TextBlock Text="Abrir el registro si el juego falla" Style="{StaticResource RowTitle}" />
                                     </CheckBox>
                                 </Border>
                             </StackPanel>
@@ -416,8 +386,6 @@
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Carpeta de datos" Style="{StaticResource RowTitle}" />
                                                     <TextBlock Text="{Binding DataDir}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                                    <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
-                                                               Text="instances: una carpeta por instancia · meta: versiones, librerías, assets y Java compartidos" />
                                                 </StackPanel>
                                             </DockPanel>
                                         </Border>
@@ -442,7 +410,6 @@
                                                         Command="{Binding OpenGameLogCommand}" VerticalAlignment="Center" AutomationProperties.Name="Ver registro de la última partida" />
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Registro de la última partida" Style="{StaticResource RowTitle}" />
-                                                    <TextBlock Text="Lo que escribió Minecraft: útil si el juego se cierra solo." Style="{StaticResource Hint}" Margin="0,3,0,0" />
                                                 </StackPanel>
                                             </DockPanel>
                                         </Border>
@@ -469,8 +436,6 @@
                                         </Border>
                                     </StackPanel>
                                 </Border>
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0" TextWrapping="Wrap"
-                                           Text="Si algo falla, los registros (sección Almacenamiento) ayudan a encontrar el motivo." />
 
                                 <TextBlock Text="Servicios" Style="{StaticResource FieldLabel}" Margin="0,26,0,8" />
                                 <Border Style="{StaticResource GroupedList}">

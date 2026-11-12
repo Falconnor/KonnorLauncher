@@ -33,7 +33,7 @@ public enum OptionsSection
 }
 
 /// <summary>Entrada de la barra lateral de Opciones.</summary>
-public sealed record OptionsSectionItem(OptionsSection Section, string Label, string Icon, string Description);
+public sealed record OptionsSectionItem(OptionsSection Section, string Label, string Icon);
 
 /// <summary>Acreditación de un tercero (Acerca de): qué aporta, su licencia (vacía en servicios) y su página.</summary>
 public sealed record Credit(string Name, string Role, string License, string Url);
@@ -96,12 +96,12 @@ public sealed partial class OptionsViewModel : ObservableObject
 
     public IReadOnlyList<OptionsSectionItem> Sections { get; } =
     [
-        new(OptionsSection.Game, "Juego", "", "Memoria y Java con los que se abre Minecraft en todas las instancias."),
-        new(OptionsSection.Window, "Ventana", "", "Cómo se abre la ventana del juego."),
-        new(OptionsSection.Theme, "Tema", "", "Colores, cristal e imagen de fondo del launcher. Los cambios se ven al momento."),
-        new(OptionsSection.Launcher, "Launcher", "", "Qué hace el launcher mientras juegas."),
-        new(OptionsSection.Storage, "Almacenamiento", "", "Dónde se guardan las instancias, los archivos compartidos y los registros."),
-        new(OptionsSection.About, "Acerca de", "", "Versión del launcher y del sistema."),
+        new(OptionsSection.Game, "Juego", ""),
+        new(OptionsSection.Window, "Ventana", ""),
+        new(OptionsSection.Theme, "Tema", ""),
+        new(OptionsSection.Launcher, "Launcher", ""),
+        new(OptionsSection.Storage, "Almacenamiento", ""),
+        new(OptionsSection.About, "Acerca de", ""),
     ];
 
     public ObservableCollection<RamOption> RamOptions { get; } = [];
@@ -158,6 +158,73 @@ public sealed partial class OptionsViewModel : ObservableObject
     /// <summary>Muestra del acento efectivo (el propio si es válido; si no, el del tema).</summary>
     public Brush AccentPreview => ThemePresetItem.Brush(ThemeEngine.AccentOf(DraftTheme));
 
+    /// <summary>Hay un tono propio elegido en la rueda (si no, se usa el color del tema).</summary>
+    public bool HasCustomAccent => Argb.TryParse(CustomAccent, out _);
+
+    // Rueda de color: tono, saturación y brillo del acento. Se guardan aparte del color (#RRGGBB) para que el selector
+    // no salte al redondear (con saturación 0 el tono no se puede recuperar del color).
+    private double _accentHue;
+    private double _accentSaturation = 1;
+    private double _accentBrightness = 1;
+    private bool _settingFromWheel;
+
+    public double MinAccentBrightness => ThemeEngine.MinCustomBrightness;
+
+    public double AccentHue
+    {
+        get => _accentHue;
+        set => SetWheel(value, _accentSaturation, _accentBrightness);
+    }
+
+    public double AccentSaturation
+    {
+        get => _accentSaturation;
+        set => SetWheel(_accentHue, value, _accentBrightness);
+    }
+
+    public double AccentBrightness
+    {
+        get => _accentBrightness;
+        set => SetWheel(_accentHue, _accentSaturation, value);
+    }
+
+    /// <summary>Mover la rueda o el brillo elige un color propio.</summary>
+    private void SetWheel(double hue, double saturation, double brightness)
+    {
+        _accentHue = hue;
+        _accentSaturation = Math.Clamp(saturation, 0, 1);
+        _accentBrightness = Math.Clamp(brightness, ThemeEngine.MinCustomBrightness, 1);
+        _settingFromWheel = true;
+        try
+        {
+            CustomAccent = Argb.FromHsv(_accentHue, _accentSaturation, _accentBrightness).ToString();
+        }
+        finally
+        {
+            _settingFromWheel = false;
+        }
+
+        NotifyWheel();
+    }
+
+    /// <summary>La rueda se coloca en el acento efectivo (al abrir, al elegir un tema o al quitar el color propio).</summary>
+    private void SyncWheel()
+    {
+        var (h, s, v) = ThemeEngine.AccentOf(DraftTheme).ToHsv();
+        if (s > 0.001)
+            _accentHue = h;
+        _accentSaturation = s;
+        _accentBrightness = Math.Max(v, ThemeEngine.MinCustomBrightness);
+        NotifyWheel();
+    }
+
+    private void NotifyWheel()
+    {
+        OnPropertyChanged(nameof(AccentHue));
+        OnPropertyChanged(nameof(AccentSaturation));
+        OnPropertyChanged(nameof(AccentBrightness));
+    }
+
     public bool HasCustomBackground => BackgroundPath is not null;
 
     public string BackgroundName => BackgroundPath is { } path ? Path.GetFileName(path) : "La del launcher";
@@ -172,13 +239,21 @@ public sealed partial class OptionsViewModel : ObservableObject
 
     partial void OnSelectedThemePresetChanged(ThemePresetItem? value)
     {
-        // Elegir un tema de serie quita el acento propio: si no, el tema no se notaría.
+        // Elegir un tema de serie quita el tono propio: si no, el tema no se notaría.
         if (!_loadingTheme && value is not null)
             CustomAccent = string.Empty;
+        if (!_loadingTheme)
+            SyncWheel();
         PreviewTheme();
     }
 
-    partial void OnCustomAccentChanged(string value) => PreviewTheme();
+    partial void OnCustomAccentChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasCustomAccent));
+        if (!_settingFromWheel && !_loadingTheme)
+            SyncWheel();
+        PreviewTheme();
+    }
     partial void OnGlassPercentChanged(int value) => PreviewTheme();
     partial void OnSolidBackgroundChanged(bool value) => PreviewTheme();
 
@@ -207,8 +282,6 @@ public sealed partial class OptionsViewModel : ObservableObject
     public string DataDir => LauncherPaths.DataDir;
 
     public string LogsDir => LauncherPaths.LogsDir;
-
-    public string SystemMemoryText => $"Este equipo tiene {SystemMemory.Format(SystemMemory.TotalMb)} de memoria. Deja al menos 2 GB libres para Windows.";
 
     public string LauncherVersion =>
         typeof(OptionsViewModel).Assembly.GetName().Version?.ToString(3) ?? "?";
@@ -411,8 +484,13 @@ public sealed partial class OptionsViewModel : ObservableObject
         BackgroundPath = theme.BackgroundPath;
         SolidBackground = theme.Solid;
         _loadingTheme = false;
+        SyncWheel();
         PreviewTheme();
     }
+
+    /// <summary>"Usar el del tema": quita el tono propio.</summary>
+    [RelayCommand]
+    private void ClearCustomAccent() => CustomAccent = string.Empty;
 
     /// <summary>Vuelve al tema del diseño (sin guardar todavía).</summary>
     [RelayCommand]

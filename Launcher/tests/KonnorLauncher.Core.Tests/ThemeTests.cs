@@ -38,6 +38,28 @@ public class ThemeTests
         Argb.FromHsl(h, s, l).ShouldBe(color);
     }
 
+    [Theory]
+    [InlineData("#3478F6")]
+    [InlineData("#FF4DB8")]
+    [InlineData("#2DD4BF")]
+    [InlineData("#FFFFFF")]
+    [InlineData("#595959")]
+    public void Hsv_round_trips(string hex)
+    {
+        var color = Argb.Parse(hex);
+        var (h, s, v) = color.ToHsv();
+        Argb.FromHsv(h, s, v).ShouldBe(color);
+    }
+
+    [Fact]
+    public void The_color_wheel_goes_from_white_in_the_centre_to_vivid_at_the_edge()
+    {
+        Argb.FromHsv(330, 0, 1).ToString().ShouldBe("#FFFFFF");     // centro
+        Argb.FromHsv(0, 1, 1).ToString().ShouldBe("#FF0000");       // borde, tono 0
+        Argb.FromHsv(120, 1, 1).ToString().ShouldBe("#00FF00");
+        Argb.FromHsv(330, 0.5, 1).ToHsv().S.ShouldBe(0.5, 0.01);   // a medio camino: tono suave
+    }
+
     [Fact]
     public void The_default_theme_is_the_original_design()
     {
