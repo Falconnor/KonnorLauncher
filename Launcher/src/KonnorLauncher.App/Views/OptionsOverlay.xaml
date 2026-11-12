@@ -442,11 +442,6 @@
                                     <ItemsControl ItemsSource="{Binding ServiceCredits}" ItemTemplate="{StaticResource CreditRow}" Focusable="False" />
                                 </Border>
 
-                                <TextBlock Text="Librerías de código abierto" Style="{StaticResource FieldLabel}" Margin="0,26,0,8" />
-                                <Border Style="{StaticResource GroupedList}">
-                                    <ItemsControl ItemsSource="{Binding LibraryCredits}" ItemTemplate="{StaticResource CreditRow}" Focusable="False" />
-                                </Border>
-
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,0" TextWrapping="Wrap"
                                            Text="NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG O MICROSOFT. Minecraft es una marca de Mojang AB. Los demás nombres pertenecen a sus respectivos dueños." />
                             </StackPanel>

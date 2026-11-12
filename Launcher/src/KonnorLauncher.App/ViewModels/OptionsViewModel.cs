@@ -291,29 +291,9 @@ public sealed partial class OptionsViewModel : ObservableObject
     [
         new("Minecraft (Mojang Studios)", "El juego: versiones, librerías, recursos, Java y texturas de las skins", "", "https://www.minecraft.net"),
         new("Modrinth", "Mods, modpacks, paquetes de recursos, shaders y lista de servidores", "", "https://modrinth.com"),
-        new("Fabric", "Cargador de mods Fabric", "", "https://fabricmc.net"),
-        new("Quilt", "Cargador de mods Quilt", "", "https://quiltmc.org"),
-        new("Minecraft Forge", "Cargador de mods Forge", "", "https://minecraftforge.net"),
-        new("NeoForge", "Cargador de mods NeoForge", "", "https://neoforged.net"),
-        new("PaperMC", "Servidores Paper del hosting", "", "https://papermc.io"),
         new("MineSkin", "Firma de las skins para que se vean en los servidores", "", "https://mineskin.org"),
-        new("mcstatus.io", "Estado y jugadores conectados de los servidores", "", "https://mcstatus.io"),
-        new("ipify", "Dirección IP pública del hosting", "", "https://www.ipify.org"),
     ];
 
-    /// <summary>Librerías de código abierto incluidas en el launcher (licencias de sus paquetes NuGet).</summary>
-    public IReadOnlyList<Credit> LibraryCredits { get; } =
-    [
-        new("CmlLib.Core", "Instalación y lanzamiento de Minecraft · AlphaBs", "MIT", "https://github.com/CmlLib/CmlLib.Core"),
-        new("CmlLib.Core.Installer.Forge", "Instalación de Forge y NeoForge · CmlLib", "MIT", "https://github.com/CmlLib/CmlLib.Core.Installer.Forge"),
-        new("fNbt", "Lectura de archivos NBT (servers.dat) · Erik Davidson, Matvei Stefarov", "BSD-3-Clause", "https://github.com/mstefarov/fNbt"),
-        new("Markdig", "Descripciones en Markdown · Alexandre Mutel", "BSD-2-Clause", "https://github.com/xoofx/markdig"),
-        new("SkiaSharp", "Imágenes y vista de las skins · Microsoft", "MIT", "https://github.com/mono/SkiaSharp"),
-        new("WebView2", "Páginas web dentro del launcher · Microsoft", "Licencia de Microsoft", "https://aka.ms/webview"),
-        new("CommunityToolkit.Mvvm", "Estructura de la interfaz · .NET Foundation", "MIT", "https://github.com/CommunityToolkit/dotnet"),
-        new("Serilog", "Registros del launcher · Serilog Contributors", "Apache-2.0", "https://github.com/serilog/serilog"),
-        new(".NET y Microsoft.Extensions", "Plataforma, servidor web del hosting y conexiones · Microsoft", "MIT", "https://github.com/dotnet/runtime"),
-    ];
 
     public string RuntimeText => $".NET {Environment.Version} · {System.Runtime.InteropServices.RuntimeInformation.OSDescription}";
 
@@ -608,7 +588,7 @@ public sealed partial class OptionsViewModel : ObservableObject
     [RelayCommand]
     private void OpenCredit(Credit? credit)
     {
-        if (credit is null || !ServiceCredits.Concat(LibraryCredits).Contains(credit)
+        if (credit is null || !ServiceCredits.Contains(credit)
             || !Uri.TryCreate(credit.Url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
             return;
         try
