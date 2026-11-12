@@ -69,40 +69,69 @@ public sealed class InstanceSync
 
         string? announced = null;
         ManifestGame? game = null;
-        var verifier = new ClientVerifier(_httpFactory.CreateClient(HttpClientName), _loggerFactory.CreateLogger<ClientVerifier>())
+        VerificationResult? result = null;
+        FetchedPolicy? fetched = null;
+        // Dos intentos: si el servidor regeneró el manifest entre la política y la descarga, el hash no coincide.
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            // No cuenta como instalada hasta que los archivos se hayan descargado (ver más abajo).
-            ClientVersionReceived = v => announced = v,
-            // Política del servidor: se recuerda en la instancia para cuando no responda.
-            ManifestReceived = m =>
+            // 1. Las reglas del servidor, firmadas: deciden qué manifest se acepta.
+            fetched = await FetchPolicyAsync(instance, ct).ConfigureAwait(false);
+            switch (fetched.Result)
             {
-                game = m.Game;
-                instance.ServerAlwaysOnline = m.AlwaysOnline ?? true;
-                instance.ServerLocksUrl = m.LockServerUrl ?? true;
-                instance.ServerAutoJoin = m.AutoJoinAddress;
-                instance.ServerMemoryMb = m.RecommendedMemoryMb;
-                ApplyPacksPolicy(instance, m);
-                if (m.Released == true)
-                    instance.ServerReleased = true; // irreversible: un manifest posterior no la revierte
-            },
-            // Solo para descargar: lo comprobado sigue siendo el SHA-256 del manifest.
-            MirrorLookup = _modrinth is null ? null : (hashes, token) => _modrinth.FindFilesBySha512Async(hashes, token),
-        };
-        var result = await verifier.VerifyAsync(new VerifierOptions
-        {
-            GameDir = layout.GameDir,
-            ServerUrl = instance.ServerUrl,
-            EnableVerify = true,
-            // Lo decide el servidor (delete_unauthorized en el manifest). Si un servidor antiguo no
-            // lo publica, se limpia: una instancia sincronizada debe tener exactamente su contenido.
-            DeleteUnauthorized = true,
-            InstallPacks = instance.InstallPacks,
-        }, progress, ct).ConfigureAwait(false);
+                case PolicyFetch.Unreachable:
+                    return InstanceSyncResult.Fail("El servidor no responde. Comprueba la dirección y que esté en marcha.", serverUnreachable: true);
+                case PolicyFetch.Rejected:
+                    return InstanceSyncResult.Fail(fetched.Reason ?? "El servidor no se pudo identificar.");
+                case PolicyFetch.NotSupported when instance.ServerKey is not null:
+                    // Ya firmó antes: no se acepta que de repente deje de hacerlo (otro servidor en su dirección).
+                    return InstanceSyncResult.Fail("El servidor ya no firma sus reglas: no es el servidor con el que se vinculó esta instancia.");
+            }
 
-        if (!result.Success)
-            return result.Status == VerificationException.ServerNotResponding
-                ? InstanceSyncResult.Fail("El servidor no responde. Comprueba la dirección y que esté en marcha.", serverUnreachable: true)
-                : InstanceSyncResult.Fail("No se pudieron descargar los archivos del servidor.");
+            var legacy = fetched.Result == PolicyFetch.NotSupported;
+            var verifier = new ClientVerifier(_httpFactory.CreateClient(HttpClientName), _loggerFactory.CreateLogger<ClientVerifier>())
+            {
+                // No cuenta como instalada hasta que los archivos se hayan descargado (ver más abajo).
+                ClientVersionReceived = v => announced = v,
+                ManifestReceived = m =>
+                {
+                    game = m.Game;
+                    // Servidor que no firma (y con el que la instancia nunca se vinculó con firma): sus reglas, del
+                    // manifest y solo mientras el launcher esté abierto (no se guardan).
+                    if (legacy)
+                        ApplyManifestPolicy(instance, m);
+                },
+                // Solo para descargar: lo comprobado sigue siendo el SHA-256 del manifest.
+                MirrorLookup = _modrinth is null ? null : (hashes, token) => _modrinth.FindFilesBySha512Async(hashes, token),
+            };
+            result = await verifier.VerifyAsync(new VerifierOptions
+            {
+                GameDir = layout.GameDir,
+                ServerUrl = instance.ServerUrl,
+                EnableVerify = true,
+                // Lo decide el servidor (delete_unauthorized en el manifest). Si un servidor antiguo no
+                // lo publica, se limpia: una instancia sincronizada debe tener exactamente su contenido.
+                DeleteUnauthorized = true,
+                InstallPacks = instance.InstallPacks,
+                ExpectedManifestSha256 = fetched.Policy?.ManifestSha256,
+            }, progress, ct).ConfigureAwait(false);
+            if (result.Status != VerificationException.ManifestMismatch)
+                break;
+            _logger.LogWarning("El manifest de {Id} no coincide con su política firmada (intento {Attempt})", instance.Id, attempt + 1);
+        }
+
+        if (!result!.Success)
+            return result.Status switch
+            {
+                VerificationException.ServerNotResponding =>
+                    InstanceSyncResult.Fail("El servidor no responde. Comprueba la dirección y que esté en marcha.", serverUnreachable: true),
+                VerificationException.ManifestMismatch =>
+                    InstanceSyncResult.Fail("La lista de archivos recibida no es la que firmó el servidor: no se instala nada. Inténtalo de nuevo."),
+                _ => InstanceSyncResult.Fail("No se pudieron descargar los archivos del servidor."),
+            };
+
+        // Reglas firmadas: pasan a ser la «última sesión» de la instancia (fija la clave la primera vez).
+        if (fetched is { Result: PolicyFetch.Ok, Signed: { } signed, Policy: { } policy })
+            instance.AcceptSession(signed, policy, DateTimeOffset.Now);
 
         // Archivos al día: la versión anunciada pasa a ser la instalada.
         if (announced is not null)
@@ -146,12 +175,33 @@ public sealed class InstanceSync
     }
 
     /// <summary>
-    /// Consulta rápida del manifest (sin descargar archivos) y aplica a la instancia la política del
-    /// servidor y la versión que anuncia (<see cref="GameInstance.AvailableClientVersion"/>; la
-    /// instalada no cambia). Así el editor sabe al momento si el servidor la liberó y la lista, si hay
-    /// una actualización. false si el servidor no responde.
+    /// Consulta rápida de las reglas del servidor (sin descargar archivos ni el manifest): la política firmada
+    /// (<see cref="ServerPolicyCrypto.Endpoint"/>), que pasa a ser la última sesión de la instancia, con la versión que
+    /// anuncia (<see cref="GameInstance.AvailableClientVersion"/>; la instalada no cambia). Así el editor sabe al
+    /// momento si el servidor la liberó y la lista, si hay una actualización. Un servidor que no firma (y con el que
+    /// la instancia nunca se vinculó con firma) se consulta como antes, por su manifest. false si el servidor no
+    /// responde o no se identifica.
     /// </summary>
     public async Task<bool> RefreshPolicyAsync(GameInstance instance, CancellationToken ct = default)
+    {
+        var fetched = await FetchPolicyAsync(instance, ct).ConfigureAwait(false);
+        switch (fetched.Result)
+        {
+            case PolicyFetch.Ok:
+                instance.AcceptSession(fetched.Signed!, fetched.Policy!, DateTimeOffset.Now);
+                return true;
+            case PolicyFetch.NotSupported when instance.ServerKey is null:
+                return await RefreshFromManifestAsync(instance, ct).ConfigureAwait(false);
+            case PolicyFetch.Rejected:
+                _logger.LogWarning("La política del servidor de {Id} se rechazó: {Reason}", instance.Id, fetched.Reason);
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Servidor que no firma: sus reglas, del manifest (solo para esta sesión del launcher).</summary>
+    private async Task<bool> RefreshFromManifestAsync(GameInstance instance, CancellationToken ct)
     {
         try
         {
@@ -162,13 +212,7 @@ public sealed class InstanceSync
             var manifest = ManifestParser.Parse(json);
             if (!string.IsNullOrWhiteSpace(manifest.ClientVersion))
                 instance.AvailableClientVersion = manifest.ClientVersion;
-            instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
-            instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
-            instance.ServerAutoJoin = manifest.AutoJoinAddress;
-            instance.ServerMemoryMb = manifest.RecommendedMemoryMb;
-            ApplyPacksPolicy(instance, manifest);
-            if (manifest.Released == true)
-                instance.ServerReleased = true;
+            ApplyManifestPolicy(instance, manifest);
             return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or VerificationException or InvalidOperationException
@@ -179,8 +223,64 @@ public sealed class InstanceSync
         }
     }
 
+    /// <summary>Cómo terminó la consulta de la política firmada.</summary>
+    private enum PolicyFetch
+    {
+        /// <summary>Firmada, de la clave fijada (o la primera) y vigente.</summary>
+        Ok,
+
+        /// <summary>El servidor no tiene el servicio (no firma: versión anterior o LauncherBackEnd).</summary>
+        NotSupported,
+
+        Unreachable,
+
+        /// <summary>Respondió, pero la firma no vale, es de otra clave o ya caducó.</summary>
+        Rejected,
+    }
+
+    private sealed record FetchedPolicy(PolicyFetch Result, SignedServerPolicy? Signed = null, ServerPolicy? Policy = null, string? Reason = null);
+
+    /// <summary>Pide la política firmada (3 s como máximo) y la comprueba con la clave fijada en la instancia.</summary>
+    private async Task<FetchedPolicy> FetchPolicyAsync(GameInstance instance, CancellationToken ct)
+    {
+        string json;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            var url = instance.ServerUrl.Trim().TrimEnd('/') + ServerPolicyCrypto.Endpoint;
+            using var response = await _httpFactory.CreateClient(HttpClientName).GetAsync(url, timeout.Token).ConfigureAwait(false);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return new FetchedPolicy(PolicyFetch.NotSupported);
+            if (!response.IsSuccessStatusCode)
+                return new FetchedPolicy(PolicyFetch.Unreachable);
+            json = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or InvalidOperationException or UriFormatException)
+        {
+            _logger.LogInformation("No se pudo consultar la política del servidor de {Id}: {Message}", instance.Id, ex.Message);
+            return new FetchedPolicy(PolicyFetch.Unreachable);
+        }
+
+        var signed = ServerPolicyCrypto.Deserialize(json);
+        var check = ServerPolicyCrypto.Verify(signed, instance.ServerKey, DateTimeOffset.Now);
+        return check switch
+        {
+            { Status: PolicyStatus.Valid, Policy: { } policy } => new FetchedPolicy(PolicyFetch.Ok, signed, policy),
+            { Status: PolicyStatus.KeyMismatch } => new FetchedPolicy(PolicyFetch.Rejected, Reason:
+                "La identidad del servidor no coincide con la de cuando se vinculó esta instancia: puede ser otro servidor en esa dirección."),
+            { Status: PolicyStatus.Expired } => new FetchedPolicy(PolicyFetch.Rejected, Reason:
+                "La respuesta del servidor está caducada: comprueba la fecha y la hora de este equipo."),
+            _ => new FetchedPolicy(PolicyFetch.Rejected, Reason: "La respuesta del servidor no tiene una firma válida."),
+        };
+    }
+
     /// <summary>
-    /// Al abrir el launcher: consulta el manifest de cada instancia sincronizada, a la vez, y guarda lo
+    /// Al abrir el launcher: consulta las reglas de cada instancia sincronizada, a la vez, y guarda lo
     /// que haya cambiado (política del servidor y versión anunciada). No descarga ningún archivo.
     /// Devuelve las instancias actualizadas, tal como quedan en disco.
     /// </summary>
@@ -218,9 +318,15 @@ public sealed class InstanceSync
         return updated;
     }
 
-    /// <summary>Lo que el servidor decide sobre la instancia y se consulta sin descargar archivos.</summary>
+    /// <summary>
+    /// Lo que el servidor decide sobre la instancia y se consulta sin descargar archivos: la sesión firmada (y la
+    /// clave, la primera vez) y las reglas ya aplicadas.
+    /// </summary>
     public static void CopyPolicy(GameInstance from, GameInstance to)
     {
+        to.ServerKey = from.ServerKey;
+        to.ServerSession = from.ServerSession;
+        to.ServerReleaseProof = from.ServerReleaseProof;
         to.ServerAlwaysOnline = from.ServerAlwaysOnline;
         to.ServerLocksUrl = from.ServerLocksUrl;
         to.ServerReleased |= from.ServerReleased; // irreversible
@@ -229,27 +335,46 @@ public sealed class InstanceSync
         to.ServerMemoryMb = from.ServerMemoryMb;
         to.InstallPacks |= from.ServerProtectsPacks;
         to.AvailableClientVersion = from.AvailableClientVersion;
+        if (to.ServerKey is not null)
+            to.ApplySession(DateTimeOffset.Now);
     }
 
+    /// <summary>
+    /// Si hay algo que guardar: solo lo que se persiste. Las reglas aplicadas (ServerAlwaysOnline…) no se guardan
+    /// —salen de la sesión firmada al cargar—, así que con un servidor que no firma diferirían en cada consulta
+    /// sin que hubiera nada nuevo que escribir.
+    /// </summary>
     public static bool PolicyDiffers(GameInstance a, GameInstance b) =>
+        a.ServerKey != b.ServerKey
+        || a.ServerSession?.Signature != b.ServerSession?.Signature
+        || a.ServerReleaseProof?.Signature != b.ServerReleaseProof?.Signature
+        || a.InstallPacks != b.InstallPacks
+        || a.AvailableClientVersion != b.AvailableClientVersion;
+
+    /// <summary>Si cambian las reglas aplicadas en memoria (para refrescar un formulario abierto).</summary>
+    public static bool RulesDiffer(GameInstance a, GameInstance b) =>
         a.ServerAlwaysOnline != b.ServerAlwaysOnline
         || a.ServerLocksUrl != b.ServerLocksUrl
         || a.ServerReleased != b.ServerReleased
         || a.ServerProtectsPacks != b.ServerProtectsPacks
         || a.ServerAutoJoin != b.ServerAutoJoin
-        || a.ServerMemoryMb != b.ServerMemoryMb
-        || a.InstallPacks != b.InstallPacks
-        || a.AvailableClientVersion != b.AvailableClientVersion;
+        || a.ServerMemoryMb != b.ServerMemoryMb;
 
     /// <summary>
-    /// <c>protect_packs</c>: si el servidor obliga a instalar sus packs, la casilla queda marcada (y
-    /// sigue marcada si después deja de obligar; el jugador puede desmarcarla entonces).
+    /// Reglas de un servidor que no firma, leídas de su manifest. <c>protect_packs</c>: si el servidor obliga a
+    /// instalar sus packs, la casilla queda marcada (y sigue marcada si después deja de obligar).
     /// </summary>
-    private static void ApplyPacksPolicy(GameInstance instance, ClientManifest manifest)
+    private static void ApplyManifestPolicy(GameInstance instance, ClientManifest manifest)
     {
+        instance.ServerAlwaysOnline = manifest.AlwaysOnline ?? true;
+        instance.ServerLocksUrl = manifest.LockServerUrl ?? true;
+        instance.ServerAutoJoin = manifest.AutoJoinAddress;
+        instance.ServerMemoryMb = manifest.RecommendedMemoryMb;
         instance.ServerProtectsPacks = manifest.ProtectPacks == true;
         if (instance.ServerProtectsPacks)
             instance.InstallPacks = true;
+        if (manifest.Released == true)
+            instance.ServerReleased = true;
     }
 
     /// <summary>

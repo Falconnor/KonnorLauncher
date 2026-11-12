@@ -12,8 +12,8 @@
     <UserControl.Resources>
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
 
-        <!-- RAM: opciones como botones de segmento -->
-        <Style x:Key="RamItem" TargetType="ListBoxItem">
+        <!-- Chips (RAM, tamaño de ventana): opciones como botones de segmento -->
+        <Style x:Key="ChipItem" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{StaticResource Ink2}" />
             <Setter Property="FontSize" Value="13.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -42,69 +42,431 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Tarjeta de tema: miniatura del launcher con sus colores; marcada = borde del acento -->
+        <Style x:Key="ThemeCard" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingRow}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Name, StringFormat=Tema {0}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <StackPanel Width="112">
+                            <Border x:Name="Frame" CornerRadius="11" BorderThickness="2" BorderBrush="Transparent" Padding="2">
+                                <Border CornerRadius="9" Height="64" Background="{Binding Window}" ClipToBounds="True">
+                                    <Grid>
+                                        <Border Background="{Binding Glass}" CornerRadius="9" />
+                                        <!-- Barra lateral con una fila marcada -->
+                                        <Border Width="30" HorizontalAlignment="Left" Background="#26000000" CornerRadius="9,0,0,9">
+                                            <StackPanel Margin="5,9,5,0">
+                                                <Border Height="5" CornerRadius="2.5" Background="{Binding Accent}" />
+                                                <Border Height="5" CornerRadius="2.5" Background="#26FFFFFF" Margin="0,4,0,0" />
+                                                <Border Height="5" CornerRadius="2.5" Background="#26FFFFFF" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- Contenido y botón JUGAR -->
+                                        <StackPanel Margin="38,10,8,0">
+                                            <Border Height="6" Width="44" HorizontalAlignment="Left" CornerRadius="3" Background="#40FFFFFF" />
+                                            <Border Height="5" Width="58" HorizontalAlignment="Left" CornerRadius="2.5" Background="#1AFFFFFF" Margin="0,5,0,0" />
+                                        </StackPanel>
+                                        <Border Width="40" Height="12" CornerRadius="4" Background="{Binding Brand}"
+                                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,8" />
+                                    </Grid>
+                                </Border>
+                            </Border>
+                            <TextBlock Text="{Binding Name}" FontSize="13" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource HairlineStrong}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sección de la barra lateral: como los accesos de la barra del launcher (38 px, icono + texto 15) -->
+        <Style x:Key="SectionItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink2}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRingRow}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource RadiusRow}" Padding="10,0">
+                            <Grid>
+                                <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" Background="{StaticResource Accent}"
+                                        HorizontalAlignment="Left" Margin="-8,0,0,0" Opacity="0" />
+                                <StackPanel x:Name="Content" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+                                    <ContentPresenter />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowSelected}" />
+                                <Setter TargetName="Bar" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Content" Storyboard.TargetProperty="RenderTransform.X" To="4" Duration="0:0:0.22">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Content" Storyboard.TargetProperty="RenderTransform.X" To="0" Duration="0:0:0.22">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Fila de una lista agrupada con título, explicación y un control a la derecha -->
+        <Style x:Key="RowTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        </Style>
+
+        <!-- Fila de acreditación: nombre, qué aporta y licencia; al pulsarla se abre su página -->
+        <DataTemplate x:Key="CreditRow" DataType="{x:Type vm:Credit}">
+            <Border Style="{StaticResource GroupedItemRow}" MinHeight="54" Padding="0">
+                <Button Style="{StaticResource SidebarAction}" Height="Auto" Padding="16,9" FontSize="14"
+                        Command="{Binding DataContext.OpenCreditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}" ToolTip="{Binding Url}"
+                        AutomationProperties.Name="{Binding Name, StringFormat=Abrir la página de {0}}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="&#xE8A7;" Style="{StaticResource Icon}" FontSize="12"
+                                   Foreground="{StaticResource Ink3}" Margin="12,0,0,0" />
+                        <Border DockPanel.Dock="Right" Background="{StaticResource Surface}" CornerRadius="6" Padding="8,2" Margin="12,0,0,0"
+                                VerticalAlignment="Center" Visibility="{Binding License, Converter={StaticResource TextToVisibility}}">
+                            <TextBlock Text="{Binding License}" FontSize="12" Foreground="{StaticResource Ink2}" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" Style="{StaticResource RowTitle}" />
+                            <TextBlock Text="{Binding Role}" Style="{StaticResource Hint}" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DockPanel>
+                </Button>
+            </Border>
+        </DataTemplate>
+
     </UserControl.Resources>
 
     <Grid Background="{StaticResource ModalScrim}">
-        <c:GlassPanel Width="620" Height="652" Padding="0" Style="{StaticResource DialogGlass}" BlurRadius="40">
-            <DockPanel KeyboardNavigation.TabNavigation="Cycle">
-                <!-- Cabecera -->
-                <DockPanel DockPanel.Dock="Top" Margin="28,22,20,8">
-                    <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconClose}"
-                            FontSize="11" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar" />
-                    <StackPanel>
-                        <TextBlock Text="Opciones" Style="{StaticResource H2}" FontSize="21" />
-                        <TextBlock Text="Ajustes comunes a todas las instancias. El nombre y la skin están en tu cuenta (abajo a la izquierda)." Style="{StaticResource Hint}" Margin="0,4,0,0" />
-                    </StackPanel>
-                </DockPanel>
+        <c:GlassPanel Width="900" Height="640" Padding="0" Style="{StaticResource DialogGlass}" BlurRadius="40">
+            <Grid KeyboardNavigation.TabNavigation="Cycle">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="230" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-                <!-- Pie -->
-                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="28,12,28,22">
-                    <Button Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
-                    <Button Style="{StaticResource AccentButton}" Content="Guardar" Command="{Binding SaveCommand}" Padding="24,0" />
-                </StackPanel>
-
-                <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="28,8,14,0">
-                    <StackPanel Margin="0,0,14,8">
-                        <!-- RAM -->
-                        <TextBlock Text="Memoria para el juego" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
-                        <ListBox ItemsSource="{Binding RamOptions}" SelectedItem="{Binding SelectedRam}" DisplayMemberPath="Display"
-                                 ItemContainerStyle="{StaticResource RamItem}" Background="Transparent" BorderThickness="0" Padding="0"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Memoria para el juego">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                        </ListBox>
-
-                        <!-- Java -->
-                        <TextBlock Text="Java" Style="{StaticResource FieldLabel}" Margin="0,16,0,8" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Examinar" Margin="8,0,0,0"
-                                    Command="{Binding BrowseJavaCommand}" />
-                            <TextBox Style="{StaticResource GlassTextBox}" Tag="Automático: el Java correcto para cada versión (recomendado)"
-                                     Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" />
-                        </DockPanel>
-
-                        <!-- Carpeta de datos -->
-                        <Border Style="{StaticResource GroupedList}" Padding="16,14" Margin="0,24,0,0">
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Margin="12,0,0,0"
-                                        Command="{Binding OpenDataFolderCommand}" VerticalAlignment="Center">
+                <!-- ═══ Barra lateral de secciones ═══ -->
+                <Border Grid.Column="0" Background="{StaticResource SidebarShade}" CornerRadius="16,0,0,16"
+                        BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,1,0">
+                    <DockPanel Margin="14,24,14,18">
+                        <TextBlock DockPanel.Dock="Top" Text="Opciones" Style="{StaticResource H2}" FontSize="21" Margin="10,0,0,4" />
+                        <TextBlock DockPanel.Dock="Top" Text="Comunes a todas las instancias" Style="{StaticResource Hint}" Margin="10,0,0,22" />
+                        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="10,0,0,0" TextWrapping="Wrap"
+                                   Text="El nombre y la skin están en tu cuenta (abajo a la izquierda del launcher)." />
+                        <ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}"
+                                 ItemContainerStyle="{StaticResource SectionItem}" Background="Transparent" BorderThickness="0" Padding="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" KeyboardNavigation.TabNavigation="Once"
+                                 AutomationProperties.Name="Secciones de opciones">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OptionsSectionItem}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
-                                        <TextBlock Text="Abrir" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Icon}" Style="{StaticResource Icon}" Width="18" Margin="0,0,12,0" />
+                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
                                     </StackPanel>
-                                </Button>
-                                <StackPanel>
-                                    <TextBlock Text="Carpeta de datos" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding DataDir}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                    <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0"
-                                               Text="instances: una carpeta por instancia · meta: versiones, librerías, assets y Java compartidos" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- ═══ Sección seleccionada ═══ -->
+                <DockPanel Grid.Column="1">
+                    <!-- Cabecera -->
+                    <DockPanel DockPanel.Dock="Top" Margin="32,22,20,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconClose}"
+                                FontSize="11" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar" VerticalAlignment="Top" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding SelectedSection.Label}" Style="{StaticResource H2}" FontSize="21" />
+                            <TextBlock Text="{Binding SelectedSection.Description}" Style="{StaticResource Hint}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Pie -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="32,12,32,22">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+                            <Button Style="{StaticResource AccentButton}" Content="Guardar" Command="{Binding SaveCommand}" Padding="24,0" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Error}" Foreground="{StaticResource Danger}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   Margin="0,0,16,0" Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
+                    </DockPanel>
+
+                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Margin="32,8,18,0">
+                        <Grid Margin="0,0,14,8">
+                            <!-- ── Juego ── -->
+                            <StackPanel Visibility="{Binding IsGameSection, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Memoria para el juego" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
+                                <ListBox ItemsSource="{Binding RamOptions}" SelectedItem="{Binding SelectedRam}" DisplayMemberPath="Display"
+                                         ItemContainerStyle="{StaticResource ChipItem}" Background="Transparent" BorderThickness="0" Padding="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Memoria para el juego">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+                                <TextBlock Text="{Binding SystemMemoryText}" Style="{StaticResource Hint}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text="Cada instancia puede usar la suya (Editar instancia) y los servidores pueden recomendar otra." />
+
+                                <TextBlock Text="Java" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Examinar" Margin="8,0,0,0"
+                                            Command="{Binding BrowseJavaCommand}" />
+                                    <TextBox Style="{StaticResource GlassTextBox}" Tag="Automático: el Java correcto para cada versión (recomendado)"
+                                             Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Ruta de Java" />
+                                </DockPanel>
+
+                                <TextBlock Text="Argumentos de Java" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                                <TextBox Style="{StaticResource GlassTextBox}" Tag="Ninguno (p. ej. -XX:+UseG1GC)"
+                                         Text="{Binding JavaArgs, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Argumentos de Java" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Solo para usuarios avanzados. La memoria se elige arriba: -Xmx y -Xms aquí se ignoran." />
+
+                                <Button Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="0,22,0,0"
+                                        Content="Restablecer valores recomendados" Command="{Binding ResetGameCommand}" />
+                            </StackPanel>
+
+                            <!-- ── Ventana del juego ── -->
+                            <StackPanel Visibility="{Binding IsWindowSection, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Tamaño de la ventana" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
+                                <ListBox ItemsSource="{Binding ResolutionPresets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Display"
+                                         ItemContainerStyle="{StaticResource ChipItem}" Background="Transparent" BorderThickness="0" Padding="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Tamaños de ventana">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBox Style="{StaticResource GlassTextBox}" Width="120" Tag="Ancho"
+                                             Text="{Binding GameWidth, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Ancho de la ventana" />
+                                    <TextBlock Text="×" Foreground="{StaticResource Ink3}" FontSize="15" VerticalAlignment="Center" Margin="10,0" />
+                                    <TextBox Style="{StaticResource GlassTextBox}" Width="120" Tag="Alto"
+                                             Text="{Binding GameHeight, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Alto de la ventana" />
                                 </StackPanel>
-                            </DockPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </DockPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Vacío = el tamaño de Minecraft. Se aplica al abrir el juego; después puedes cambiarlo arrastrando." />
+
+                                <Border Style="{StaticResource GroupedList}" Padding="16,14" Margin="0,24,0,0">
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding Fullscreen}" AutomationProperties.Name="Pantalla completa">
+                                        <StackPanel>
+                                            <TextBlock Text="Pantalla completa" Style="{StaticResource RowTitle}" />
+                                            <TextBlock Text="El juego se abre ocupando toda la pantalla (F11 la quita dentro del juego)." Style="{StaticResource Hint}"
+                                                       Margin="0,2,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </CheckBox>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ── Tema ── -->
+                            <StackPanel Visibility="{Binding IsThemeSection, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Colores" Style="{StaticResource FieldLabel}" Margin="0,0,0,10" />
+                                <ListBox ItemsSource="{Binding ThemePresets}" SelectedItem="{Binding SelectedThemePreset}"
+                                         ItemContainerStyle="{StaticResource ThemeCard}" Background="Transparent" BorderThickness="0" Padding="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Temas">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,0" TextWrapping="Wrap"
+                                           Text="El cristal, el fondo y la aurora toman el tono del color elegido. Los colores de estado (correcto, aviso, error) no cambian." />
+
+                                <TextBlock Text="Color de acento propio" Style="{StaticResource FieldLabel}" Margin="0,22,0,8" />
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="38" Height="38" CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0"
+                                            Background="{Binding AccentPreview}" BorderBrush="{StaticResource HairlineStrong}" BorderThickness="1" />
+                                    <TextBox Style="{StaticResource GlassTextBox}" Width="220" HorizontalAlignment="Left" Tag="Ej.: #E91E63"
+                                             Text="{Binding CustomAccent, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Color de acento propio" />
+                                </DockPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Un color hexadecimal para botones, selección y JUGAR. Vacío = el del tema elegido." />
+
+                                <DockPanel Margin="0,22,0,4">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding GlassPercent, StringFormat={}{0} %}" Foreground="{StaticResource Ink2}" />
+                                    <TextBlock Text="Opacidad del cristal" Style="{StaticResource FieldLabel}" Margin="0" />
+                                </DockPanel>
+                                <Slider Style="{StaticResource GlassSlider}" Minimum="{Binding MinGlassPercent}" Maximum="{Binding MaxGlassPercent}"
+                                        Value="{Binding GlassPercent}" TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="10"
+                                        AutomationProperties.Name="Opacidad del cristal" />
+                                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                           Text="Menos = se ve más el fondo a través del cristal. 100 % = el diseño original." />
+
+                                <Border Style="{StaticResource GroupedList}" Padding="16,12" Margin="0,22,0,0">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource QuietButton}" Content="Quitar" Margin="0,0,8,0" Command="{Binding ClearBackgroundCommand}"
+                                                    Visibility="{Binding HasCustomBackground, Converter={StaticResource BoolToVisibility}}"
+                                                    AutomationProperties.Name="Quitar la imagen de fondo" />
+                                            <Button Style="{StaticResource GlassButton}" Content="Elegir…" Command="{Binding PickBackgroundCommand}"
+                                                    AutomationProperties.Name="Elegir imagen de fondo" />
+                                        </StackPanel>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Imagen de fondo" Style="{StaticResource RowTitle}" />
+                                            <TextBlock Text="{Binding BackgroundName}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+
+                                <Button Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="0,22,0,0"
+                                        Content="Restablecer tema" Command="{Binding ResetThemeCommand}" />
+                            </StackPanel>
+
+                            <!-- ── Launcher ── -->
+                            <StackPanel Visibility="{Binding IsLauncherSection, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Mientras juegas" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="OnPlay" Content="Dejar abierto" Margin="0,0,6,0"
+                                                 IsChecked="{Binding OnPlayKeep}" />
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="OnPlay" Content="Minimizar" Margin="0,0,6,0"
+                                                 IsChecked="{Binding OnPlayMinimize}" />
+                                    <RadioButton Style="{StaticResource SegmentButton}" GroupName="OnPlay" Content="Ocultar"
+                                                 IsChecked="{Binding OnPlayHide}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="Cuando el juego se abre. Al cerrarlo, el launcher vuelve a aparecer. Los servidores del hosting siguen en marcha." />
+
+                                <Border Style="{StaticResource GroupedList}" Padding="16,14" Margin="0,24,0,0">
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OpenLogOnCrash}"
+                                              AutomationProperties.Name="Abrir el registro si el juego falla">
+                                        <StackPanel>
+                                            <TextBlock Text="Abrir el registro si el juego falla" Style="{StaticResource RowTitle}" />
+                                            <TextBlock Text="Si Minecraft se cierra con un error, se abre su registro para ver qué pasó." Style="{StaticResource Hint}"
+                                                       Margin="0,2,0,0" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </CheckBox>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ── Almacenamiento ── -->
+                            <StackPanel Visibility="{Binding IsStorageSection, Converter={StaticResource BoolToVisibility}}">
+                                <Border Style="{StaticResource GroupedList}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource GroupedRow}" BorderThickness="0" Padding="16,12">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Margin="12,0,0,0"
+                                                        Command="{Binding OpenDataFolderCommand}" VerticalAlignment="Center" AutomationProperties.Name="Abrir carpeta de datos">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Abrir" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="Carpeta de datos" Style="{StaticResource RowTitle}" />
+                                                    <TextBlock Text="{Binding DataDir}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                    <TextBlock Style="{StaticResource Hint}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                               Text="instances: una carpeta por instancia · meta: versiones, librerías, assets y Java compartidos" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource GroupedRow}" Padding="16,12">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Margin="12,0,0,0"
+                                                        Command="{Binding OpenLogsFolderCommand}" VerticalAlignment="Center" AutomationProperties.Name="Abrir carpeta de registros">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{StaticResource IconFolder}" Style="{StaticResource Icon}" FontSize="14" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Abrir" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="Registros" Style="{StaticResource RowTitle}" />
+                                                    <TextBlock Text="{Binding LogsDir}" Style="{StaticResource Hint}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource GroupedRow}" Padding="16,12">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Margin="12,0,0,0" Content="Ver"
+                                                        Command="{Binding OpenGameLogCommand}" VerticalAlignment="Center" AutomationProperties.Name="Ver registro de la última partida" />
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="Registro de la última partida" Style="{StaticResource RowTitle}" />
+                                                    <TextBlock Text="Lo que escribió Minecraft: útil si el juego se cierra solo." Style="{StaticResource Hint}" Margin="0,3,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ── Acerca de ── -->
+                            <StackPanel Visibility="{Binding IsAboutSection, Converter={StaticResource BoolToVisibility}}">
+                                <Border Style="{StaticResource GroupedList}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource GroupedRow}" BorderThickness="0">
+                                            <DockPanel VerticalAlignment="Center">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding LauncherVersion}" Foreground="{StaticResource Ink2}" />
+                                                <TextBlock Text="Konnor Launcher" Style="{StaticResource RowTitle}" />
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource GroupedRow}">
+                                            <DockPanel VerticalAlignment="Center">
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding RuntimeText}" Foreground="{StaticResource Ink2}"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="16,0,0,0" />
+                                                <TextBlock Text="Sistema" Style="{StaticResource RowTitle}" />
+                                            </DockPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,12,0,0" TextWrapping="Wrap"
+                                           Text="Si algo falla, los registros (sección Almacenamiento) ayudan a encontrar el motivo." />
+
+                                <TextBlock Text="Servicios" Style="{StaticResource FieldLabel}" Margin="0,26,0,8" />
+                                <Border Style="{StaticResource GroupedList}">
+                                    <ItemsControl ItemsSource="{Binding ServiceCredits}" ItemTemplate="{StaticResource CreditRow}" Focusable="False" />
+                                </Border>
+
+                                <TextBlock Text="Librerías de código abierto" Style="{StaticResource FieldLabel}" Margin="0,26,0,8" />
+                                <Border Style="{StaticResource GroupedList}">
+                                    <ItemsControl ItemsSource="{Binding LibraryCredits}" ItemTemplate="{StaticResource CreditRow}" Focusable="False" />
+                                </Border>
+
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,0" TextWrapping="Wrap"
+                                           Text="NO ES UN PRODUCTO OFICIAL DE MINECRAFT. NO ESTÁ APROBADO NI ASOCIADO CON MOJANG O MICROSOFT. Minecraft es una marca de Mojang AB. Los demás nombres pertenecen a sus respectivos dueños." />
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
         </c:GlassPanel>
     </Grid>
 </UserControl>

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using KonnorLauncher.Core.Verification;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -16,6 +18,9 @@ public sealed record PublishActivity(int Verifications, int FilesServed, int Dis
 /// <list type="bullet">
 /// <item><c>GET /</c>: estado (para comprobarlo desde un navegador).</item>
 /// <item><c>GET /client_manifest.json</c>: el manifest, sin caché.</item>
+/// <item><c>GET /api/policy</c>: las reglas del servidor (siempre en línea, dirección fija, packs, RAM...) y el hash del
+/// manifest, firmados con la clave del servidor (<see cref="ServerPolicyCrypto"/>). Es lo que consultan los launchers
+/// al abrir y antes de sincronizar.</item>
 /// <item><c>GET /client/{ruta}</c>: solo los archivos que lista el manifest (nada más del disco es accesible),
 /// con soporte de rangos.</item>
 /// </list>
@@ -37,6 +42,18 @@ public sealed class ClientPublisher : IAsyncDisposable
     private string _clientDir = string.Empty;
     private string _internalDir = string.Empty;
     private volatile ManifestBuildResult? _current;
+
+    /// <summary>El manifest servido y sus reglas ya leídas (juntos: la política siempre firma el manifest actual).</summary>
+    private sealed record Published(ManifestBuildResult Build, ClientManifest Manifest);
+
+    private volatile Published? _published;
+
+    /// <summary>Clave con la que se firman las reglas (en la carpeta interna del servidor: se conserva entre arranques).</summary>
+    private ECDsa? _key;
+    private readonly object _keyLock = new();
+
+    /// <summary>Nombre del archivo de la clave privada, en la carpeta interna del servidor.</summary>
+    public const string KeyFileName = "policy-key.pem";
     private int _verifications, _filesServed, _errors;
 
     private readonly KonnorLauncher.Core.Modrinth.ModrinthClient? _modrinth;
@@ -82,6 +99,12 @@ public sealed class ClientPublisher : IAsyncDisposable
             _verifications = _filesServed = _errors = 0;
         }
 
+        lock (_keyLock)
+        {
+            _key?.Dispose();
+            _key = ServerPolicyCrypto.LoadOrCreateKey(Path.Combine(internalDir, KeyFileName));
+        }
+
         await RegenerateAsync(ct).ConfigureAwait(false);
 
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { ContentRootPath = internalDir, Args = [] });
@@ -123,6 +146,21 @@ public sealed class ClientPublisher : IAsyncDisposable
             context.Response.Headers.CacheControl = "no-store";
             Notify();
             return Results.Bytes(manifest.ManifestBytes, "application/json");
+        });
+        app.MapGet(ServerPolicyCrypto.Endpoint, (HttpContext context) =>
+        {
+            if (_published is not { } published || _key is null)
+            {
+                context.Response.Headers.RetryAfter = "10";
+                return Results.Json(new { detail = "Generando el manifest" }, statusCode: 503);
+            }
+
+            var policy = ServerPolicy.FromManifest(published.Manifest, published.Build.ManifestBytes, DateTimeOffset.UtcNow, ServerPolicyCrypto.Validity);
+            SignedServerPolicy signed;
+            lock (_keyLock)
+                signed = ServerPolicyCrypto.Sign(policy, _key);
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Text(ServerPolicyCrypto.Serialize(signed), "application/json");
         });
         app.MapGet("/client/{**path}", (string path) =>
         {
@@ -205,6 +243,7 @@ public sealed class ClientPublisher : IAsyncDisposable
                 return ClientManifestBuilder.Build(server, _serverDir, _clientDir, ManifestPath, cache, skipped);
             }, ct).ConfigureAwait(false);
             _current = result;
+            _published = new Published(result, ManifestParser.Parse(System.Text.Encoding.UTF8.GetString(result.ManifestBytes)));
             LastBuilt = DateTimeOffset.Now;
             LastError = result.InvalidPaths.Count > 0
                 ? $"{result.InvalidPaths.Count} archivos no se publican porque su nombre no es válido para el launcher: {string.Join(", ", result.InvalidPaths.Take(3))}"
@@ -212,7 +251,7 @@ public sealed class ClientPublisher : IAsyncDisposable
             _logger.LogInformation("Manifest de {Id} {State}: {Files} archivos en {Ms} ms", server.Id,
                 result.Changed ? "actualizado" : "sin cambios", result.FileCount, (int)result.Elapsed.TotalMilliseconds);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or VerificationException)
         {
             LastError = $"No se pudo generar el manifest: {ex.Message}";
             _logger.LogWarning(ex, "No se pudo generar el manifest de {Id}", server.Id);
@@ -264,5 +303,13 @@ public sealed class ClientPublisher : IAsyncDisposable
 
     private void Notify() => Changed?.Invoke(this, EventArgs.Empty);
 
-    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        lock (_keyLock)
+        {
+            _key?.Dispose();
+            _key = null;
+        }
+    }
 }

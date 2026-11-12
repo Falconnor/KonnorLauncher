@@ -39,6 +39,15 @@ public sealed record LaunchRequest
 
     /// <summary>Servidor al que el juego entra directamente al abrirse (sección Servidores); null = al menú.</summary>
     public Servers.ServerAddress? JoinServer { get; init; }
+
+    /// <summary>Argumentos extra de Java (<c>java.args</c>), tal como se escriben en una línea de comandos.</summary>
+    public string? JvmArguments { get; init; }
+
+    /// <summary>Tamaño de la ventana del juego (los dos o ninguno); null = el de Minecraft.</summary>
+    public int? ScreenWidth { get; init; }
+    public int? ScreenHeight { get; init; }
+
+    public bool FullScreen { get; init; }
 }
 
 /// <summary>
@@ -169,6 +178,7 @@ public sealed class GameLauncher
             option.ServerIp = server.Host;
             option.ServerPort = server.Port;
         }
+        ApplyPlayerOptions(option, request);
 
         // Sin el menú de accesibilidad de la primera vez: se entra al juego (o al servidor) directamente.
         try
@@ -189,6 +199,60 @@ public sealed class GameLauncher
             request.VersionId, process.StartInfo.FileName, option.MaximumRamMb, request.Username);
 
         return await RunProcessAsync(process, progress).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Opciones del jugador (sección Opciones): argumentos extra de Java, tamaño de la ventana y pantalla completa.
+    /// La memoria la pone siempre el launcher: un <c>-Xmx</c>/<c>-Xms</c> en los argumentos se ignora.
+    /// </summary>
+    internal static void ApplyPlayerOptions(MLaunchOption option, LaunchRequest request)
+    {
+        var extra = SplitArguments(request.JvmArguments)
+            .Where(a => !a.StartsWith("-Xmx", StringComparison.Ordinal) && !a.StartsWith("-Xms", StringComparison.Ordinal))
+            .ToList();
+        // Se añaden a los de CmlLib (G1 y la protección de log4j), no los sustituyen.
+        if (extra.Count > 0)
+            option.ExtraJvmArguments = [.. option.ExtraJvmArguments ?? [], new MArgument(extra)];
+        if (request is { ScreenWidth: > 0 and var width, ScreenHeight: > 0 and var height })
+        {
+            option.ScreenWidth = width;
+            option.ScreenHeight = height;
+        }
+
+        option.FullScreen = request.FullScreen;
+    }
+
+    /// <summary>Separa una línea de argumentos por espacios, respetando las comillas dobles.</summary>
+    internal static IEnumerable<string> SplitArguments(string? line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            yield break;
+        var current = new System.Text.StringBuilder();
+        var quoted = false;
+        var any = false;
+        foreach (var ch in line)
+        {
+            if (ch == '"')
+            {
+                quoted = !quoted;
+                any = true;
+            }
+            else if (char.IsWhiteSpace(ch) && !quoted)
+            {
+                if (any)
+                    yield return current.ToString();
+                current.Clear();
+                any = false;
+            }
+            else
+            {
+                current.Append(ch);
+                any = true;
+            }
+        }
+
+        if (any)
+            yield return current.ToString();
     }
 
     /// <summary>Inicia el proceso, guarda su salida en el log del juego y espera a que termine.</summary>

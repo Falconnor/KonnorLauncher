@@ -1,12 +1,13 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:th="clr-namespace:KonnorLauncher.App.Theming">
 
     <SolidColorBrush x:Key="White" Color="#FFFFFFFF" />
 
     <!-- Fondo alternativo si background.png no carga -->
     <LinearGradientBrush x:Key="FallbackBackground" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#0D1C2E" Offset="0" />
-        <GradientStop Color="#0A1220" Offset="1" />
+        <GradientStop Color="{Binding [FallbackTop], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [FallbackBottom], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </LinearGradientBrush>
 
     <!-- Sombra de paneles (BlurRadius 30, negro α150) -->

@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:c="clr-namespace:KonnorLauncher.App.Controls"
+                    xmlns:th="clr-namespace:KonnorLauncher.App.Theming"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- ═══════════════════════════════════════════════════════════════════
@@ -18,16 +19,16 @@
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <!-- Tinta -->
-    <SolidColorBrush x:Key="Ink" Color="#F3F5F7" />
-    <SolidColorBrush x:Key="Ink2" Color="#BDF3F5F7" />
+    <SolidColorBrush x:Key="Ink" Color="{Binding [Ink], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="Ink2" Color="{Binding [Ink2], Source={x:Static th:ThemePalette.Current}}" />
     <!-- 60 %: con el fondo más claro detrás del cristal sigue por encima de 4.5:1 -->
-    <SolidColorBrush x:Key="Ink3" Color="#99F3F5F7" />
+    <SolidColorBrush x:Key="Ink3" Color="{Binding [Ink3], Source={x:Static th:ThemePalette.Current}}" />
 
     <!-- Cristal -->
-    <SolidColorBrush x:Key="GlassTint" Color="#94101418" />
+    <SolidColorBrush x:Key="GlassTint" Color="{Binding [GlassTint], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="GlassStroke" Color="#1FFFFFFF" />
-    <SolidColorBrush x:Key="Scrim" Color="#59060810" />
-    <SolidColorBrush x:Key="ModalScrim" Color="#8C04060A" />
+    <SolidColorBrush x:Key="Scrim" Color="{Binding [Scrim], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="ModalScrim" Color="{Binding [ModalScrim], Source={x:Static th:ThemePalette.Current}}" />
 
     <!-- Superficies dentro del cristal -->
     <SolidColorBrush x:Key="Surface" Color="#0DFFFFFF" />
@@ -35,8 +36,8 @@
     <SolidColorBrush x:Key="SurfaceSunken" Color="#38000000" />
 
     <!-- Ventana de cristal: tinte azul pizarra frío (no negro puro); la barra lateral, algo más oscura -->
-    <SolidColorBrush x:Key="WindowTint" Color="#B81B1F2C" />
-    <SolidColorBrush x:Key="SidebarTint" Color="#C4151925" />
+    <SolidColorBrush x:Key="WindowTint" Color="{Binding [WindowTint], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="SidebarTint" Color="{Binding [SidebarTint], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="SidebarShade" Color="#26000000" />
     <SolidColorBrush x:Key="HeaderTint" Color="#14FFFFFF" />
     <!-- Líneas de 1 px que separan barra lateral, cabecera, filas y pies de tarjeta -->
@@ -50,11 +51,11 @@
     <SolidColorBrush x:Key="PillGhost" Color="#14FFFFFF" />
     <SolidColorBrush x:Key="PillGhostHover" Color="#26FFFFFF" />
     <SolidColorBrush x:Key="PillOutline" Color="#8CFFFFFF" />
-    <SolidColorBrush x:Key="TileBackground" Color="#F20B0E14" />
+    <SolidColorBrush x:Key="TileBackground" Color="{Binding [TileBackground], Source={x:Static th:ThemePalette.Current}}" />
     <!-- Menús contextuales y descripciones emergentes: cristal denso -->
-    <SolidColorBrush x:Key="MenuGlass" Color="#E61A1E2A" />
+    <SolidColorBrush x:Key="MenuGlass" Color="{Binding [MenuGlass], Source={x:Static th:ThemePalette.Current}}" />
     <!-- Diálogos: el mismo cristal azul pizarra de la ventana, más denso para que se lea bien encima -->
-    <SolidColorBrush x:Key="DialogTint" Color="#D91B1F2C" />
+    <SolidColorBrush x:Key="DialogTint" Color="{Binding [DialogTint], Source={x:Static th:ThemePalette.Current}}" />
     <!-- Avisos de estado dentro de los diálogos: verde = sincronizado/listo; rojo = zona de peligro -->
     <SolidColorBrush x:Key="OkSoft" Color="#1F4FD18B" />
     <SolidColorBrush x:Key="OkLine" Color="#5927AE60" />
@@ -68,32 +69,38 @@
     <SolidColorBrush x:Key="AvatarRing" Color="#33FFFFFF" />
     <!-- Aurora del fondo: manchas de color saturado (de opaco a transparente) que tiñen el cristal -->
     <RadialGradientBrush x:Key="AuroraBlue">
-        <GradientStop Color="#FF3A5BFF" Offset="0" />
-        <GradientStop Color="#003A5BFF" Offset="1" />
+        <GradientStop Color="{Binding [AuroraBlue], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [AuroraBlueEnd], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </RadialGradientBrush>
     <RadialGradientBrush x:Key="AuroraViolet">
-        <GradientStop Color="#FF8E3BFF" Offset="0" />
-        <GradientStop Color="#008E3BFF" Offset="1" />
+        <GradientStop Color="{Binding [AuroraViolet], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [AuroraVioletEnd], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </RadialGradientBrush>
     <RadialGradientBrush x:Key="AuroraRed">
-        <GradientStop Color="#FFFF2E63" Offset="0" />
-        <GradientStop Color="#00FF2E63" Offset="1" />
+        <GradientStop Color="{Binding [AuroraRed], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [AuroraRedEnd], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </RadialGradientBrush>
     <RadialGradientBrush x:Key="AuroraCyan">
-        <GradientStop Color="#FF1FB6FF" Offset="0" />
-        <GradientStop Color="#001FB6FF" Offset="1" />
+        <GradientStop Color="{Binding [AuroraCyan], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [AuroraCyanEnd], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </RadialGradientBrush>
 
     <!-- Acento y marca. Para volver al verde en toda la interfaz basta con poner los valores de Brand
          en Accent/AccentHover/AccentPress/AccentSoft.
          - Accent (azul): interfaz general — botones, insignias, selección, foco, interruptores.
          - Brand (verde del launcher): solo JUGAR, barras de progreso y el estado "lista/actualizada". -->
-    <SolidColorBrush x:Key="Accent" Color="#3478F6" />
-    <SolidColorBrush x:Key="AccentHover" Color="#4A88FF" />
-    <SolidColorBrush x:Key="AccentPress" Color="#2563D9" />
-    <SolidColorBrush x:Key="AccentSoft" Color="#263478F6" />
-    <SolidColorBrush x:Key="Brand" Color="#27AE60" />
-    <SolidColorBrush x:Key="BrandPress" Color="#1E8449" />
+    <SolidColorBrush x:Key="Accent" Color="{Binding [Accent], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="AccentHover" Color="{Binding [AccentHover], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="AccentPress" Color="{Binding [AccentPress], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="AccentSoft" Color="{Binding [AccentSoft], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="Brand" Color="{Binding [Brand], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="BrandPress" Color="{Binding [BrandPress], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="BrandSoft" Color="{Binding [BrandSoft], Source={x:Static th:ThemePalette.Current}}" />
+    <!-- Texto sobre el acento / sobre la marca: blanco, u oscuro si el color es muy claro -->
+    <SolidColorBrush x:Key="OnAccent" Color="{Binding [OnAccent], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="OnBrand" Color="{Binding [OnBrand], Source={x:Static th:ThemePalette.Current}}" />
+    <!-- Fondo de la ventana (detrás de la imagen) -->
+    <SolidColorBrush x:Key="WindowBase" Color="{Binding [WindowBase], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="Ok" Color="#4FD18B" />
     <SolidColorBrush x:Key="Warn" Color="#F5B041" />
     <SolidColorBrush x:Key="Danger" Color="#FF6B6B" />
@@ -380,7 +387,7 @@
     <!-- Botón relleno (acción principal): acento azul -->
     <Style x:Key="PillButton" TargetType="ButtonBase" BasedOn="{StaticResource PillBase}">
         <Setter Property="Background" Value="{StaticResource Accent}" />
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{StaticResource OnAccent}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource AccentHover}" />
@@ -461,16 +468,16 @@
 
     <!-- ═══ JUGAR: botón grande con el verde del launcher (degradado vertical y brillo arriba) ═══ -->
     <LinearGradientBrush x:Key="PlayGradient" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#34C472" Offset="0" />
-        <GradientStop Color="#219A54" Offset="1" />
+        <GradientStop Color="{Binding [BrandMid], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [BrandDark], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="PlayGradientHover" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#3ED57F" Offset="0" />
-        <GradientStop Color="#27AE60" Offset="1" />
+        <GradientStop Color="{Binding [BrandLight], Source={x:Static th:ThemePalette.Current}}" Offset="0" />
+        <GradientStop Color="{Binding [Brand], Source={x:Static th:ThemePalette.Current}}" Offset="1" />
     </LinearGradientBrush>
     <SolidColorBrush x:Key="PlayShine" Color="#40FFFFFF" />
     <Style x:Key="GlassPlayButton" TargetType="Button">
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{StaticResource OnBrand}" />
         <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -508,7 +515,7 @@
                         </Trigger>
                         <!-- Deshabilitado (verificando / jugando): el verde apagado -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Bd" Property="Background" Value="#4D27AE60" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandSoft}" />
                             <Setter TargetName="Shine" Property="Visibility" Value="Collapsed" />
                             <Setter TargetName="Glyph" Property="Visibility" Value="Collapsed" />
                             <Setter Property="Foreground" Value="#D9FFFFFF" />
@@ -1082,7 +1089,7 @@
         <Setter Property="CornerRadius" Value="9" />
         <Setter Property="Background" Value="{StaticResource Accent}" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="TextElement.Foreground" Value="White" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource OnAccent}" />
         <Setter Property="TextElement.FontSize" Value="11" />
         <Setter Property="TextElement.FontWeight" Value="SemiBold" />
     </Style>

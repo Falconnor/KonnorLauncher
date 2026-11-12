@@ -99,6 +99,10 @@ public partial class App : Application
             logger.LogError(ex, "No se pudo migrar la configuración antigua a una instancia");
         }
 
+        // Tema guardado (Opciones → Tema) antes de crear la ventana: así se abre ya con sus colores.
+        if (!Theming.ThemePalette.Current.Apply(_host.Services.GetRequiredService<LauncherSettings>().Theme))
+            logger.LogWarning("No se pudo abrir la imagen de fondo del tema; se usa la del launcher");
+
         var window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
         window.Show();

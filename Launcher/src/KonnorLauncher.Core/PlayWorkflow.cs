@@ -132,6 +132,10 @@ public sealed class PlayWorkflow
             Uuid = _settings.PlayerUuid,
             AccessToken = _settings.PlayerAccessToken,
             JoinServer = joinServer,
+            JvmArguments = _settings.JavaArgs,
+            ScreenWidth = _settings.GameWidth is { } w && _settings.GameHeight is not null ? w : null,
+            ScreenHeight = _settings.GameWidth is not null ? _settings.GameHeight : null,
+            FullScreen = _settings.GameFullscreen,
         };
         var path = layout.ToMinecraftPath();
 

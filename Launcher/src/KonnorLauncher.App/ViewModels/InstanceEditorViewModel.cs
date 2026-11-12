@@ -241,14 +241,16 @@ public sealed partial class InstanceEditorViewModel : ObservableObject
         var probe = _editing?.Clone();
         if (probe is null || !await _sync.RefreshPolicyAsync(probe) || _editing?.Id != id || !IsOpen)
             return;
-        if (!InstanceSync.PolicyDiffers(_editing, probe))
+        var persisted = InstanceSync.PolicyDiffers(_editing, probe);
+        if (!persisted && !InstanceSync.RulesDiffer(_editing, probe))
             return;
 
         InstanceSync.CopyPolicy(probe, _editing);
         try
         {
             // Solo cambia la política: se guarda sobre la versión en disco, no sobre el formulario.
-            var stored = _store.LoadAll().FirstOrDefault(i => i.Id == id);
+            // Las reglas en memoria de un servidor que no firma no se guardan: no hay nada que escribir.
+            var stored = persisted ? _store.LoadAll().FirstOrDefault(i => i.Id == id) : null;
             if (stored is not null)
             {
                 InstanceSync.CopyPolicy(probe, stored);

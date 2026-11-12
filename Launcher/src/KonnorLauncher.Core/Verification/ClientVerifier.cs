@@ -36,6 +36,13 @@ public sealed record VerifierOptions
     public bool DryRun { get; init; }
 
     /// <summary>
+    /// SHA-256 del manifest que firmó el servidor (<see cref="ServerPolicy.ManifestSha256"/>). Si se indica, un
+    /// manifest con otro hash se rechaza (<see cref="VerificationException.ManifestMismatch"/>): así la lista de
+    /// archivos y sus hashes no se pueden cambiar en el camino. null = servidor que no firma.
+    /// </summary>
+    public string? ExpectedManifestSha256 { get; init; }
+
+    /// <summary>
     /// Si la carpeta del juego es la <c>.minecraft</c> oficial, la limpieza no se ejecuta, para no borrar
     /// los mods ni las versiones del launcher de Mojang. En false, se limpia igualmente.
     /// </summary>
@@ -168,7 +175,7 @@ public sealed partial class ClientVerifier
             RemoveStaleTempDirs(gameDir);
 
             // 3. Manifest.
-            var manifest = await DownloadManifestAsync($"{baseUrl}/client_manifest.json", ct).ConfigureAwait(false);
+            var manifest = await DownloadManifestAsync($"{baseUrl}/client_manifest.json", options.ExpectedManifestSha256, ct).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(manifest.ClientVersion))
                 ClientVersionReceived?.Invoke(manifest.ClientVersion!);
             ManifestReceived?.Invoke(manifest);
@@ -256,8 +263,8 @@ public sealed partial class ClientVerifier
         {
             // Cualquier fallo se trata igual (también un ZIP corrupto o una entrada que falta).
             // La UI solo distingue "servidor no responde" del resto.
-            var status = ex.Message == VerificationException.ServerNotResponding
-                ? VerificationException.ServerNotResponding
+            var status = ex.Message is VerificationException.ServerNotResponding or VerificationException.ManifestMismatch
+                ? ex.Message
                 : VerificationResult.FailedStatus;
             _logger.LogError(ex, "Verificación fallida: {Message}", ex.Message);
             Status(status);
@@ -625,19 +632,19 @@ public sealed partial class ClientVerifier
     // ══════════════════════════════════════════════════════════════════════
 
     /// <summary>Descarga y parsea el manifest. Cualquier fallo de red, HTTP, timeout o JSON → <c>servidor no responde</c>.</summary>
-    private async Task<ClientManifest> DownloadManifestAsync(string url, CancellationToken ct)
+    private async Task<ClientManifest> DownloadManifestAsync(string url, string? expectedSha256, CancellationToken ct)
     {
-        string json;
+        byte[] bytes;
         // Un único plazo para todo (intentos y esperas entre ellos), no uno por intento.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(ManifestTimeout);
         try
         {
-            json = await WithRetriesAsync(async attemptCt =>
+            bytes = await WithRetriesAsync(async attemptCt =>
             {
                 using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, attemptCt).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadAsStringAsync(attemptCt).ConfigureAwait(false);
+                return await response.Content.ReadAsByteArrayAsync(attemptCt).ConfigureAwait(false);
             }, deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
@@ -649,7 +656,11 @@ public sealed partial class ClientVerifier
             throw new VerificationException(VerificationException.ServerNotResponding, ex);
         }
 
-        return ManifestParser.Parse(json);
+        if (expectedSha256 is not null && !string.Equals(ServerPolicyCrypto.ManifestHash(bytes), expectedSha256, StringComparison.OrdinalIgnoreCase))
+            throw new VerificationException(VerificationException.ManifestMismatch);
+        // Como ReadAsStringAsync: sin la marca de orden de bytes si el servidor la pone.
+        var hasBom = bytes is [0xEF, 0xBB, 0xBF, ..];
+        return ManifestParser.Parse(System.Text.Encoding.UTF8.GetString(bytes, hasBom ? 3 : 0, bytes.Length - (hasBom ? 3 : 0)));
     }
 
     /// <summary>

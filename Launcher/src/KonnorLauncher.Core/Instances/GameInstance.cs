@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using CmlLib.Core;
+using KonnorLauncher.Core.Verification;
 
 namespace KonnorLauncher.Core.Instances;
 
@@ -73,19 +74,38 @@ public sealed partial class GameInstance
     /// </summary>
     public bool SyncLocked { get; set; }
 
-    /// <summary>El servidor liberó sus instancias (<c>released</c>). Irreversible, también aquí.</summary>
+    // ── Política del servidor ─────────────────────────────────────────────
+    // Las reglas del servidor no se guardan como campos (se podrían editar en instance.json): se guarda la última
+    // política FIRMADA por el servidor (ServerSession) y su clave pública (ServerKey, fijada al vincularse). Al
+    // cargar la instancia, ApplySession comprueba la firma y rellena las propiedades de abajo; si la sesión falta,
+    // se modificó, caducó o es de otra clave, se aplican las reglas más restrictivas.
+
+    /// <summary>Clave pública del servidor (fijada la primera vez que respondió con una política firmada).</summary>
+    public string? ServerKey { get; set; }
+
+    /// <summary>Última política firmada del servidor («última sesión»): se usa mientras no responde y no caduca.</summary>
+    public SignedServerPolicy? ServerSession { get; set; }
+
+    /// <summary>Política firmada en la que el servidor liberó la instancia: la liberación no caduca.</summary>
+    public SignedServerPolicy? ServerReleaseProof { get; set; }
+
+    /// <summary>Estado de la última sesión al cargarla (null = la instancia no está vinculada con firma).</summary>
+    [JsonIgnore]
+    public PolicyStatus? SessionStatus { get; private set; }
+
+    /// <summary>El servidor liberó sus instancias (<c>released</c>). Irreversible: lo prueba <see cref="ServerReleaseProof"/>.</summary>
+    [JsonIgnore]
     public bool ServerReleased { get; set; }
 
-    /// <summary>
-    /// Última política <c>always_online</c> del servidor. Se recuerda porque, justo cuando el servidor
-    /// no responde, no hay manifest que leer. true = sin respuesta no se juega.
-    /// </summary>
+    /// <summary>Política <c>always_online</c> del servidor: true = sin respuesta del servidor no se juega.</summary>
+    [JsonIgnore]
     public bool ServerAlwaysOnline { get; set; } = true;
 
     /// <summary>
-    /// Última política <c>lock_server_url</c> del servidor (reversible): true = el jugador no puede
-    /// cambiar la dirección del servidor de esta instancia.
+    /// Política <c>lock_server_url</c> del servidor (reversible): true = el jugador no puede cambiar la dirección
+    /// del servidor de esta instancia.
     /// </summary>
+    [JsonIgnore]
     public bool ServerLocksUrl { get; set; } = true;
 
     /// <summary>
@@ -95,22 +115,89 @@ public sealed partial class GameInstance
     public bool InstallPacks { get; set; }
 
     /// <summary>
-    /// Última política <c>protect_packs</c> del servidor (reversible): true = los packs se instalan
-    /// siempre y se protegen como el resto; el jugador no puede desmarcar la casilla.
+    /// Política <c>protect_packs</c> del servidor (reversible): true = los packs se instalan siempre y se
+    /// protegen como el resto; el jugador no puede desmarcar la casilla.
     /// </summary>
+    [JsonIgnore]
     public bool ServerProtectsPacks { get; set; }
 
     /// <summary>
     /// <c>auto_join</c> del servidor: dirección del servidor de Minecraft al que el juego entra directamente
     /// al pulsar JUGAR (null = el servidor no lo pide).
     /// </summary>
+    [JsonIgnore]
     public string? ServerAutoJoin { get; set; }
 
     /// <summary>
     /// <c>recommended_memory_mb</c> del servidor: la RAM que usa la instancia mientras el jugador no elija la
     /// suya (<see cref="MemoryMb"/>). null = el servidor no la propone.
     /// </summary>
+    [JsonIgnore]
     public int? ServerMemoryMb { get; set; }
+
+    /// <summary>
+    /// Rellena la política a partir de la sesión firmada guardada (al cargar la instancia y tras recibir una nueva).
+    /// <list type="bullet">
+    /// <item>Sin clave fijada (no vinculada, o con un servidor que no firma): los valores por defecto.</item>
+    /// <item>Sesión correcta y vigente: las reglas del servidor.</item>
+    /// <item>Falta, se modificó, caducó o es de otra clave: las más restrictivas (siempre en línea, dirección fija,
+    /// packs protegidos), hasta que el servidor vuelva a responder.</item>
+    /// </list>
+    /// La liberación (<see cref="ServerReleaseProof"/>) no caduca: basta con que la firma sea de la clave fijada.
+    /// </summary>
+    public void ApplySession(DateTimeOffset now)
+    {
+        ServerReleased = ServerKey is not null
+                         && ServerPolicyCrypto.Verify(ServerReleaseProof, ServerKey, now) is { Policy.Released: true, Status: PolicyStatus.Valid or PolicyStatus.Expired };
+        if (ServerKey is null)
+        {
+            SessionStatus = null;
+            ServerAlwaysOnline = true;
+            ServerLocksUrl = true;
+            ServerProtectsPacks = false;
+            ServerAutoJoin = null;
+            ServerMemoryMb = null;
+            return;
+        }
+
+        var check = ServerPolicyCrypto.Verify(ServerSession, ServerKey, now);
+        SessionStatus = check.Status;
+        if (check is { Status: PolicyStatus.Valid, Policy: { } policy })
+        {
+            ServerAlwaysOnline = policy.AlwaysOnline;
+            ServerLocksUrl = policy.LockServerUrl;
+            ServerProtectsPacks = policy.ProtectPacks;
+            ServerAutoJoin = policy.AutoJoinAddress;
+            ServerMemoryMb = policy.RecommendedMemoryMb;
+            ServerReleased |= policy.Released;
+            if (ServerProtectsPacks)
+                InstallPacks = true;
+            return;
+        }
+
+        // Sin una sesión válida no se sabe qué permite el servidor: lo más restrictivo.
+        ServerAlwaysOnline = true;
+        ServerLocksUrl = true;
+        ServerProtectsPacks = true;
+        ServerAutoJoin = null;
+        ServerMemoryMb = null;
+    }
+
+    /// <summary>
+    /// Guarda una política recién recibida y ya comprobada (<see cref="ServerPolicyCrypto.Verify"/> con
+    /// <see cref="ServerKey"/>): fija la clave si es la primera, la guarda como última sesión (y como prueba si libera
+    /// la instancia) y aplica sus reglas.
+    /// </summary>
+    public void AcceptSession(SignedServerPolicy signed, ServerPolicy policy, DateTimeOffset now)
+    {
+        ServerKey ??= signed.Key;
+        ServerSession = signed;
+        if (policy.Released)
+            ServerReleaseProof = signed;
+        if (!string.IsNullOrWhiteSpace(policy.ClientVersion))
+            AvailableClientVersion = policy.ClientVersion;
+        ApplySession(now);
+    }
 
     /// <summary>
     /// RAM de la partida: la elegida para la instancia; si no, la que recomienda su servidor (ajustada a la
@@ -119,13 +206,13 @@ public sealed partial class GameInstance
     public int ResolveMemoryMb(int defaultMb) =>
         MemoryMb ?? (SyncWithServer && ServerMemoryMb is { } server ? Configuration.SystemMemory.Clamp(server) : defaultMb);
 
-    /// <summary>Vinculada y no liberada: la sincronización no se puede desactivar.</summary>
+    /// <summary>Vinculada (sincronizó o fijó la clave del servidor) y no liberada: la sincronización no se puede desactivar.</summary>
     [JsonIgnore]
-    public bool IsSyncLocked => SyncWithServer && SyncLocked && !ServerReleased;
+    public bool IsSyncLocked => SyncWithServer && (SyncLocked || ServerKey is not null) && !ServerReleased;
 
     /// <summary>Ya se sincronizó con su servidor y este no deja cambiar la dirección.</summary>
     [JsonIgnore]
-    public bool IsUrlLocked => SyncWithServer && ServerLocksUrl && (SyncLocked || ServerReleased);
+    public bool IsUrlLocked => SyncWithServer && ServerLocksUrl && (SyncLocked || ServerKey is not null || ServerReleased);
 
     /// <summary>El servidor obliga a instalar sus packs: la casilla queda marcada y bloqueada.</summary>
     [JsonIgnore]

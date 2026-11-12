@@ -547,7 +547,7 @@ public sealed class HostingTests : IDisposable
         var a = new GameInstance { ServerAutoJoin = null };
         var b = a.Clone();
         b.ServerAutoJoin = "a.com";
-        InstanceSync.PolicyDiffers(a, b).ShouldBeTrue();
+        InstanceSync.RulesDiffer(a, b).ShouldBeTrue();
         InstanceSync.CopyPolicy(b, a);
         a.ServerAutoJoin.ShouldBe("a.com");
     }
@@ -704,7 +704,7 @@ public sealed class HostingTests : IDisposable
         new GameInstance { SyncWithServer = false, ServerMemoryMb = 6144 }.ResolveMemoryMb(4096).ShouldBe(4096);
 
         var other = new GameInstance();
-        InstanceSync.PolicyDiffers(other, instance).ShouldBeTrue();
+        InstanceSync.RulesDiffer(other, instance).ShouldBeTrue();
         InstanceSync.CopyPolicy(instance, other);
         other.ServerMemoryMb.ShouldBe(6144);
         other.MemoryMb.ShouldBeNull(); // la del jugador no se toca
@@ -718,6 +718,43 @@ public sealed class HostingTests : IDisposable
     [InlineData("""{ "files": {} }""", null)]
     public void Launcher_ignores_an_invalid_recommended_memory(string json, int? expected) =>
         ManifestParser.Parse(json).RecommendedMemoryMb.ShouldBe(expected);
+
+    /// <summary>
+    /// De punta a punta con firma: el launcher consulta las reglas al servidor publicado (Kestrel), fija su clave y
+    /// guarda la sesión firmada; al reiniciar, el servidor conserva la clave y el launcher lo sigue aceptando.
+    /// </summary>
+    [Fact]
+    public async Task Launcher_gets_the_signed_rules_from_the_published_server()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (server, serverDir, clientDir, internalDir) = CreatePublishedServer();
+        server.Publish.AlwaysOnline = false;
+        var baseUrl = $"http://127.0.0.1:{server.Publish.Port}";
+        using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        var sync = new InstanceSync(new Factory(http), metaDir: _dir.Combine("meta"));
+        var instance = new GameInstance { Id = "srv", Name = "Srv", SyncWithServer = true, ServerUrl = baseUrl };
+
+        string pinned;
+        await using (var publisher = new ClientPublisher())
+        {
+            await publisher.StartAsync(server, serverDir, clientDir, internalDir, ct);
+            var result = await sync.SyncAsync(instance, _dir.Combine("instances"), null, ct);
+
+            result.Success.ShouldBeTrue(result.Message);
+            instance.SessionStatus.ShouldBe(KonnorLauncher.Core.Verification.PolicyStatus.Valid);
+            instance.ServerAlwaysOnline.ShouldBeFalse();
+            pinned = instance.ServerKey.ShouldNotBeNull();
+            File.Exists(Path.Combine(internalDir, ClientPublisher.KeyFileName)).ShouldBeTrue();
+        }
+
+        // El servidor se reinicia con la misma clave y cambia una regla: el launcher la acepta.
+        server.Publish.AlwaysOnline = true;
+        await using var restarted = new ClientPublisher();
+        await restarted.StartAsync(server, serverDir, clientDir, internalDir, ct);
+        (await sync.RefreshPolicyAsync(instance, ct)).ShouldBeTrue();
+        instance.ServerKey.ShouldBe(pinned);
+        instance.ServerAlwaysOnline.ShouldBeTrue();
+    }
 
     private static string Sha512Hex(string text) => Convert.ToHexStringLower(SHA512.HashData(Encoding.UTF8.GetBytes(text)));
 

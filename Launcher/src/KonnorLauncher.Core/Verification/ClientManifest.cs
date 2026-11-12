@@ -8,6 +8,9 @@ public sealed class VerificationException : Exception
     /// <summary>Mensaje especial que la UI distingue del resto de fallos.</summary>
     public const string ServerNotResponding = "servidor no responde";
 
+    /// <summary>El manifest recibido no es el que firmó el servidor (cambió entre medias o lo alteraron en el camino).</summary>
+    public const string ManifestMismatch = "el manifest no coincide con la politica firmada";
+
     public VerificationException(string message) : base(message) { }
     public VerificationException(string message, Exception inner) : base(message, inner) { }
 }

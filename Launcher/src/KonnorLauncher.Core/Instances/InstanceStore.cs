@@ -56,6 +56,7 @@ public sealed partial class InstanceStore
                 if (instance is null)
                     continue;
                 instance.Id = Path.GetFileName(dir); // la carpeta manda, aunque el JSON diga otra cosa
+                instance.ApplySession(DateTimeOffset.Now); // reglas del servidor: de la última sesión firmada
                 result.Add(instance);
             }
             catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)

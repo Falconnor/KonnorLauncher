@@ -539,6 +539,25 @@ public sealed partial class MainViewModel : ObservableObject
         _pendingJoin = null; // si no llegó a jugar (nombre cancelado...), la próxima partida va al menú
     }
 
+    /// <summary>
+    /// El juego se abrió (true) o se cerró (false). La ventana se minimiza u oculta según
+    /// <see cref="LauncherSettings.OnPlay"/> (sección Opciones → Launcher) y vuelve al cerrarse.
+    /// </summary>
+    public event EventHandler<bool>? GameWindowChanged;
+
+    /// <summary>Qué hace la ventana del launcher mientras se juega.</summary>
+    public LauncherOnPlay OnPlay => _settings.OnPlay;
+
+    private bool _gameOpen;
+
+    private void SetGameOpen(bool open)
+    {
+        if (_gameOpen == open)
+            return;
+        _gameOpen = open;
+        GameWindowChanged?.Invoke(this, open);
+    }
+
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task PlayAsync()
     {
@@ -580,10 +599,29 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         // 4. Fin: botón habilitado, datos de la instancia (última partida) y mensaje si hubo error.
+        SetGameOpen(false);
         IsPlaying = false;
         PlayButtonText = PlayText;
         ReloadInstances(instance.Id);
         SetAction(result.Message, null);
+
+        // Minecraft se cerró con error: su registro explica por qué (si el jugador lo pidió en Opciones).
+        if (result.Message == PlayWorkflow.LaunchFailedText && _settings.OpenLogOnCrash)
+            OpenGameLog();
+    }
+
+    private void OpenGameLog()
+    {
+        var path = System.IO.Path.Combine(Core.Paths.LauncherPaths.LogsDir, "game-latest.log");
+        try
+        {
+            if (System.IO.File.Exists(path))
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.ComponentModel.Win32Exception)
+        {
+            _logger.LogWarning(ex, "No se pudo abrir el registro del juego");
+        }
     }
 
     /// <summary>Traduce el progreso tipado a lo que se ve en pantalla.</summary>
@@ -596,6 +634,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             case LauncherPhase.Launching:
             case LauncherPhase.Running:
+                if (progress.Phase == LauncherPhase.Running)
+                    SetGameOpen(true);
                 PlayButtonText = LaunchingText;
                 SetAction("Minecraft está abierto. El launcher espera a que se cierre.", null);
                 break;

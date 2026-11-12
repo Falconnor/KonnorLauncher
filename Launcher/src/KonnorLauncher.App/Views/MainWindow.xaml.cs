@@ -31,7 +31,45 @@ public partial class MainWindow : Window
                     ScheduleSidebarPill();
             };
         Loaded += (_, _) => ScheduleSidebarPill();
+        viewModel.GameWindowChanged += OnGameWindowChanged;
         SidebarLinksHost.SizeChanged += (_, _) => ScheduleSidebarPill(animate: false);
+    }
+
+    // ── Mientras se juega (Opciones → Launcher) ──────────────────────────
+
+    private bool _hiddenForGame;
+    private bool _minimizedForGame;
+    private WindowState _stateBeforeGame;
+
+    /// <summary>Al abrirse el juego, se minimiza u oculta la ventana; al cerrarse, vuelve como estaba.</summary>
+    private void OnGameWindowChanged(object? sender, bool open)
+    {
+        if (open)
+        {
+            _stateBeforeGame = WindowState;
+            switch (_viewModel.OnPlay)
+            {
+                case Core.Configuration.LauncherOnPlay.Minimize when WindowState != WindowState.Minimized:
+                    _minimizedForGame = true;
+                    WindowState = WindowState.Minimized;
+                    break;
+                case Core.Configuration.LauncherOnPlay.Hide when IsVisible:
+                    _hiddenForGame = true;
+                    Hide();
+                    break;
+            }
+
+            return;
+        }
+
+        if (_hiddenForGame)
+            Show();
+        if ((_hiddenForGame || _minimizedForGame) && WindowState == WindowState.Minimized)
+            WindowState = _stateBeforeGame == WindowState.Minimized ? WindowState.Normal : _stateBeforeGame;
+        if (_hiddenForGame || _minimizedForGame)
+            Activate();
+        _hiddenForGame = false;
+        _minimizedForGame = false;
     }
 
     // ── Marca deslizante del grupo Explorar ──────────────────────────────

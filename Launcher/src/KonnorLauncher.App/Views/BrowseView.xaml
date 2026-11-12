@@ -1161,7 +1161,7 @@
                                                                     <Border x:Name="Box" Width="16" Height="16" CornerRadius="4" BorderThickness="1"
                                                                             BorderBrush="#4DFFFFFF" Background="Transparent" Margin="0,0,10,0">
                                                                         <TextBlock x:Name="Mark" Style="{StaticResource Icon}" FontSize="9" HorizontalAlignment="Center"
-                                                                                   VerticalAlignment="Center" Foreground="White" />
+                                                                                   VerticalAlignment="Center" Foreground="{StaticResource OnAccent}" />
                                                                     </Border>
                                                                     <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="14" Foreground="{StaticResource Ink2}"
                                                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />

@@ -1,4 +1,5 @@
 using System.Globalization;
+using KonnorLauncher.Core.Theming;
 
 namespace KonnorLauncher.Core.Configuration;
 
@@ -32,6 +33,28 @@ public sealed class LauncherSettings
     /// <summary>Instancia seleccionada en la barra lateral (id = nombre de su carpeta).</summary>
     public const string KeySelectedInstance = "instance.selected";
 
+    /// <summary>Argumentos extra para la máquina virtual de Java (p. ej. <c>-XX:+UseG1GC</c>).</summary>
+    public const string KeyJavaArgs = "java.args";
+
+    /// <summary>Tamaño de la ventana del juego al abrirse (vacío = el de Minecraft).</summary>
+    public const string KeyGameWidth = "game.width";
+    public const string KeyGameHeight = "game.height";
+
+    /// <summary>El juego se abre en pantalla completa.</summary>
+    public const string KeyGameFullscreen = "game.fullscreen";
+
+    /// <summary>Qué hace la ventana del launcher mientras se juega: <c>keep</c>, <c>minimize</c> o <c>hide</c>.</summary>
+    public const string KeyLauncherOnPlay = "launcher.on_play";
+
+    /// <summary>Si el juego se cierra con error, abrir su registro (<c>game-latest.log</c>).</summary>
+    public const string KeyOpenLogOnCrash = "launcher.open_log_on_crash";
+
+    /// <summary>Tema (Opciones → Tema): tema de serie, acento propio, opacidad del cristal e imagen de fondo.</summary>
+    public const string KeyThemePreset = "theme.preset";
+    public const string KeyThemeAccent = "theme.accent";
+    public const string KeyThemeGlass = "theme.glass";
+    public const string KeyThemeBackground = "theme.background";
+
     /// <summary>Memoria por defecto si el archivo no dice nada.</summary>
     public const string DefaultMemory = "4G";
 
@@ -51,6 +74,51 @@ public sealed class LauncherSettings
     public bool PlayerSkinSlim => string.Equals(Properties.Get(KeyPlayerSkinModel), "slim", StringComparison.OrdinalIgnoreCase);
     public string PlayerAvatar => Properties.Get(KeyPlayerAvatar);
     public string JavaMemory => Properties.Get(KeyJavaMemory, DefaultMemory);
+
+    /// <summary><c>java.args</c> (vacío = ninguno).</summary>
+    public string JavaArgs => Properties.Get(KeyJavaArgs).Trim();
+
+    /// <summary>Ancho de la ventana del juego, o null si no se fijó (o no es válido).</summary>
+    public int? GameWidth => ParseDimension(Properties.Get(KeyGameWidth));
+
+    /// <summary>Alto de la ventana del juego, o null si no se fijó (o no es válido).</summary>
+    public int? GameHeight => ParseDimension(Properties.Get(KeyGameHeight));
+
+    public bool GameFullscreen => ParseBool(Properties.Get(KeyGameFullscreen));
+
+    /// <summary>Qué hace el launcher mientras se juega (valor desconocido = se queda abierto).</summary>
+    public LauncherOnPlay OnPlay => Properties.Get(KeyLauncherOnPlay).Trim().ToLowerInvariant() switch
+    {
+        "minimize" => LauncherOnPlay.Minimize,
+        "hide" => LauncherOnPlay.Hide,
+        _ => LauncherOnPlay.Keep,
+    };
+
+    /// <summary>Tema guardado; lo que falte o no sea válido queda como en el diseño.</summary>
+    public ThemeSettings Theme => new(
+        ThemeEngine.FindPreset(Properties.Get(KeyThemePreset)).Id,
+        Argb.TryParse(Properties.Get(KeyThemeAccent), out var accent) ? accent.WithAlpha(0xFF).ToString() : null,
+        int.TryParse(Properties.Get(KeyThemeGlass).Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var glass)
+            ? Math.Clamp(glass, ThemeEngine.MinGlassPercent, ThemeEngine.MaxGlassPercent)
+            : 100,
+        NullIfEmpty(Properties.Get(KeyThemeBackground)));
+
+    public bool OpenLogOnCrash => ParseBool(Properties.Get(KeyOpenLogOnCrash));
+
+    /// <summary>Valor que se guarda para <paramref name="value"/> en <c>launcher.on_play</c>.</summary>
+    public static string FormatOnPlay(LauncherOnPlay value) => value switch
+    {
+        LauncherOnPlay.Minimize => "minimize",
+        LauncherOnPlay.Hide => "hide",
+        _ => "keep",
+    };
+
+    /// <summary>Medida de la ventana del juego: entero entre 320 y 16384; si no, null.</summary>
+    public static int? ParseDimension(string? value) =>
+        int.TryParse(value?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n is >= MinDimension and <= MaxDimension ? n : null;
+
+    public const int MinDimension = 320;
+    public const int MaxDimension = 16384;
 
     /// <summary>UUID manual (no está en el archivo por defecto); null si no existe o está vacío.</summary>
     public string? PlayerUuid => NullIfEmpty(Properties.Get(KeyPlayerUuid));
@@ -106,4 +174,17 @@ public sealed class LauncherSettings
         megabytes % 1024 == 0 ? $"{megabytes / 1024}G" : $"{megabytes}M";
 
     private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
+
+/// <summary>Qué hace la ventana del launcher mientras el juego está abierto.</summary>
+public enum LauncherOnPlay
+{
+    /// <summary>Se queda como está.</summary>
+    Keep,
+
+    /// <summary>Se minimiza al abrirse el juego.</summary>
+    Minimize,
+
+    /// <summary>Se oculta y vuelve a aparecer al cerrarse el juego.</summary>
+    Hide,
 }
