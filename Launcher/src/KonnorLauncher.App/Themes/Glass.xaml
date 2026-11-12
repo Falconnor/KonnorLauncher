@@ -564,6 +564,45 @@
         </Setter>
     </Style>
 
+    <!-- ═══ Selector de vista (lista / iconos, tamaño): iconos pequeños en un grupo redondeado ═══ -->
+    <Style x:Key="ViewToggleGroup" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="ViewToggle" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource Ink3}" />
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="7" BorderThickness="1" BorderBrush="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentSoft}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentHover}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ═══ Barra desplegable (selector de versión): barra horizontal que se abre al pulsarla ═══ -->
     <Style x:Key="DropdownBar" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{StaticResource Ink}" />
@@ -1042,6 +1081,11 @@
     </Style>
     <!-- Subpestañas (subcabecera: Modpacks / Mods / Paquetes de recursos…) -->
     <Style x:Key="TopTabSmall" TargetType="RadioButton" BasedOn="{StaticResource TopTab}">
+        <Style.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.35" />
+            </Trigger>
+        </Style.Triggers>
         <Setter Property="FontSize" Value="14" />
     </Style>
 

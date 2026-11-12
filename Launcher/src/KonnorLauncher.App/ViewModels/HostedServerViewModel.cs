@@ -162,8 +162,11 @@ public sealed partial class HostedServerViewModel : ObservableObject
     public int MaxPlayersCount => ServerPropertiesFile.Load(PropertiesPath).GetInt("max-players", 20);
     public string PlayersText => $"{_runner.Players.Count} / {MaxPlayersCount} jugadores";
 
-    /// <summary>Dirección para los jugadores de la misma red (siempre se conoce).</summary>
-    public string LanAddress => $"{NetworkAccess.GetLanIp() ?? "localhost"}{PortSuffix(Port)}";
+    /// <summary>Dirección para los jugadores de la misma red (siempre se conoce): la IP fijada en server-ip o la de este equipo.</summary>
+    public string LanAddress => $"{BoundIp ?? NetworkAccess.GetLanIp() ?? "localhost"}{PortSuffix(Port)}";
+
+    /// <summary>IP fijada en <c>server-ip</c> (null = el servidor escucha en todas las del equipo).</summary>
+    private string? BoundIp => ServerPropertiesFile.Load(PropertiesPath).Get("server-ip") is { Length: > 0 } ip ? ip.Trim() : null;
 
     [ObservableProperty] private string? _publicAddress;
     [ObservableProperty] private bool _isCopied;
@@ -545,6 +548,84 @@ public sealed partial class HostedServerViewModel : ObservableObject
         OnPropertyChanged(nameof(WhitelistNotice));
         OnPropertyChanged(nameof(HasBannedEntries));
         OnPropertyChanged(nameof(BannedTabText));
+        NotifyProfileLists();
+    }
+
+    // ── Perfil: lista blanca, baneo y operador (cada botón añade o quita según esté o no) ──
+
+    public bool ProfileWhitelisted => ProfileView is { } v && PlayerListFile.Contains(WhitelistFile.PathFor(Directory), v.Name);
+    public bool ProfileBanned => ProfileView is { } v && PlayerListFile.Contains(BannedPlayersFile.PathFor(Directory), v.Name);
+    public bool ProfileOp => ProfileView is { } v && PlayerListFile.Contains(OpsFile.PathFor(Directory), v.Name);
+
+    public string ProfileWhitelistText => ProfileWhitelisted ? "Quitar de la lista blanca" : "Añadir a la lista blanca";
+    public string ProfileBanText => ProfileBanned ? "Desbanear" : "Banear";
+    public string ProfileOpText => ProfileOp ? "Quitar operador" : "Hacer operador";
+
+    private void NotifyProfileLists()
+    {
+        OnPropertyChanged(nameof(ProfileWhitelisted));
+        OnPropertyChanged(nameof(ProfileBanned));
+        OnPropertyChanged(nameof(ProfileOp));
+        OnPropertyChanged(nameof(ProfileWhitelistText));
+        OnPropertyChanged(nameof(ProfileBanText));
+        OnPropertyChanged(nameof(ProfileOpText));
+    }
+
+    [RelayCommand]
+    private Task ToggleProfileWhitelistAsync() => ToggleProfileListAsync(ProfileWhitelisted, "whitelist add", "whitelist remove",
+        WhitelistFile.PathFor(Directory), (name, uuid) => WhitelistFile.Add(Directory, name, uuid), name => WhitelistFile.Remove(Directory, name));
+
+    [RelayCommand]
+    private async Task ToggleProfileBanAsync()
+    {
+        if (ProfileView is not { } view)
+            return;
+        // Banear echa al jugador si está dentro: se confirma. Desbanear no.
+        if (!ProfileBanned && !await _confirm.ShowAsync($"Banear a {view.Name}", "No podrá volver a entrar a este servidor hasta que lo desbanees.", "Banear", isDanger: true))
+            return;
+        await ToggleProfileListAsync(ProfileBanned, "ban", "pardon", BannedPlayersFile.PathFor(Directory),
+            (name, uuid) => BannedPlayersFile.Add(Directory, name, uuid, DateTimeOffset.Now), name => BannedPlayersFile.Remove(Directory, name));
+    }
+
+    [RelayCommand]
+    private Task ToggleProfileOpAsync() => ToggleProfileListAsync(ProfileOp, "op", "deop",
+        OpsFile.PathFor(Directory), (name, uuid) => OpsFile.Add(Directory, name, uuid), name => OpsFile.Remove(Directory, name));
+
+    /// <summary>
+    /// Añade o quita al jugador del perfil de una lista. En marcha, con el comando (el servidor tiene la lista en memoria
+    /// y reescribe el archivo: se espera a verlo cambiar); detenido, editando el archivo.
+    /// </summary>
+    private async Task ToggleProfileListAsync(bool isIn, string addCommand, string removeCommand, string file,
+        Func<string, Guid, bool> addOffline, Func<string, bool> removeOffline)
+    {
+        if (ProfileView is not { } view)
+            return;
+        var name = view.Name;
+        try
+        {
+            if (IsAlive)
+            {
+                _runner.SendCommand($"{(isIn ? removeCommand : addCommand)} {name}");
+                for (var i = 0; i < 20 && PlayerListFile.Contains(file, name) == isIn; i++)
+                    await Task.Delay(100);
+            }
+            else if (isIn)
+            {
+                removeOffline(name);
+            }
+            else
+            {
+                addOffline(name, view.Profile.Uuid);
+            }
+
+            Error = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            Error = $"No se pudo cambiar a {name}: {ex.Message}";
+        }
+
+        RefreshWhitelist();
     }
 
     /// <summary>Retira a un jugador de la lista blanca (<c>/whitelist remove</c> en marcha; detenido, el archivo).</summary>
@@ -632,6 +713,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
     /// <summary>Al abrir o actualizar el perfil: los campos parten de su estado actual.</summary>
     partial void OnProfileViewChanged(PlayerProfileViewModel? value)
     {
+        NotifyProfileLists();
         if (value?.Profile is not { } profile)
             return;
         XpLevelsText = profile.XpLevel.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -786,6 +868,9 @@ public sealed partial class HostedServerViewModel : ObservableObject
 
     [ObservableProperty] private string _motd = string.Empty;
     [ObservableProperty] private string _portText = string.Empty;
+
+    /// <summary><c>server-ip</c>: dirección de este equipo en la que escucha el servidor (vacío = todas).</summary>
+    [ObservableProperty] private string _serverIpText = string.Empty;
     [ObservableProperty] private string _maxPlayersText = string.Empty;
     [ObservableProperty] private double _viewDistance = 10;
     [ObservableProperty] private double _simulationDistance = 10;
@@ -882,6 +967,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
         var props = ServerPropertiesFile.Load(PropertiesPath);
         Motd = props.Get("motd", "A Minecraft Server").Replace("\n", Environment.NewLine);
         PortText = props.Port.ToString();
+        ServerIpText = props.Get("server-ip", string.Empty).Trim();
         MaxPlayersText = props.GetInt("max-players", 20).ToString();
         ViewDistance = Math.Clamp(props.GetInt("view-distance", 10), ViewDistanceMin, ViewDistanceMax);
         SimulationDistance = Math.Clamp(props.GetInt("simulation-distance", 10), SimulationDistanceMin, SimulationDistanceMax);
@@ -911,6 +997,13 @@ public sealed partial class HostedServerViewModel : ObservableObject
             return;
         }
 
+        var serverIp = ServerIpText.Trim();
+        if (serverIp.Length > 0 && !System.Net.IPAddress.TryParse(serverIp, out _))
+        {
+            SettingsMessage = "La IP tiene que ser una dirección como 192.168.1.20 (o vacía para usar todas).";
+            return;
+        }
+
         if (!int.TryParse(MaxPlayersText, out var maxPlayers) || maxPlayers is < 1 or > 1000)
         {
             SettingsMessage = "Jugadores máximos: entre 1 y 1000.";
@@ -937,6 +1030,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
             var props = ServerPropertiesFile.Load(PropertiesPath);
             props.Set("motd", string.Join('\n', motdLines).Trim());
             props.Set("server-port", port);
+            props.Set("server-ip", serverIp);
             props.Set("query.port", port);
             props.Set("max-players", maxPlayers);
             props.Set("view-distance", (int)ViewDistance);
@@ -1000,7 +1094,6 @@ public sealed partial class HostedServerViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoContent));
     }
 
-    public string ContentFolderText => Model.Software == ServerSoftware.Paper ? "Carpeta de plugins" : "Carpeta de mods";
     public string AddContentText => Model.Software switch
     {
         ServerSoftware.Paper => "Añadir plugin",
@@ -1018,28 +1111,6 @@ public sealed partial class HostedServerViewModel : ObservableObject
     /// <summary>«Añadir mod»: Explorar con el cargador y la versión de este servidor.</summary>
     [RelayCommand]
     private void AddContent() => AddModsRequested?.Invoke(this, InstallTarget);
-
-    /// <summary>Copia mods o plugins (.jar) elegidos por el jugador a la carpeta del servidor.</summary>
-    [RelayCommand]
-    private void AddContentFromFile()
-    {
-        if (ContentPath is not { } dir)
-            return;
-        var file = _dialogs.PickFile($"Añadir {ContentTitle.ToLowerInvariant()}", "Archivos .jar|*.jar");
-        if (file is null)
-            return;
-        try
-        {
-            System.IO.Directory.CreateDirectory(dir);
-            File.Copy(file, Path.Combine(dir, Path.GetFileName(file)), overwrite: true);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Error = $"No se pudo copiar: {ex.Message}";
-        }
-
-        RefreshContent();
-    }
 
     [RelayCommand]
     private void ToggleContent(ContentFile? file)

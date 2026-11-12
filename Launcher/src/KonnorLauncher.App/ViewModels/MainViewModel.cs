@@ -103,6 +103,12 @@ public sealed partial class MainViewModel : ObservableObject
             await Browse.OpenForServerAsync(target);
         };
         Browse.ServerContentChanged += (_, id) => Hosting.RefreshServerContent(id);
+        // «Volver a la instancia» desde Explorar: su panel, en la pestaña desde la que se abrió.
+        Browse.ReturnToInstanceRequested += (_, id) =>
+        {
+            ReloadInstances(id);
+            CloseBrowse();
+        };
         Browse.ReturnToServerRequested += (_, id) =>
         {
             IsHosting = true;
@@ -254,7 +260,12 @@ public sealed partial class MainViewModel : ObservableObject
             var all = _store.LoadAll();
             Instances.Clear();
             foreach (var instance in all)
-                Instances.Add(new InstanceItemViewModel(instance, _store.GetDirectory(instance.Id)));
+            {
+                var item = new InstanceItemViewModel(instance, _store.GetDirectory(instance.Id));
+                item.ModToggleFailed += (_, ex) => _logger.LogWarning(ex, "No se pudo activar o desactivar un mod de {Instance}", instance.Name);
+                Instances.Add(item);
+            }
+
             HasInstances = Instances.Count > 0;
             SelectedInstance = Instances.FirstOrDefault(i => i.Id == selectId) ?? Instances.FirstOrDefault();
         }
@@ -333,6 +344,113 @@ public sealed partial class MainViewModel : ObservableObject
     // EXPLORAR CONTENIDO (Modrinth)
     // ══════════════════════════════════════════════════════════════════
 
+    /// <summary>Pestaña del panel de la instancia: Mods, Shaders o Paquetes de texturas.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsModsTab), nameof(IsShadersTab), nameof(IsResourcePacksTab), nameof(AddContentText), nameof(EmptyContentText))]
+    private InstanceContentKind _instanceTab;
+
+    public bool IsModsTab { get => InstanceTab == InstanceContentKind.Mods; set { if (value) InstanceTab = InstanceContentKind.Mods; } }
+    public bool IsShadersTab { get => InstanceTab == InstanceContentKind.Shaders; set { if (value) InstanceTab = InstanceContentKind.Shaders; } }
+    public bool IsResourcePacksTab { get => InstanceTab == InstanceContentKind.ResourcePacks; set { if (value) InstanceTab = InstanceContentKind.ResourcePacks; } }
+
+    public string AddContentText => InstanceTab switch
+    {
+        InstanceContentKind.Shaders => "Añadir shader",
+        InstanceContentKind.ResourcePacks => "Añadir paquete",
+        _ => "Añadir mod",
+    };
+
+    public string EmptyContentText => InstanceTab switch
+    {
+        InstanceContentKind.Shaders => "Todavía no hay shaders.",
+        InstanceContentKind.ResourcePacks => "Todavía no hay paquetes de texturas.",
+        _ => SelectedInstance?.IsModded == false
+            ? "Las instancias vanilla no cargan mods. Edita la instancia y elige Fabric, Forge, NeoForge o Quilt para usarlos."
+            : "Todavía no hay mods.",
+    };
+
+    /// <summary>«Añadir» solo sale si la pestaña tiene sentido en la instancia (mods: con cargador).</summary>
+    public bool CanAddContent => InstanceTab != InstanceContentKind.Mods || SelectedInstance?.IsModded == true;
+
+    partial void OnInstanceTabChanged(InstanceContentKind value)
+    {
+        if (SelectedInstance is { } selected)
+            selected.ContentTab = value;
+        OnPropertyChanged(nameof(CanAddContent));
+    }
+
+    /// <summary>
+    /// «Añadir» del panel de la instancia: Explorar en la pestaña de ese contenido, instalando directamente en la
+    /// instancia, con sus filtros compatibles bloqueados y el resto de pestañas bloqueadas.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddContentAsync()
+    {
+        if (SelectedInstance is not { } selected)
+            return;
+        IsBrowsing = true;
+        var type = InstanceTab switch
+        {
+            InstanceContentKind.Shaders => ContentType.Shader,
+            InstanceContentKind.ResourcePacks => ContentType.ResourcePack,
+            _ => ContentType.Mod,
+        };
+        await Browse.OpenForInstanceAsync(selected.Model, type);
+    }
+
+    // ── Vista de los mods de la instancia: lista o cuadrícula, y tamaño ──
+
+    /// <summary>Cuadrícula (iconos grandes, como el Explorador de Windows) en vez de lista.</summary>
+    public bool ModsGridView
+    {
+        get => _settings.Properties.Get(LauncherSettings.KeyModsView) == "grid";
+        set
+        {
+            if (value == ModsGridView)
+                return;
+            _settings.Properties.Set(LauncherSettings.KeyModsView, value ? "grid" : "list");
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ModsListView));
+        }
+    }
+
+    public bool ModsListView
+    {
+        get => !ModsGridView;
+        set => ModsGridView = !value;
+    }
+
+    /// <summary>Tamaño: 0 pequeño, 1 mediano, 2 grande.</summary>
+    public int ModsSize
+    {
+        get => int.TryParse(_settings.Properties.Get(LauncherSettings.KeyModsSize), out var size) ? Math.Clamp(size, 0, 2) : 1;
+        set
+        {
+            value = Math.Clamp(value, 0, 2);
+            if (value == ModsSize)
+                return;
+            _settings.Properties.Set(LauncherSettings.KeyModsSize, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ModsSmall));
+            OnPropertyChanged(nameof(ModsMedium));
+            OnPropertyChanged(nameof(ModsLarge));
+            OnPropertyChanged(nameof(ModTileWidth));
+            OnPropertyChanged(nameof(ModTileIcon));
+            OnPropertyChanged(nameof(ModRowHeight));
+            OnPropertyChanged(nameof(ModRowIcon));
+        }
+    }
+
+    public bool ModsSmall { get => ModsSize == 0; set { if (value) ModsSize = 0; } }
+    public bool ModsMedium { get => ModsSize == 1; set { if (value) ModsSize = 1; } }
+    public bool ModsLarge { get => ModsSize == 2; set { if (value) ModsSize = 2; } }
+
+    // Medidas según el tamaño (cuadrícula: ancho de la tarjeta e icono; lista: alto de la fila e icono).
+    public double ModTileWidth => ModsSize switch { 0 => 104, 2 => 168, _ => 132 };
+    public double ModTileIcon => ModsSize switch { 0 => 40, 2 => 80, _ => 56 };
+    public double ModRowHeight => ModsSize switch { 0 => 36, 2 => 60, _ => 46 };
+    public double ModRowIcon => ModsSize switch { 0 => 18, 2 => 36, _ => 26 };
+
     [RelayCommand]
     private async Task OpenBrowseAsync()
     {
@@ -405,6 +523,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         Servers.TargetInstance = value;
+        // La pestaña del panel (Mods, Shaders, Paquetes) se mantiene al cambiar de instancia.
+        if (value is not null)
+            value.ContentTab = InstanceTab;
+        OnPropertyChanged(nameof(CanAddContent));
+        OnPropertyChanged(nameof(EmptyContentText));
         if (value is not null && value.Id != _settings.Properties.Get(LauncherSettings.KeySelectedInstance))
             _settings.Properties.Set(LauncherSettings.KeySelectedInstance, value.Id);
         if (!IsPlaying)

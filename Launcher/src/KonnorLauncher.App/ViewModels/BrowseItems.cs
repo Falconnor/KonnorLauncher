@@ -18,6 +18,9 @@ public sealed partial class BrowseTab(ContentType type, string label, string ico
     public string Icon { get; } = icon;
     [ObservableProperty] private bool _isActive;
 
+    /// <summary>false = bloqueada (al instalar en una instancia solo se puede usar la pestaña con la que se abrió).</summary>
+    [ObservableProperty] private bool _isEnabled = true;
+
     partial void OnIsActiveChanged(bool value)
     {
         if (value)

@@ -684,7 +684,12 @@
                                         <TextBlock Text="Hasta dos líneas (Intro para la segunda). Admite colores con § (por ejemplo §a verde)." Style="{StaticResource Hint}" Margin="0,6,0,0" />
                                     </StackPanel>
                                 </DockPanel>
-                                <UniformGrid Columns="2" Margin="0,14,0,0">
+                                <UniformGrid Columns="3" Margin="0,14,0,0">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Text="IP" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource GlassTextBox}" MaxLength="45" Tag="Todas"
+                                                 Text="{Binding ServerIpText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="IP del servidor" />
+                                    </StackPanel>
                                     <StackPanel Margin="0,0,12,0">
                                         <TextBlock Text="Puerto" Style="{StaticResource FieldLabel}" />
                                         <TextBox Style="{StaticResource GlassTextBox}" MaxLength="5" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Puerto" />
@@ -999,7 +1004,21 @@
                                 Margin="0,0,12,0">
                             <TextBlock Text="{Binding Initial}" FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource Ink}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <TextBlock DockPanel.Dock="Right" Text="Actualizando…" Style="{StaticResource Meta}" Margin="0"
+                        <!-- Lista blanca, operador y baneo: cada botón añade o quita según esté o no -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,6,0" Content="{Binding DataContext.ProfileWhitelistText, ElementName=PlayersTabRoot}"
+                                    Command="{Binding DataContext.ToggleProfileWhitelistCommand, ElementName=PlayersTabRoot}" />
+                            <Button Style="{StaticResource SmallGlass}" Margin="0,0,6,0" Content="{Binding DataContext.ProfileOpText, ElementName=PlayersTabRoot}"
+                                    Command="{Binding DataContext.ToggleProfileOpCommand, ElementName=PlayersTabRoot}" />
+                            <!-- Banear es peligroso (rojo); ya baneado, «Desbanear» es un botón normal -->
+                            <Button Style="{StaticResource DangerButton}" Height="32" FontSize="13" Content="{Binding DataContext.ProfileBanText, ElementName=PlayersTabRoot}"
+                                    Command="{Binding DataContext.ToggleProfileBanCommand, ElementName=PlayersTabRoot}"
+                                    Visibility="{Binding DataContext.ProfileBanned, ElementName=PlayersTabRoot, Converter={StaticResource InverseBoolToVisibility}}" />
+                            <Button Style="{StaticResource SmallGlass}" Content="{Binding DataContext.ProfileBanText, ElementName=PlayersTabRoot}"
+                                    Command="{Binding DataContext.ToggleProfileBanCommand, ElementName=PlayersTabRoot}"
+                                    Visibility="{Binding DataContext.ProfileBanned, ElementName=PlayersTabRoot, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="Actualizando…" Style="{StaticResource Meta}" Margin="0,0,12,0"
                                    Visibility="{Binding DataContext.IsLoadingProfile, ElementName=PlayersTabRoot, Converter={StaticResource BoolToVisibility}}" />
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Ink}" AutomationProperties.Name="Perfil del jugador" />
@@ -1256,14 +1275,6 @@
                 <DockPanel Visibility="{Binding IsContentTab, Converter={StaticResource BoolToVisibility}}">
                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                         <WrapPanel DockPanel.Dock="Right">
-                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="world" Content="Carpeta del mundo" />
-                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="client" Content="Carpeta del cliente"
-                                    ToolTip="Archivos que reciben los jugadores al publicar el cliente (config, resourcepacks, shaderpacks…)" />
-                            <Button Style="{StaticResource SmallGlass}" Command="{Binding OpenFolderCommand}" CommandParameter="content" Content="{Binding ContentFolderText}"
-                                    Visibility="{Binding HasContentFolder, Converter={StaticResource BoolToVisibility}}" />
-                            <Button Style="{StaticResource SmallGlass}" Command="{Binding AddContentFromFileCommand}" Content="Desde un archivo…"
-                                    ToolTip="Copiar un .jar del equipo a la carpeta del servidor"
-                                    Visibility="{Binding HasContentFolder, Converter={StaticResource BoolToVisibility}}" />
                             <Button Style="{StaticResource AccentButton}" Height="32" FontSize="13" Padding="14,0" Command="{Binding AddContentCommand}"
                                     ToolTip="Explorar Modrinth con solo lo compatible con este servidor: mods, modpacks, data packs, paquetes de recursos y shaders"
                                     AutomationProperties.Name="{Binding AddContentText}">

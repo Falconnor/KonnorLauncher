@@ -440,15 +440,16 @@
                                     </Button>
                                 </StackPanel>
 
-                                <!-- Cabecera: icono con el color del cargador, nombre, datos y la tuerca de editar -->
+                                <!-- Cabecera: icono, nombre y datos a la izquierda; JUGAR en el centro (dos mitades iguales) y la tuerca a la derecha -->
                                 <Grid DockPanel.Dock="Top">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
+                                    <DockPanel Grid.Column="0" Margin="0,0,24,0">
                                     <!-- Sin marco: el icono ocupa todo el recuadro (sin icono, las iniciales en el color del cargador) -->
-                                    <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource TileBackground}">
+                                    <Border DockPanel.Dock="Left" Width="64" Height="64" CornerRadius="14" Background="{StaticResource TileBackground}">
                                         <Grid>
                                             <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="SemiBold"
                                                        Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
@@ -472,7 +473,7 @@
                                             </Rectangle>
                                         </Grid>
                                     </Border>
-                                    <StackPanel Grid.Column="1" Margin="18,0,12,0" VerticalAlignment="Center">
+                                    <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource ViewTitle}" FontSize="22" />
                                         <WrapPanel Margin="0,6,0,0">
                                             <Border Style="{StaticResource Chip}">
@@ -507,19 +508,18 @@
                                             </Border>
                                         </WrapPanel>
                                     </StackPanel>
-                                    <!-- JUGAR y la tuerca de editar, arriba a la derecha -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,32,0">
-                                        <Button Style="{StaticResource GlassPlayButton}" Width="200" Height="46" MinHeight="46" TabIndex="1"
-                                                Content="{Binding DataContext.PlayButtonText, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                AutomationProperties.Name="Jugar" />
-                                        <Button Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconSettings}" Margin="10,0,0,0"
-                                                FontSize="16" VerticalAlignment="Center" ToolTip="Editar instancia" TabIndex="2"
-                                                AutomationProperties.Name="Editar instancia"
-                                                Command="{Binding DataContext.EditInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                    </StackPanel>
+                                    </DockPanel>
+                                    <Button Grid.Column="1" Style="{StaticResource GlassPlayButton}" Width="220" Height="48" MinHeight="48" TabIndex="1"
+                                            VerticalAlignment="Center"
+                                            Content="{Binding DataContext.PlayButtonText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            AutomationProperties.Name="Jugar" />
+                                    <Button Grid.Column="2" Style="{StaticResource IconOnlyButton}" Content="{StaticResource IconSettings}"
+                                            HorizontalAlignment="Right" FontSize="16" VerticalAlignment="Center" ToolTip="Editar instancia" TabIndex="2"
+                                            AutomationProperties.Name="Editar instancia"
+                                            Command="{Binding DataContext.EditInstanceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            IsEnabled="{Binding DataContext.IsPlayEnabled, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </Grid>
 
                                 <!-- Cifras: un solo bloque agrupado, separado por líneas finas -->
@@ -564,44 +564,144 @@
                                     <TextBlock Text="{Binding Directory}" Style="{StaticResource Hint}" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
 
-                                <!-- Mods de la instancia (ocupa el espacio que queda) -->
-                                <DockPanel Margin="0,24,0,0">
-                                    <TextBlock DockPanel.Dock="Top" Text="Mods" Style="{StaticResource GroupLabel}" Margin="2,0,0,10" />
+                                <!-- Contenido de la instancia (ocupa el espacio que queda): pestañas Mods / Shaders / Paquetes de texturas -->
+                                <DockPanel Margin="0,16,0,0">
+                                    <!-- Pestañas; a la derecha, «Añadir», la vista y el tamaño -->
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource PillButton}" Margin="0,0,14,0" TabIndex="4"
+                                                    Command="{Binding DataContext.AddContentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Visibility="{Binding DataContext.CanAddContent, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}"
+                                                    AutomationProperties.Name="{Binding DataContext.AddContentText, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,8,0" />
+                                                    <TextBlock Text="{Binding DataContext.AddContentText, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <!-- Vista: lista o cuadrícula -->
+                                            <Border Style="{StaticResource ViewToggleGroup}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Style="{StaticResource ViewToggle}" GroupName="ModsView" Content="&#xE8FD;" ToolTip="Lista"
+                                                                 AutomationProperties.Name="Ver los mods en lista"
+                                                                 IsChecked="{Binding DataContext.ModsListView, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <RadioButton Style="{StaticResource ViewToggle}" GroupName="ModsView" Content="&#xE80A;" ToolTip="Iconos"
+                                                                 AutomationProperties.Name="Ver los mods como iconos"
+                                                                 IsChecked="{Binding DataContext.ModsGridView, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Tamaño: pequeño, mediano, grande -->
+                                            <Border Style="{StaticResource ViewToggleGroup}" Margin="8,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Style="{StaticResource ViewToggle}" GroupName="ModsSize" Content="&#xE739;" FontSize="9" ToolTip="Pequeño"
+                                                                 AutomationProperties.Name="Tamaño pequeño"
+                                                                 IsChecked="{Binding DataContext.ModsSmall, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <RadioButton Style="{StaticResource ViewToggle}" GroupName="ModsSize" Content="&#xE739;" FontSize="12" ToolTip="Mediano"
+                                                                 AutomationProperties.Name="Tamaño mediano"
+                                                                 IsChecked="{Binding DataContext.ModsMedium, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                    <RadioButton Style="{StaticResource ViewToggle}" GroupName="ModsSize" Content="&#xE739;" FontSize="15" ToolTip="Grande"
+                                                                 AutomationProperties.Name="Tamaño grande"
+                                                                 IsChecked="{Binding DataContext.ModsLarge, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        <!-- Pestañas horizontales, como las de Explorar -->
+                                        <StackPanel Orientation="Horizontal" KeyboardNavigation.TabNavigation="Once">
+                                            <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Mods"
+                                                         IsChecked="{Binding DataContext.IsModsTab, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Shaders"
+                                                         IsChecked="{Binding DataContext.IsShadersTab, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Paquetes de texturas"
+                                                         IsChecked="{Binding DataContext.IsResourcePacksTab, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </StackPanel>
+                                    </DockPanel>
                                     <Border Style="{StaticResource GroupedList}">
                                         <Grid>
-                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Focusable="False">
-                                                <ItemsControl ItemsSource="{Binding ModFiles}" Focusable="False">
+                                            <!-- Lista -->
+                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Focusable="False"
+                                                          Visibility="{Binding DataContext.ModsListView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                                                <ItemsControl ItemsSource="{Binding CurrentFiles}" Focusable="False">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Style="{StaticResource GroupedItemRow}" MinHeight="44">
+                                                        <DataTemplate DataType="{x:Type vm:ModFileItem}">
+                                                            <Border Style="{StaticResource GroupedItemRow}"
+                                                                    MinHeight="{Binding DataContext.ModRowHeight, RelativeSource={RelativeSource AncestorType=Window}}">
                                                                 <DockPanel>
-                                                                    <TextBlock DockPanel.Dock="Left" Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="13"
-                                                                               Width="16" Margin="0,0,12,0"
-                                                                               Foreground="{Binding DataContext.Loader, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource LoaderBrush}}" />
-                                                                    <TextBlock Text="{Binding}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                                    <CheckBox DockPanel.Dock="Right" Style="{StaticResource SwitchCheckBox}" VerticalAlignment="Center"
+                                                                              IsChecked="{Binding IsEnabled}" IsEnabled="{Binding CanToggle}"
+                                                                              AutomationProperties.Name="{Binding Name, StringFormat=Activar {0}}" />
+                                                                    <Grid DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                                          Width="{Binding DataContext.ModRowIcon, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                          Height="{Binding DataContext.ModRowIcon, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                        <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="13"
+                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                   Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}"
+                                                                                   Foreground="{Binding DataContext.Loader, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource LoaderBrush}}" />
+                                                                        <Image Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality" />
+                                                                    </Grid>
+                                                                    <TextBlock x:Name="ModName" Text="{Binding Name}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                                                 </DockPanel>
                                                             </Border>
+                                                            <DataTemplate.Triggers>
+                                                                <!-- Desactivado: el nombre apagado -->
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                    <Setter TargetName="ModName" Property="Foreground" Value="{StaticResource Ink3}" />
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </ScrollViewer>
-                                            <TextBlock FontSize="13.5" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                       TextAlignment="Center" MaxWidth="440"
-                                                       Visibility="{Binding ModFiles.Count, Converter={StaticResource ZeroToVisible}}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
-                                                        <Setter Property="Text" Value="Todavía no hay mods. Copia los archivos .jar a la carpeta mods (botón Abrir carpeta)." />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsModded}" Value="False">
-                                                                <Setter Property="Text" Value="Las instancias vanilla no cargan mods. Edita la instancia y elige Fabric, Forge, NeoForge o Quilt para usarlos." />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <!-- Cuadrícula: icono grande, nombre y su interruptor, como los iconos del Explorador de Windows -->
+                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Focusable="False"
+                                                          Visibility="{Binding DataContext.ModsGridView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                                                <ItemsControl ItemsSource="{Binding CurrentFiles}" Focusable="False" Margin="8">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type vm:ModFileItem}">
+                                                            <Border x:Name="Tile" Margin="4" Padding="8,12,8,10" CornerRadius="{StaticResource RadiusGroup}" Background="Transparent"
+                                                                    Width="{Binding DataContext.ModTileWidth, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                <StackPanel>
+                                                                    <Grid HorizontalAlignment="Center"
+                                                                          Width="{Binding DataContext.ModTileIcon, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                          Height="{Binding DataContext.ModTileIcon, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                        <Border CornerRadius="10" Background="{StaticResource Surface}"
+                                                                                Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}">
+                                                                            <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="20"
+                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                       Foreground="{Binding DataContext.Loader, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource LoaderBrush}}" />
+                                                                        </Border>
+                                                                        <Image x:Name="TileIcon" Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality" />
+                                                                    </Grid>
+                                                                    <TextBlock x:Name="TileName" Text="{Binding Name}" FontSize="12.5" Margin="0,8,0,8" TextAlignment="Center"
+                                                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="34" ToolTip="{Binding Name}" />
+                                                                    <!-- Margen negativo: compensa el hueco que el interruptor deja a la izquierda para su texto -->
+                                                                    <CheckBox Style="{StaticResource SwitchCheckBox}" HorizontalAlignment="Center" Margin="-16,0,0,0"
+                                                                              IsChecked="{Binding IsEnabled}" IsEnabled="{Binding CanToggle}"
+                                                                              AutomationProperties.Name="{Binding Name, StringFormat=Activar {0}}" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <DataTemplate.Triggers>
+                                                                <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource RowHover}" />
+                                                                </Trigger>
+                                                                <!-- Desactivado: icono y nombre apagados -->
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                    <Setter TargetName="TileIcon" Property="Opacity" Value="0.4" />
+                                                                    <Setter TargetName="TileName" Property="Foreground" Value="{StaticResource Ink3}" />
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                            <TextBlock Style="{StaticResource Hint}" FontSize="13.5" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                       TextAlignment="Center" MaxWidth="440" TextWrapping="Wrap"
+                                                       Text="{Binding DataContext.EmptyContentText, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                       Visibility="{Binding CurrentFiles.Count, Converter={StaticResource ZeroToVisible}}" />
                                         </Grid>
                                     </Border>
                                 </DockPanel>

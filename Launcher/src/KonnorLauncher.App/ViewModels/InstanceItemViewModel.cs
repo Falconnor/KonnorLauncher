@@ -53,8 +53,28 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     /// <summary>Archivo del icono dentro de la carpeta de la instancia.</summary>
     public const string IconFileName = "icon.png";
 
-    /// <summary>Archivos .jar de la carpeta mods (los desactivados .jar.disabled no cuentan).</summary>
-    public System.Collections.ObjectModel.ObservableCollection<string> ModFiles { get; } = [];
+    /// <summary>Mods de la carpeta mods, activos y desactivados (.jar.disabled), cada uno con su interruptor.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<ModFileItem> ModFiles { get; } = [];
+
+    /// <summary>Shaders (shaderpacks) y paquetes de recursos (resourcepacks): .zip, desactivados y carpetas.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<ModFileItem> ShaderFiles { get; } = [];
+    public System.Collections.ObjectModel.ObservableCollection<ModFileItem> ResourcePackFiles { get; } = [];
+
+    /// <summary>Pestaña del panel (Mods, Shaders, Paquetes de texturas): la elige la ventana.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentFiles))]
+    private InstanceContentKind _contentTab;
+
+    /// <summary>Lo que se ve en la pestaña elegida.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<ModFileItem> CurrentFiles => ContentTab switch
+    {
+        InstanceContentKind.Shaders => ShaderFiles,
+        InstanceContentKind.ResourcePacks => ResourcePackFiles,
+        _ => ModFiles,
+    };
+
+    /// <summary>No se pudo activar o desactivar un mod (la ventana lo registra).</summary>
+    public event EventHandler<Exception>? ModToggleFailed;
 
     public void Update(GameInstance model)
     {
@@ -82,12 +102,11 @@ public sealed partial class InstanceItemViewModel : ObservableObject
             : model.SyncWithServer && model.ServerMemoryMb is not null ? $"{InstanceEditorViewModel.FormatMemory(model.ResolveMemoryMb(0))} de RAM (del servidor)"
             : string.Empty;
         ModCount = Count("mods", "*.jar", files: true);
-        ModFiles.Clear();
-        foreach (var file in ListMods())
-            ModFiles.Add(file);
+        LoadContent(InstanceContentKind.Mods, ModFiles);
+        LoadContent(InstanceContentKind.Shaders, ShaderFiles);
+        LoadContent(InstanceContentKind.ResourcePacks, ResourcePackFiles);
         WorldCount = Count("saves", "*", files: false);
-        ResourcePackCount = Count("resourcepacks", "*", files: null);
-        ShaderPackCount = Count("shaderpacks", "*", files: null);
+        RefreshCounts();
         Icon = LoadIcon();
     }
 
@@ -115,20 +134,37 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         }
     }
 
-    private IEnumerable<string> ListMods()
+    private void LoadContent(InstanceContentKind kind, System.Collections.ObjectModel.ObservableCollection<ModFileItem> target)
     {
+        IReadOnlyList<ModFile> files;
+        var dir = Path.Combine(Directory, InstanceMods.FolderName(kind));
         try
         {
-            var mods = Path.Combine(Directory, "mods");
-            return System.IO.Directory.Exists(mods)
-                ? System.IO.Directory.EnumerateFiles(mods, "*.jar").Select(Path.GetFileName).OfType<string>()
-                    .Order(StringComparer.OrdinalIgnoreCase).Take(500).ToList()
-                : [];
+            files = InstanceMods.List(dir, kind);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return [];
+            files = [];
         }
+
+        target.Clear();
+        // El contenido de una instancia sincronizada lo decide su servidor: no se puede apagar.
+        var canToggle = !Model.IsSyncLocked;
+        foreach (var file in files)
+        {
+            var item = new ModFileItem(dir, file, canToggle);
+            item.Toggled += (_, _) => RefreshCounts();
+            item.Failed += (_, ex) => ModToggleFailed?.Invoke(this, ex);
+            target.Add(item);
+        }
+    }
+
+    /// <summary>Cifras del panel (los desactivados no cuentan).</summary>
+    private void RefreshCounts()
+    {
+        ModCount = Count("mods", "*.jar", files: true);
+        ResourcePackCount = Count("resourcepacks", "*", files: null) - ResourcePackFiles.Count(f => !f.IsEnabled);
+        ShaderPackCount = Count("shaderpacks", "*", files: null) - ShaderFiles.Count(f => !f.IsEnabled);
     }
 
     /// <summary>Elementos de una subcarpeta: archivos (true), carpetas (false) o ambos (null).</summary>

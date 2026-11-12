@@ -58,6 +58,10 @@ public sealed class LauncherSettings
     /// <summary>Tipo de fondo: <c>translucent</c> (cristal sobre la imagen) o <c>solid</c> (opaco).</summary>
     public const string KeyThemeMode = "theme.mode";
 
+    /// <summary>Vista de los mods de una instancia: <c>list</c> o <c>grid</c>, y su tamaño (0, 1 o 2).</summary>
+    public const string KeyModsView = "mods.view";
+    public const string KeyModsSize = "mods.size";
+
     /// <summary>Memoria por defecto si el archivo no dice nada.</summary>
     public const string DefaultMemory = "4G";
 

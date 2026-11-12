@@ -115,6 +115,8 @@ public sealed partial class BrowseViewModel : ObservableObject
     {
         Notice = null;
         ServerTarget = target;
+        InstanceTarget = null;
+        UpdateTabLocks(null);
         if (!_tagsLoaded)
         {
             ActiveType = target.StartType;
@@ -124,6 +126,142 @@ public sealed partial class BrowseViewModel : ObservableObject
 
         SelectType(target.StartType, keepText: false);
     }
+
+    /// <summary>
+    /// Instancia en la que se instala (abierto con «Añadir» desde su panel; null = Explorar normal): lo elegido va
+    /// directamente a ella, sin preguntar dónde, con sus filtros compatibles bloqueados y solo la pestaña de ese tipo.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInstanceMode), nameof(InstanceTargetText))]
+    private GameInstance? _instanceTarget;
+
+    public bool IsInstanceMode => InstanceTarget is not null;
+    public string InstanceTargetText => InstanceTarget is { } i ? $"Instalando en «{i.Name}»" : string.Empty;
+
+    /// <summary>«Volver a la instancia» desde el aviso (id de la instancia).</summary>
+    public event EventHandler<string>? ReturnToInstanceRequested;
+
+    /// <summary>
+    /// «Añadir» del panel de una instancia: abre la pestaña de <paramref name="type"/> (mods, shaders o paquetes de
+    /// recursos) para instalar directamente en ella. El resto de pestañas quedan bloqueadas.
+    /// </summary>
+    public async Task OpenForInstanceAsync(GameInstance instance, ContentType type)
+    {
+        Notice = null;
+        ServerTarget = null;
+        InstanceTarget = instance;
+        UpdateTabLocks(type);
+        if (!_tagsLoaded)
+        {
+            ActiveType = type;
+            await OpenCoreAsync();
+            return;
+        }
+
+        SelectType(type, keepText: false);
+    }
+
+    /// <summary>Deja de instalar en la instancia: Explorar vuelve a ser el normal (todas las pestañas).</summary>
+    [RelayCommand]
+    private void ExitInstanceMode()
+    {
+        if (InstanceTarget is null)
+            return;
+        InstanceTarget = null;
+        UpdateTabLocks(null);
+        SelectType(ActiveType, keepText: true);
+    }
+
+    [RelayCommand]
+    private void ReturnToInstance()
+    {
+        if (InstanceTarget is { } target)
+            ReturnToInstanceRequested?.Invoke(this, target.Id);
+    }
+
+    /// <summary>Con una instancia de destino solo se puede usar la pestaña <paramref name="only"/>; sin ella, todas.</summary>
+    private void UpdateTabLocks(ContentType? only)
+    {
+        foreach (var tab in Tabs)
+            tab.IsEnabled = only is null || tab.Type == only;
+    }
+
+    /// <summary>
+    /// Con una instancia de destino: su versión de Minecraft y los cargadores compatibles con la pestaña, marcados y
+    /// bloqueados (en mods, también el entorno «Cliente»). Shaders: Iris (y Canvas) en Fabric y Quilt, Iris en
+    /// NeoForge, OptiFine en Forge y los shaders «vanilla» (core shaders) en una instancia sin cargador.
+    /// </summary>
+    private void ApplyInstanceLocks()
+    {
+        if (InstanceTarget is not { } instance)
+            return;
+        var (minecraft, loader, _) = instance.Display;
+        var loaders = InstanceLoaders(loader, ActiveType);
+        if (loaders is not null)
+        {
+            foreach (var value in loaders)
+            {
+                if (Loaders.All(l => l.Value != value))
+                    Loaders.Add(new FilterOption(value, BrowseText.Loader(value), FiltersChanged));
+            }
+
+            foreach (var option in Loaders)
+            {
+                option.IsActive = loaders.Contains(option.Value);
+                option.IsLocked = true;
+            }
+
+            SplitLoaders();
+            if (Loaders.Any(l => l.IsActive && OtherLoaders.Contains(l)))
+                ShowOtherLoaders = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(minecraft))
+        {
+            if (GameVersions.All(v => v.Value != minecraft))
+                GameVersions.Insert(0, new FilterOption(minecraft, minecraft, FiltersChanged));
+            foreach (var version in GameVersions)
+            {
+                version.IsActive = version.Value == minecraft;
+                version.IsLocked = true;
+            }
+        }
+
+        if (ActiveType == ContentType.Mod)
+        {
+            foreach (var environment in Environments)
+            {
+                environment.IsActive = environment.Value == "client";
+                environment.IsLocked = true;
+            }
+        }
+
+        if (ActiveType == ContentType.Mod && loader == ModLoader.Vanilla)
+            ShowNotice("Esta instancia no tiene cargador de mods (es vanilla). Edítala y elige Fabric, Forge, NeoForge o Quilt para usar mods.", error: true);
+        else if (IsNoticeError)
+            Notice = null;
+    }
+
+    /// <summary>Cargadores de Modrinth que puede usar una instancia en una pestaña (null = esa pestaña no filtra por cargador).</summary>
+    internal static IReadOnlyList<string>? InstanceLoaders(ModLoader loader, ContentType type) => type switch
+    {
+        ContentType.Mod => loader switch
+        {
+            ModLoader.Fabric => ["fabric"],
+            ModLoader.Quilt => ["quilt", "fabric"], // Quilt también carga mods de Fabric
+            ModLoader.Forge => ["forge"],
+            ModLoader.NeoForge => ["neoforge"],
+            _ => null,
+        },
+        ContentType.Shader => loader switch
+        {
+            ModLoader.Fabric or ModLoader.Quilt => ["iris", "canvas"],
+            ModLoader.NeoForge => ["iris"],
+            ModLoader.Forge => ["optifine"],
+            _ => ["vanilla"],
+        },
+        _ => null,
+    };
 
     /// <summary>Deja de instalar en el servidor: Mods vuelve a ser el de las instancias.</summary>
     [RelayCommand]
@@ -233,6 +371,8 @@ public sealed partial class BrowseViewModel : ObservableObject
     public Task OpenAsync()
     {
         ServerTarget = null;
+        InstanceTarget = null;
+        UpdateTabLocks(null);
         return OpenCoreAsync();
     }
 
@@ -391,6 +531,8 @@ public sealed partial class BrowseViewModel : ObservableObject
     public Task OpenAsync(ContentType type)
     {
         ServerTarget = null; // desde la barra lateral es Explorar normal
+        InstanceTarget = null;
+        UpdateTabLocks(null);
         if (!_tagsLoaded)
         {
             ActiveType = type; // se selecciona al terminar de cargar las listas
@@ -477,6 +619,7 @@ public sealed partial class BrowseViewModel : ObservableObject
 
         OpenSourceOnly = false;
         ApplyServerLocks();
+        ApplyInstanceLocks();
         OnPropertyChanged(nameof(ShowFeatures));
         OnPropertyChanged(nameof(ShowLoaders));
     }
@@ -844,7 +987,12 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
 
         GameInstance? target = null;
-        if (!card.Type.CreatesInstance())
+        if (InstanceTarget is { } fixedTarget)
+        {
+            // Se relee del disco: puede haber cambiado desde que se abrió Explorar.
+            target = _store.LoadAll().FirstOrDefault(i => i.Id == fixedTarget.Id) ?? fixedTarget;
+        }
+        else if (!card.Type.CreatesInstance())
         {
             target = await InstallDialog.ShowAsync(card, versionId);
             if (target is null)
