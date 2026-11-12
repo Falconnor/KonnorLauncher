@@ -447,8 +447,8 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource TileBackground}" BorderThickness="1.5"
-                                            BorderBrush="{Binding Loader, Converter={StaticResource LoaderBrush}}">
+                                    <!-- Sin marco: el icono ocupa todo el recuadro (sin icono, las iniciales en el color del cargador) -->
+                                    <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource TileBackground}">
                                         <Grid>
                                             <TextBlock Text="{Binding Initials}" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="SemiBold"
                                                        Foreground="{Binding Loader, Converter={StaticResource LoaderBrush}}"
@@ -464,7 +464,7 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
                                             <!-- Icono del modpack con que se creó la instancia -->
-                                            <Rectangle Margin="1" RadiusX="11.5" RadiusY="11.5"
+                                            <Rectangle RadiusX="14" RadiusY="14"
                                                        Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}">
                                                 <Rectangle.Fill>
                                                     <ImageBrush ImageSource="{Binding Icon}" Stretch="UniformToFill" />

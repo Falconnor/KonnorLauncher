@@ -32,7 +32,7 @@
 
     <!-- Superficies dentro del cristal -->
     <SolidColorBrush x:Key="Surface" Color="#0DFFFFFF" />
-    <SolidColorBrush x:Key="SurfaceHover" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="SurfaceHover" Color="{Binding [SurfaceHover], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="SurfaceSunken" Color="#38000000" />
 
     <!-- Ventana de cristal: tinte azul pizarra frío (no negro puro); la barra lateral, algo más oscura -->
@@ -45,11 +45,11 @@
     <SolidColorBrush x:Key="HairlineStrong" Color="#24FFFFFF" />
     <!-- Contenedores dentro del cristal (listas agrupadas y tarjetas) -->
     <SolidColorBrush x:Key="Group" Color="#0AFFFFFF" />
-    <SolidColorBrush x:Key="RowHover" Color="#0FFFFFFF" />
-    <SolidColorBrush x:Key="RowSelected" Color="#1AFFFFFF" />
-    <SolidColorBrush x:Key="InstanceSelected" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="RowHover" Color="{Binding [RowHover], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="RowSelected" Color="{Binding [RowSelected], Source={x:Static th:ThemePalette.Current}}" />
+    <SolidColorBrush x:Key="InstanceSelected" Color="{Binding [InstanceSelected], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="PillGhost" Color="#14FFFFFF" />
-    <SolidColorBrush x:Key="PillGhostHover" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="PillGhostHover" Color="{Binding [PillGhostHover], Source={x:Static th:ThemePalette.Current}}" />
     <SolidColorBrush x:Key="PillOutline" Color="#8CFFFFFF" />
     <SolidColorBrush x:Key="TileBackground" Color="{Binding [TileBackground], Source={x:Static th:ThemePalette.Current}}" />
     <!-- Menús contextuales y descripciones emergentes: cristal denso -->

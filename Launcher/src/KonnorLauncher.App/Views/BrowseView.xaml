@@ -1,6 +1,7 @@
 <UserControl x:Class="KonnorLauncher.App.Views.BrowseView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:th="clr-namespace:KonnorLauncher.App.Theming"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:KonnorLauncher.App.ViewModels"
@@ -23,11 +24,11 @@
         <SolidColorBrush x:Key="InnerStroke" Color="#14FFFFFF" />
         <!-- Selección y estados activos: gris claro, como la fila elegida de la barra lateral (sin azul ni borde
              marcado). El verde queda para "instalado" y los avisos de éxito. -->
-        <SolidColorBrush x:Key="SelectedFill" Color="#1AFFFFFF" />
+        <SolidColorBrush x:Key="SelectedFill" Color="{Binding [SelectedFill], Source={x:Static th:ThemePalette.Current}}" />
         <SolidColorBrush x:Key="SelectedStroke" Color="#00FFFFFF" />
         <!-- Más claro: para lo que ya tiene fondo gris en reposo (pastillas, número de página, botón Instalar) -->
-        <SolidColorBrush x:Key="SelectedFillStrong" Color="#38FFFFFF" />
-        <SolidColorBrush x:Key="HoverFillStrong" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="SelectedFillStrong" Color="{Binding [SelectedFillStrong], Source={x:Static th:ThemePalette.Current}}" />
+        <SolidColorBrush x:Key="HoverFillStrong" Color="{Binding [HoverFillStrong], Source={x:Static th:ThemePalette.Current}}" />
         <SolidColorBrush x:Key="OkFill" Color="#1427AE60" />
         <SolidColorBrush x:Key="OkStroke" Color="#4D27AE60" />
         <DropShadowEffect x:Key="PanelShadow" Color="#020617" BlurRadius="30" ShadowDepth="8" Direction="270" Opacity="0.45" />

@@ -109,8 +109,10 @@ public readonly record struct Argb(byte A, byte R, byte G, byte B)
 /// <summary>
 /// Tema de serie. <paramref name="Brand"/> es el color de JUGAR y de las barras de progreso (null = el acento).
 /// <paramref name="TintSaturation"/> escala la saturación del cristal y de la aurora (1 = como el tema por defecto).
+/// <paramref name="TintLift"/> aclara las superficies (ventana, barra lateral, diálogos…), en puntos de luminosidad de
+/// 0 a 1: los temas pastel quedan apagados si el cristal es tan oscuro como el del azul.
 /// </summary>
-public sealed record ThemePreset(string Id, string Name, string Accent, string? Brand = null, double TintSaturation = 1.0);
+public sealed record ThemePreset(string Id, string Name, string Accent, string? Brand = null, double TintSaturation = 1.0, double TintLift = 0);
 
 /// <summary>Tema elegido por el jugador (claves <c>theme.*</c> de <c>launcher.properties</c>).</summary>
 /// <param name="PresetId">Tema de serie.</param>
@@ -146,12 +148,12 @@ public static class ThemeEngine
     [
         new(DefaultPresetId, "Azul", "#3478F6", Brand: "#27AE60"),
         new("indigo", "Índigo", "#5865F2"),
-        new("violeta", "Violeta", "#9146FF"),
-        new("rosa", "Rosa", "#EC4899"),
+        new("violeta", "Violeta", "#A970FF", TintSaturation: 1.5, TintLift: 0.03),
+        new("rosa", "Rosa", "#FF7AC6", TintSaturation: 2.2, TintLift: 0.05),
         new("rojo", "Rojo", "#FF3B30"),
-        new("naranja", "Naranja", "#FF9500"),
+        new("naranja", "Naranja", "#FF9A1F", TintSaturation: 2.0, TintLift: 0.04),
         new("verde", "Verde", "#1DB954"),
-        new("turquesa", "Turquesa", "#14B8A6"),
+        new("turquesa", "Turquesa", "#2DD4BF", TintSaturation: 2.0, TintLift: 0.04),
         new("cielo", "Cielo", "#1A9FFF"),
         new("grafito", "Grafito", "#8E8E93", Brand: "#27AE60", TintSaturation: 0.2),
     ];
@@ -180,6 +182,21 @@ public static class ThemeEngine
         ["MenuGlass"] = "#1F222A",
         ["ModalScrim"] = "#B3020305",
     };
+
+    /// <summary>
+    /// Resaltados (paso del ratón y selección: filas, barra lateral, tarjetas, pastillas). En el diseño son blanco
+    /// translúcido; aquí llevan el tono del acento, con la misma opacidad un poco reforzada para que el tinte se note.
+    /// Las claves de Explorar y Skins son las de sus vistas.
+    /// </summary>
+    private static readonly (string Key, byte Alpha)[] Highlights =
+    [
+        ("RowHover", 0x0F), ("RowSelected", 0x1A), ("InstanceSelected", 0x14), ("SurfaceHover", 0x1A), ("PillGhostHover", 0x26),
+        ("SelectedFill", 0x1A), ("SelectedFillStrong", 0x38), ("HoverFillStrong", 0x26), ("TileSelected", 0x24),
+    ];
+
+    /// <summary>Superficies que aclara <see cref="ThemePreset.TintLift"/> (la tinta y los velos no).</summary>
+    private static readonly HashSet<string> Surfaces =
+        ["GlassTint", "WindowTint", "SidebarTint", "TileBackground", "MenuGlass", "DialogTint", "WindowBase", "FallbackTop", "FallbackBottom"];
 
     /// <summary>Cristal cuya opacidad ajusta el jugador.</summary>
     private static readonly HashSet<string> Glass = ["GlassTint", "WindowTint", "SidebarTint", "MenuGlass", "DialogTint"];
@@ -221,6 +238,8 @@ public static class ThemeEngine
         {
             var hex = settings.Solid && SolidNeutrals.TryGetValue(key, out var solid) ? solid : neutral;
             var color = Rotate(Argb.Parse(hex), rotation, tint);
+            if (!hasCustom && preset.TintLift > 0 && Surfaces.Contains(key))
+                color = color.Shift(preset.TintLift);
             if (Glass.Contains(key) && !settings.Solid)
                 color = color.WithAlpha((byte)Math.Clamp(Math.Round(color.A * glass), 0, 255));
             palette[key] = color;
@@ -241,6 +260,11 @@ public static class ThemeEngine
         palette["AccentGlow"] = accent.WithAlpha(0x33);
         palette["OnAccent"] = TextOn(accent);
 
+        // Resaltados: blanco teñido con el acento (mitad y mitad), así combinan con la selección y los botones.
+        var highlight = Mix(White, accent, 0.5);
+        foreach (var (key, alpha) in Highlights)
+            palette[key] = highlight.WithAlpha((byte)Math.Min(255, Math.Round(alpha * 1.35)));
+
         // Marca (JUGAR y progreso): mismas relaciones que el verde original (#27AE60).
         palette["Brand"] = brand;
         palette["BrandPress"] = brand.Shift(-0.10);
@@ -254,6 +278,10 @@ public static class ThemeEngine
 
     /// <summary>Texto sobre un color: blanco mientras se lea (contraste ≥ 3, como los botones del diseño); si no, oscuro.</summary>
     public static Argb TextOn(Argb background) => Argb.Contrast(White, background) >= 3.0 ? White : DarkText;
+
+    /// <summary>Mezcla de dos colores opacos: 0 = <paramref name="a"/>, 1 = <paramref name="b"/>.</summary>
+    private static Argb Mix(Argb a, Argb b, double t) => Argb.Rgb(
+        (byte)Math.Round(a.R + (b.R - a.R) * t), (byte)Math.Round(a.G + (b.G - a.G) * t), (byte)Math.Round(a.B + (b.B - a.B) * t));
 
     private static Argb Rotate(Argb color, double degrees, double saturation)
     {

@@ -108,6 +108,22 @@ public class ThemeTests
         Argb.Contrast(text, Argb.Parse(accent)).ShouldBeGreaterThanOrEqualTo(3.0);
     }
 
+    [Theory]
+    [InlineData("rosa")]
+    [InlineData("turquesa")]
+    [InlineData("naranja")]
+    public void Highlights_take_the_tone_of_the_accent(string preset)
+    {
+        var palette = ThemeEngine.Build(new ThemeSettings(preset));
+        foreach (var key in new[] { "RowHover", "RowSelected", "InstanceSelected", "SurfaceHover", "SelectedFillStrong" })
+        {
+            Hue(palette[key]).ShouldBe(Hue(palette["Accent"]), 3, key);   // mismo tono que el acento
+            palette[key].A.ShouldBeLessThan((byte)0x60, key);            // sigue siendo un resaltado translúcido
+        }
+
+        palette["RowSelected"].A.ShouldBeGreaterThan(palette["RowHover"].A); // seleccionado > ratón encima
+    }
+
     [Fact]
     public void A_custom_accent_wins_over_the_preset_and_also_paints_play()
     {

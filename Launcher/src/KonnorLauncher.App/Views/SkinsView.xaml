@@ -18,7 +18,7 @@
         <SolidColorBrush x:Key="TileEdge" Color="#14FFFFFF" />
         <SolidColorBrush x:Key="TileEdgeHover" Color="#24FFFFFF" />
         <!-- Elegida: gris claro, como la fila elegida de la barra lateral (sin azul ni borde marcado) -->
-        <SolidColorBrush x:Key="TileSelected" Color="#24FFFFFF" />
+        <SolidColorBrush x:Key="TileSelected" Color="{Binding [TileSelected], Source={x:Static th:ThemePalette.Current}}" />
 
         <!-- Skin de la cuadrícula: vista de frente y nombre; la elegida, con borde azul -->
         <Style x:Key="SkinTile" TargetType="Button">
