@@ -190,14 +190,29 @@ public class ThemeTests
         foreach (var key in new[] { "WindowTint", "GlassTint", "SidebarTint", "DialogTint", "MenuGlass" })
             solid[key].A.ShouldBe((byte)0xFF, key);
 
-        // Oscuro y casi neutro, como los temas oscuros de los editores: se lee la tinta encima.
-        solid["WindowTint"].ToHsl().L.ShouldBeLessThan(0.15);
-        Argb.Contrast(solid["Ink"], solid["WindowTint"]).ShouldBeGreaterThan(12);
+        // Oscuro, para que se lea la tinta encima.
+        solid["WindowTint"].ToHsl().L.ShouldBeLessThan(0.2);
+        Argb.Contrast(solid["Ink"], solid["WindowTint"]).ShouldBeGreaterThan(10);
         // Escalones: barra lateral más oscura que la ventana; diálogos más claros.
         solid["SidebarTint"].Luminance().ShouldBeLessThan(solid["WindowTint"].Luminance());
         solid["DialogTint"].Luminance().ShouldBeGreaterThan(solid["WindowTint"].Luminance());
         // El acento no cambia por el tipo de fondo.
         solid["Accent"].ShouldBe(ThemeEngine.Build(new ThemeSettings(preset))["Accent"]);
+    }
+
+    [Theory]
+    [InlineData("violeta")]
+    [InlineData("rosa")]
+    [InlineData("turquesa")]
+    public void A_solid_background_has_the_colour_of_the_theme(string preset)
+    {
+        // Del tono del acento y con color de verdad (no un gris casi neutro que apague el tema).
+        var palette = ThemeEngine.Build(new ThemeSettings(preset, Solid: true));
+        foreach (var key in new[] { "WindowTint", "GlassTint", "SidebarTint", "DialogTint" })
+        {
+            Hue(palette[key]).ShouldBe(Hue(palette["Accent"]), 2, key);
+            palette[key].ToHsl().S.ShouldBeGreaterThan(0.3, key);
+        }
     }
 
     [Fact]

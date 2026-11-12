@@ -202,19 +202,21 @@ public static class ThemeEngine
     ];
 
     /// <summary>
-    /// Fondo sólido: las mismas capas, opacas y casi neutras (gris azulado muy oscuro, como los editores y las webs
-    /// en modo oscuro). La barra lateral es la más oscura; diálogos y menús, un escalón más claros que la ventana.
-    /// Las velos de los diálogos oscurecen más, porque detrás ya no hay desenfoque.
+    /// Fondo sólido: las mismas capas, opacas y del color del tema (el tono del acento, oscuro). Cada una tiene su
+    /// luminosidad: la barra lateral es la más oscura; las tarjetas, los diálogos y los menús, un escalón más claros
+    /// que la ventana.
     /// </summary>
-    private static readonly Dictionary<string, string> SolidNeutrals = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, double> SolidLightness = new(StringComparer.Ordinal)
     {
-        ["WindowTint"] = "#16191F",
-        ["GlassTint"] = "#1C1F26",
-        ["SidebarTint"] = "#111318",
-        ["DialogTint"] = "#1C1F27",
-        ["MenuGlass"] = "#1F222A",
-        ["ModalScrim"] = "#B3020305",
+        ["SidebarTint"] = 0.10,
+        ["WindowTint"] = 0.13,
+        ["DialogTint"] = 0.16,
+        ["GlassTint"] = 0.17,
+        ["MenuGlass"] = 0.18,
     };
+
+    /// <summary>Saturación de las superficies sólidas con un tinte normal (los temas vivos la suben, Grafito la quita).</summary>
+    private const double SolidSaturation = 0.32;
 
     /// <summary>
     /// Resaltados (paso del ratón y selección: filas, barra lateral, tarjetas, pastillas). En el diseño son blanco
@@ -272,8 +274,12 @@ public static class ThemeEngine
         var palette = new Dictionary<string, Argb>(StringComparer.Ordinal);
         foreach (var (key, neutral) in Neutrals)
         {
-            var hex = settings.Solid && SolidNeutrals.TryGetValue(key, out var solid) ? solid : neutral;
-            var color = Rotate(Argb.Parse(hex), rotation, tint);
+            var color = settings.Solid && SolidLightness.TryGetValue(key, out var lightness)
+                ? Argb.FromHsl(accentSat < 0.08 ? BaseHue : accentHue, Math.Min(0.6, SolidSaturation * tint), lightness)
+                : Rotate(Argb.Parse(neutral), rotation, tint);
+            // Sin desenfoque detrás, el velo de los diálogos tiene que oscurecer más para separarlos.
+            if (settings.Solid && key == "ModalScrim")
+                color = color.WithAlpha(0xB3);
             if (!hasCustom && preset.TintLift > 0 && Surfaces.Contains(key))
                 color = color.Shift(preset.TintLift);
             if (Glass.Contains(key) && !settings.Solid)
