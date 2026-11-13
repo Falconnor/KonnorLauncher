@@ -9,7 +9,15 @@ public sealed class LauncherPaths
     /// <summary>Nombre del archivo de configuración junto al ejecutable.</summary>
     public const string PropertiesFileName = "launcher.properties";
 
-    public LauncherPaths(string launchDir) => LaunchDir = Path.GetFullPath(launchDir);
+    /// <param name="launchDir">Carpeta del ejecutable.</param>
+    /// <param name="dataDir">Carpeta de datos (null = <see cref="DataDir"/>); la cambian las pruebas.</param>
+    public LauncherPaths(string launchDir, string? dataDir = null)
+    {
+        LaunchDir = Path.GetFullPath(launchDir);
+        _dataDir = dataDir;
+    }
+
+    private readonly string? _dataDir;
 
     /// <summary>
     /// Carpeta del ejecutable (<c>LAUNCH_PATH</c>). En una publicación single-file,
@@ -17,8 +25,37 @@ public sealed class LauncherPaths
     /// </summary>
     public string LaunchDir { get; }
 
-    /// <summary>Ruta de <c>launcher.properties</c>.</summary>
-    public string PropertiesPath => Path.Combine(LaunchDir, PropertiesFileName);
+    /// <summary>
+    /// Ruta de <c>launcher.properties</c>: junto al ejecutable; instalado con Velopack, en la carpeta de datos, porque
+    /// cada actualización reemplaza entera la carpeta del programa (<c>current</c>) y se perdería la configuración.
+    /// En las instalaciones antiguas (Inno Setup) la carpeta del programa era la de datos: es el mismo archivo.
+    /// </summary>
+    public string PropertiesPath => IsVelopackInstall(LaunchDir)
+        ? Path.Combine(_dataDir ?? DataDir, PropertiesFileName)
+        : Path.Combine(LaunchDir, PropertiesFileName);
+
+    /// <summary>Velopack instala en <c>&lt;raíz&gt;\current</c>, con <c>Update.exe</c> en la raíz.</summary>
+    public static bool IsVelopackInstall(string launchDir)
+    {
+        var dir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(launchDir));
+        return string.Equals(Path.GetFileName(dir), "current", StringComparison.OrdinalIgnoreCase)
+               && Path.GetDirectoryName(dir) is { } root
+               && File.Exists(Path.Combine(root, "Update.exe"));
+    }
+
+    /// <summary>
+    /// Si la configuración va en la carpeta de datos y aún no existe, la crea con la que trae el programa (la
+    /// configuración por defecto). Nunca pisa una existente.
+    /// </summary>
+    public void EnsurePropertiesFile()
+    {
+        var target = PropertiesPath;
+        var bundled = Path.Combine(LaunchDir, PropertiesFileName);
+        if (File.Exists(target) || string.Equals(target, bundled, StringComparison.OrdinalIgnoreCase) || !File.Exists(bundled))
+            return;
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(bundled, target, overwrite: false);
+    }
 
     /// <summary>Crea las rutas a partir de la carpeta del ejecutable actual.</summary>
     public static LauncherPaths FromCurrentProcess() => new(AppContext.BaseDirectory);

@@ -51,8 +51,10 @@ public sealed partial class MainViewModel : ObservableObject
         InstanceEditorViewModel editor,
         ConfirmViewModel confirm,
         IDialogService dialogs,
+        LauncherUpdater updater,
         ILogger<MainViewModel> logger)
     {
+        Updater = updater;
         _settings = settings;
         _versions = versions;
         _workflow = workflow;
@@ -450,6 +452,58 @@ public sealed partial class MainViewModel : ObservableObject
     public double ModTileIcon => ModsSize switch { 0 => 40, 2 => 80, _ => 56 };
     public double ModRowHeight => ModsSize switch { 0 => 36, 2 => 60, _ => 46 };
     public double ModRowIcon => ModsSize switch { 0 => 18, 2 => 36, _ => 26 };
+
+    // ══════════════════════════════════════════════════════════════════
+    // ACTUALIZACIONES DEL LAUNCHER (Velopack)
+    // ══════════════════════════════════════════════════════════════════
+
+    /// <summary>Busca versiones nuevas (al abrir y cada 6 horas); descargar es cosa del jugador («Instalar»).</summary>
+    public LauncherUpdater Updater { get; }
+
+    private System.Windows.Threading.DispatcherTimer? _updateTimer;
+
+    /// <summary>Primera comprobación al abrir y, después, una cada 6 horas mientras el launcher siga abierto.</summary>
+    public async Task CheckLauncherUpdateAsync()
+    {
+        if (!Updater.IsSupported)
+            return;
+        _updateTimer ??= CreateUpdateTimer();
+        await Updater.CheckAsync();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateUpdateTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        timer.Tick += async (_, _) => await Updater.CheckAsync();
+        timer.Start();
+        return timer;
+    }
+
+    /// <summary>
+    /// «Instalar» la actualización: ahora sí se descarga; al terminar, el launcher se reinicia con la versión nueva.
+    /// Mientras se juega no se puede (cerraría el juego); los servidores del Hosting se detienen antes, avisando.
+    /// </summary>
+    [RelayCommand]
+    private async Task InstallLauncherUpdateAsync()
+    {
+        if (!Updater.CanInstall)
+            return;
+        if (IsPlaying)
+        {
+            SetAction("Cierra el juego para instalar la actualización del launcher.", null);
+            return;
+        }
+
+        if (Hosting.AnyRunning)
+        {
+            if (!await Confirm.ShowAsync("Servidores en marcha", "Para actualizar, el launcher se reinicia y se detienen los servidores del Hosting.",
+                    "Detener y actualizar", isDanger: false))
+                return;
+            await Hosting.StopAllAsync();
+        }
+
+        await Updater.DownloadAndRestartAsync();
+    }
 
     [RelayCommand]
     private async Task OpenBrowseAsync()

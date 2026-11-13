@@ -83,13 +83,20 @@ public sealed partial class OptionsViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private readonly ILogger<OptionsViewModel> _logger;
 
-    public OptionsViewModel(LauncherSettings settings, IDialogService dialogs, ILogger<OptionsViewModel> logger)
+    public OptionsViewModel(LauncherSettings settings, IDialogService dialogs, LauncherUpdater updater, ILogger<OptionsViewModel> logger)
     {
+        Updater = updater;
         _settings = settings;
         _dialogs = dialogs;
         _logger = logger;
         SelectedSection = Sections[0];
     }
+
+    /// <summary>Actualizaciones del launcher (Acerca de): estado y «Buscar».</summary>
+    public LauncherUpdater Updater { get; }
+
+    [RelayCommand]
+    private Task CheckUpdates() => Updater.CheckAsync();
 
     /// <summary>Se dispara después de guardar (la ventana principal actualiza la bienvenida).</summary>
     public event EventHandler? Saved;

@@ -7,7 +7,7 @@
     <!-- La documentación XML de los paquetes (WebView2) no se instala con el launcher -->
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
     <UseWPF>true</UseWPF>
-    <!-- Nombre del exe: "Konnor Launcher.exe" (el instalador elimina el antiguo "Fkonnor Launcher.exe") -->
+    <!-- Nombre del exe: "Konnor Launcher.exe" (el que abren los accesos directos de Velopack) -->
     <AssemblyName>Konnor Launcher</AssemblyName>
     <RootNamespace>KonnorLauncher.App</RootNamespace>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
@@ -16,6 +16,8 @@
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
     <!-- LibraryImport (P/Invoke generado) requiere código unsafe -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Main propio (Program.cs): Velopack tiene que ejecutarse antes que la interfaz -->
+    <StartupObject>KonnorLauncher.App.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +38,7 @@
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
 
   <ItemGroup>

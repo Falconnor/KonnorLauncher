@@ -30,7 +30,7 @@ namespace KonnorLauncher.App;
 /// </summary>
 public partial class App : Application
 {
-    private const string AppUserModelId = "konnor.launcher.1.0";
+    private const string AppUserModelId = Program.AppUserModelId;
     private const string SingleInstanceMutexName = @"Local\KonnorLauncher.SingleInstance";
 
     private IHost? _host;
@@ -113,15 +113,34 @@ public partial class App : Application
         // La lista de versiones de Mojang, los manifests de las instancias sincronizadas y la primera página
         // de Explorar (así se abre al instante) se piden en segundo plano para no retrasar el arranque.
         var main = _host.Services.GetRequiredService<MainViewModel>();
-        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync(), main.Browse.PrefetchAsync(), main.Hosting.AutoStartAsync());
+        // Recién instalado con Velopack: fuera la instalación antigua de Inno Setup (si la hay).
+        if (Program.IsFirstRun)
+            _ = Task.Run(() => main.Updater.RemoveInnoInstallAsync());
+        await Task.WhenAll(main.LoadRemoteVersionsAsync(), main.CheckLinkedInstancesAsync(), main.Browse.PrefetchAsync(), main.Hosting.AutoStartAsync(),
+            main.CheckLauncherUpdateAsync());
     }
 
     /// <summary>Registro de servicios (Core + ViewModels + vistas).</summary>
     private static void ConfigureServices(IServiceCollection services)
     {
-        // Configuración y rutas (launcher.properties vive junto al exe).
-        services.AddSingleton(_ => LauncherPaths.FromCurrentProcess());
+        // Configuración y rutas (launcher.properties junto al exe; instalado con Velopack, en la carpeta de datos).
+        // Instalado con Velopack, launcher.properties va en la carpeta de datos (la del programa se reemplaza al actualizar).
+        services.AddSingleton(_ =>
+        {
+            var paths = LauncherPaths.FromCurrentProcess();
+            try
+            {
+                paths.EnsurePropertiesFile();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning(ex, "No se pudo crear launcher.properties en la carpeta de datos");
+            }
+
+            return paths;
+        });
         services.AddSingleton(sp => new LauncherProperties(sp.GetRequiredService<LauncherPaths>().PropertiesPath));
+        services.AddSingleton<LauncherUpdater>();
         services.AddSingleton<LauncherSettings>();
 
         // HttpClient sin timeout global: los timeouts se controlan por petición y por lectura en el Core.

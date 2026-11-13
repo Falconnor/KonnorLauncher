@@ -357,6 +357,30 @@
                         <!-- Pie: jugador y Opciones, separados de la lista por una línea a todo el ancho -->
                         <Border Grid.Row="4" BorderBrush="{StaticResource Hairline}" BorderThickness="0,1,0,0" Padding="14,10,14,14">
                             <StackPanel>
+                                <!-- Actualización del launcher: solo se descarga al pulsar «Instalar» -->
+                                <Border Background="{StaticResource AccentSoft}" CornerRadius="{StaticResource RadiusGroup}" Padding="12,10" Margin="0,0,0,8"
+                                        DataContext="{Binding Updater}"
+                                        Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource PillButton}" Height="30" FontSize="13" Padding="14,0"
+                                                    Content="Instalar" VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.InstallLauncherUpdateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    IsEnabled="{Binding CanInstall}" AutomationProperties.Name="Instalar la actualización del launcher" />
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <TextBlock Text="Actualización disponible" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding AvailableVersion, StringFormat=Versión {0}}" FontSize="12.5" Foreground="{StaticResource Ink2}"
+                                                           Visibility="{Binding IsDownloading, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                <TextBlock Text="{Binding Progress, StringFormat=Descargando {0} %}" FontSize="12.5" Foreground="{StaticResource Ink2}"
+                                                           Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <ProgressBar Style="{StaticResource GlassProgressBar}" Value="{Binding Progress}" Margin="0,8,0,0"
+                                                     Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Danger}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                   Visibility="{Binding Error, Converter={StaticResource TextToVisibility}}" />
+                                    </StackPanel>
+                                </Border>
                                 <!-- Jugador: al pulsarlo se abre la cuenta (nombre, foto de perfil y skin) -->
                                 <Button Command="{Binding OpenAccountCommand}" Cursor="Hand" FocusVisualStyle="{StaticResource FocusRingRow}"
                                         ToolTip="Cuenta: nombre, foto de perfil y skin" AutomationProperties.Name="Cuenta sin conexión">

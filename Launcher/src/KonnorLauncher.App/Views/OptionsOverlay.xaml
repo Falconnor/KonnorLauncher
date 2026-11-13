@@ -429,6 +429,16 @@
                                         </Border>
                                         <Border Style="{StaticResource GroupedRow}">
                                             <DockPanel VerticalAlignment="Center">
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Buscar" Margin="12,0,0,0"
+                                                        Command="{Binding CheckUpdatesCommand}" IsEnabled="{Binding Updater.IsSupported}"
+                                                        AutomationProperties.Name="Buscar actualizaciones" />
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Updater.StatusText}" Foreground="{StaticResource Ink2}"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="Actualizaciones" Style="{StaticResource RowTitle}" />
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource GroupedRow}">
+                                            <DockPanel VerticalAlignment="Center">
                                                 <TextBlock DockPanel.Dock="Right" Text="{Binding RuntimeText}" Foreground="{StaticResource Ink2}"
                                                            TextTrimming="CharacterEllipsis" MaxWidth="380" Margin="16,0,0,0" />
                                                 <TextBlock Text="Sistema" Style="{StaticResource RowTitle}" />
