@@ -344,7 +344,7 @@ public sealed partial class MainViewModel : ObservableObject
     // EXPLORAR CONTENIDO (Modrinth)
     // ══════════════════════════════════════════════════════════════════
 
-    /// <summary>Pestaña del panel de la instancia: Mods, Shaders o Paquetes de texturas.</summary>
+    /// <summary>Pestaña del panel de la instancia: Mods, Shaders o Paquetes de recursos.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModsTab), nameof(IsShadersTab), nameof(IsResourcePacksTab), nameof(AddContentText), nameof(EmptyContentText))]
     private InstanceContentKind _instanceTab;
@@ -363,7 +363,7 @@ public sealed partial class MainViewModel : ObservableObject
     public string EmptyContentText => InstanceTab switch
     {
         InstanceContentKind.Shaders => "Todavía no hay shaders.",
-        InstanceContentKind.ResourcePacks => "Todavía no hay paquetes de texturas.",
+        InstanceContentKind.ResourcePacks => "Todavía no hay paquetes de recursos.",
         _ => SelectedInstance?.IsModded == false
             ? "Las instancias vanilla no cargan mods. Edita la instancia y elige Fabric, Forge, NeoForge o Quilt para usarlos."
             : "Todavía no hay mods.",

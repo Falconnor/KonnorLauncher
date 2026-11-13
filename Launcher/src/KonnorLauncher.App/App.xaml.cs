@@ -103,6 +103,9 @@ public partial class App : Application
         if (!Theming.ThemePalette.Current.Apply(_host.Services.GetRequiredService<LauncherSettings>().Theme))
             logger.LogWarning("No se pudo abrir la imagen de fondo del tema; se usa la del launcher");
 
+        // Iconos de shaders, paquetes y mods sin icono propio: se buscan en Modrinth por su hash.
+        ContentIconResolver.Current = _host.Services.GetRequiredService<ContentIconResolver>();
+
         var window = _host.Services.GetRequiredService<MainWindow>();
         MainWindow = window;
         window.Show();
@@ -197,6 +200,7 @@ public partial class App : Application
         services.AddSingleton(sp => new MineSkinClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<MineSkinClient>>()));
         services.AddSingleton(sp => new SkinLibrary(System.IO.Path.Combine(LauncherPaths.PlayerDir, "skins"), sp.GetRequiredService<ILogger<SkinLibrary>>()));
         services.AddSingleton<IconLoader>();
+        services.AddSingleton<ContentIconResolver>();
         // Servidores: directorio de Modrinth (v3), estado en vivo y lo que recuerda el launcher (Mis servidores).
         services.AddSingleton(sp => new ServerDirectoryClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerDirectoryClient>>()));
         services.AddSingleton(sp => new ServerStatusClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServerStatusClient>>()));

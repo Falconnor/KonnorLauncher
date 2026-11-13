@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using KonnorLauncher.App.Services;
 using KonnorLauncher.Core.Instances;
 
 namespace KonnorLauncher.App.ViewModels;
@@ -105,19 +106,31 @@ public sealed partial class ModFileItem : ObservableObject
         if (IconCache.TryGetValue((path, written), out var cached))
         {
             Icon = cached;
-            return;
+            if (cached is not null || _file.IsFolder)
+                return;
+        }
+        else
+        {
+            await IconSlots.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var image = await Task.Run(() => Decode(InstanceMods.ReadIcon(path))).ConfigureAwait(false);
+                IconCache[(path, written)] = image;
+                Icon = image;
+                if (image is not null || _file.IsFolder)
+                    return;
+            }
+            finally
+            {
+                IconSlots.Release();
+            }
         }
 
-        await IconSlots.WaitAsync().ConfigureAwait(false);
-        try
+        // Sin icono dentro (casi todos los shaders): el de su proyecto en Modrinth, si está allí.
+        if (ContentIconResolver.Current is { } remote && await remote.ResolveAsync(path).ConfigureAwait(false) is { } found)
         {
-            var image = await Task.Run(() => Decode(InstanceMods.ReadIcon(path))).ConfigureAwait(false);
-            IconCache[(path, written)] = image;
-            Icon = image;
-        }
-        finally
-        {
-            IconSlots.Release();
+            IconCache[(path, written)] = found;
+            Icon = found;
         }
     }
 

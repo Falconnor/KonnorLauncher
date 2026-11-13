@@ -60,7 +60,7 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     public System.Collections.ObjectModel.ObservableCollection<ModFileItem> ShaderFiles { get; } = [];
     public System.Collections.ObjectModel.ObservableCollection<ModFileItem> ResourcePackFiles { get; } = [];
 
-    /// <summary>Pestaña del panel (Mods, Shaders, Paquetes de texturas): la elige la ventana.</summary>
+    /// <summary>Pestaña del panel (Mods, Shaders, Paquetes de recursos): la elige la ventana.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentFiles))]
     private InstanceContentKind _contentTab;

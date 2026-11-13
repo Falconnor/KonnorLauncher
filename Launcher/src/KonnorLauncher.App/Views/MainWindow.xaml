@@ -564,7 +564,7 @@
                                     <TextBlock Text="{Binding Directory}" Style="{StaticResource Hint}" FontSize="13" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
 
-                                <!-- Contenido de la instancia (ocupa el espacio que queda): pestañas Mods / Shaders / Paquetes de texturas -->
+                                <!-- Contenido de la instancia (ocupa el espacio que queda): pestañas Mods / Shaders / Paquetes de recursos -->
                                 <DockPanel Margin="0,16,0,0">
                                     <!-- Pestañas; a la derecha, «Añadir», la vista y el tamaño -->
                                     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
@@ -610,7 +610,7 @@
                                                          IsChecked="{Binding DataContext.IsModsTab, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Shaders"
                                                          IsChecked="{Binding DataContext.IsShadersTab, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Paquetes de texturas"
+                                            <RadioButton Style="{StaticResource TopTabSmall}" Height="40" GroupName="InstanceContent" Content="Paquetes de recursos"
                                                          IsChecked="{Binding DataContext.IsResourcePacksTab, RelativeSource={RelativeSource AncestorType=Window}}" />
                                         </StackPanel>
                                     </DockPanel>
