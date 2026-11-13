@@ -55,6 +55,8 @@ public sealed partial class HostingViewModel : ObservableObject
         [
             new(ServerSoftware.Vanilla, "El servidor oficial de Mojang, sin mods."),
             new(ServerSoftware.Paper, "Rápido y con plugins (Bukkit/Spigot). Los jugadores entran sin mods."),
+            new(ServerSoftware.Purpur, "Paper con más opciones de juego. Los mismos plugins; los jugadores entran sin mods."),
+            new(ServerSoftware.Spigot, "Plugins de Bukkit y Spigot. Se compila en este equipo: tarda varios minutos."),
             new(ServerSoftware.Fabric, "Mods ligeros y actualizados enseguida a cada versión."),
             new(ServerSoftware.Forge, "Los modpacks clásicos y los mods más grandes."),
             new(ServerSoftware.NeoForge, "La continuación de Forge para las versiones recientes."),
@@ -249,8 +251,16 @@ public sealed partial class HostingViewModel : ObservableObject
 
     partial void OnNewMemoryMbChanged(double value) => OnPropertyChanged(nameof(NewMemoryText));
 
-    public bool HasLoader => Software != ServerSoftware.Vanilla;
-    public string LoaderLabel => Software == ServerSoftware.Paper ? "Build de Paper" : $"Versión de {HostedServer.SoftwareName(Software)}";
+    /// <summary>Vanilla no tiene cargador y Spigot se compila de la versión de Minecraft: ninguno tiene builds que elegir.</summary>
+    public bool HasLoader => Software is not (ServerSoftware.Vanilla or ServerSoftware.Spigot);
+
+    public string LoaderLabel => Software is ServerSoftware.Paper or ServerSoftware.Purpur
+        ? $"Build de {HostedServer.SoftwareName(Software)}"
+        : $"Versión de {HostedServer.SoftwareName(Software)}";
+
+    /// <summary>De dónde sale la lista de versiones de Minecraft: Paper, Purpur y Spigot tienen la suya; el resto, la de Mojang.</summary>
+    private static ServerSoftware VersionSource(ServerSoftware software) =>
+        software is ServerSoftware.Paper or ServerSoftware.Purpur or ServerSoftware.Spigot ? software : ServerSoftware.Vanilla;
 
     public bool CanCreate =>
         NewName.Trim().Length > 0 && AcceptEula && !IsLoadingVersions
@@ -265,8 +275,8 @@ public sealed partial class HostingViewModel : ObservableObject
         foreach (var o in SoftwareOptions)
             o.IsSelected = o == option;
         var changedKind = Software != option.Software || MinecraftVersion.Options.Count == 0;
-        // Paper tiene su propia lista de versiones; el resto usa la de Mojang.
-        var needsNewList = (Software == ServerSoftware.Paper) != (option.Software == ServerSoftware.Paper);
+        // Paper, Purpur y Spigot tienen su propia lista de versiones; el resto usa la de Mojang.
+        var needsNewList = VersionSource(Software) != VersionSource(option.Software);
         Software = option.Software;
         if (!_loaded)
             return;

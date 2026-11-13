@@ -341,6 +341,57 @@ public sealed class HostingTests : IDisposable
         new HostedServer { Software = ServerSoftware.Vanilla }.IsModded.ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData(ServerSoftware.Paper)]
+    [InlineData(ServerSoftware.Purpur)]
+    [InlineData(ServerSoftware.Spigot)]
+    public void Purpur_and_spigot_are_plugin_servers_like_paper(ServerSoftware software)
+    {
+        var server = new HostedServer { Software = software };
+        server.IsPluginServer.ShouldBeTrue();
+        server.IsModded.ShouldBeFalse();
+        server.ContentFolder.ShouldBe("plugins");
+        server.ClientLoader.ShouldBe(ModLoader.Vanilla); // los jugadores entran sin mods
+    }
+
+    [Fact]
+    public void A_server_saved_as_spigot_or_purpur_loads_back()
+    {
+        using var dir = new TempDir();
+        var store = new HostedServerStore(dir.Path);
+        var spigot = store.Create(new HostedServer { Name = "Spigot", Software = ServerSoftware.Spigot, MinecraftVersion = "1.21.1" });
+        var purpur = store.Create(new HostedServer { Name = "Purpur", Software = ServerSoftware.Purpur, MinecraftVersion = "1.21.1", LoaderVersion = "2329" });
+
+        var loaded = store.LoadAll().ToDictionary(s => s.Id);
+        loaded[spigot.Id].Software.ShouldBe(ServerSoftware.Spigot);
+        loaded[purpur.Id].Software.ShouldBe(ServerSoftware.Purpur);
+        File.ReadAllText(Path.Combine(store.GetDirectory(purpur.Id), HostedServerStore.FileName)).ShouldContain("\"Purpur\"");
+    }
+
+    [Fact]
+    public void Purpur_versions_and_builds_are_read_newest_first()
+    {
+        ServerSoftwareCatalog.ParsePurpurVersions("""{"project":"purpur","versions":["1.20.4","1.21","1.21.1","1.21.2-pre1"]}""")
+            .ShouldBe(["1.21.1", "1.21", "1.20.4"]);
+
+        var builds = ServerSoftwareCatalog.ParsePurpurBuilds("""{"project":"purpur","version":"1.21.1","builds":{"latest":"2329","all":["2286","2329","2300"]}}""");
+        builds.Select(b => b.Version).ShouldBe(["2329", "2300", "2286"]);
+        builds[0].IsStable.ShouldBeTrue();
+        builds[1].IsStable.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Spigot_versions_come_from_the_buildtools_index()
+    {
+        const string index = """
+            <a href="1.8.8.json">1.8.8.json</a> <a href="1.21.json">1.21.json</a> <a href="1.21.1.json">1.21.1.json</a>
+            <a href="1.21.10.json">1.21.10.json</a> <a href="4344.json">4344.json</a> <a href="1.21.2-pre3.json">1.21.2-pre3.json</a>
+            <a href="latest.json">latest.json</a> <a href="26.3.json">26.3.json</a>
+            """;
+
+        ServerSoftwareCatalog.ParseSpigotVersions(index).ShouldBe(["26.3", "1.21.10", "1.21.1", "1.21", "1.8.8"]);
+    }
+
     // ── Publicación del cliente (LauncherBackEnd) ────────────────────────
 
     private (HostedServer Server, string ServerDir, string ClientDir, string InternalDir) CreatePublishedServer(ServerSoftware software = ServerSoftware.Fabric)

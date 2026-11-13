@@ -172,7 +172,7 @@ public sealed class ContentInstaller
     public static string? ServerBlockReason(Hosting.HostedServer server, ContentType type) => type switch
     {
         ContentType.Mod when server.ContentFolder is null =>
-            "Un servidor Vanilla no carga mods ni plugins. Crea uno con Paper, Fabric, Forge, NeoForge o Quilt.",
+            "Un servidor Vanilla no carga mods ni plugins. Crea uno con Paper, Purpur, Spigot, Fabric, Forge, NeoForge o Quilt.",
         ContentType.Modpack when !server.IsModded =>
             "Los modpacks necesitan un servidor con Fabric, Forge, NeoForge o Quilt.",
         _ => null,
@@ -191,6 +191,8 @@ public sealed class ContentInstaller
             Hosting.ServerSoftware.Forge => ["forge"],
             Hosting.ServerSoftware.NeoForge => ["neoforge"],
             Hosting.ServerSoftware.Paper => ["paper", "spigot", "bukkit"],
+            Hosting.ServerSoftware.Purpur => ["purpur", "paper", "spigot", "bukkit"],
+            Hosting.ServerSoftware.Spigot => ["spigot", "bukkit"],
             _ => [],
         },
         ContentType.Modpack => server.Software switch

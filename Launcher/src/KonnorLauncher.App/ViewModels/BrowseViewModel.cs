@@ -116,7 +116,9 @@ public sealed partial class BrowseViewModel : ObservableObject
         Notice = null;
         ServerTarget = target;
         InstanceTarget = null;
-        UpdateTabLocks(null);
+        // Como en las instancias: solo la pestaña de lo que se va a añadir. Desde Mods también Modpacks (un modpack
+        // entero se instala en el servidor como sus mods).
+        LockTabs(target.StartType == ContentType.Mod ? [ContentType.Mod, ContentType.Modpack] : [target.StartType]);
         if (!_tagsLoaded)
         {
             ActiveType = target.StartType;
@@ -168,7 +170,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         if (InstanceTarget is null)
             return;
         InstanceTarget = null;
-        UpdateTabLocks(null);
+        LockTabs(null);
         SelectType(ActiveType, keepText: true);
     }
 
@@ -180,10 +182,13 @@ public sealed partial class BrowseViewModel : ObservableObject
     }
 
     /// <summary>Con una instancia de destino solo se puede usar la pestaña <paramref name="only"/>; sin ella, todas.</summary>
-    private void UpdateTabLocks(ContentType? only)
+    private void UpdateTabLocks(ContentType? only) => LockTabs(only is { } type ? [type] : null);
+
+    /// <summary>Solo se pueden usar las pestañas de <paramref name="allowed"/> (null = todas).</summary>
+    private void LockTabs(IReadOnlyCollection<ContentType>? allowed)
     {
         foreach (var tab in Tabs)
-            tab.IsEnabled = only is null || tab.Type == only;
+            tab.IsEnabled = allowed is null || allowed.Contains(tab.Type);
     }
 
     /// <summary>
@@ -242,6 +247,16 @@ public sealed partial class BrowseViewModel : ObservableObject
             Notice = null;
     }
 
+    /// <summary>Cargador del cliente de los jugadores de un servidor (Paper y Vanilla: sin cargador).</summary>
+    private static ModLoader ClientLoader(KonnorLauncher.Core.Hosting.ServerSoftware software) => software switch
+    {
+        KonnorLauncher.Core.Hosting.ServerSoftware.Fabric => ModLoader.Fabric,
+        KonnorLauncher.Core.Hosting.ServerSoftware.Quilt => ModLoader.Quilt,
+        KonnorLauncher.Core.Hosting.ServerSoftware.Forge => ModLoader.Forge,
+        KonnorLauncher.Core.Hosting.ServerSoftware.NeoForge => ModLoader.NeoForge,
+        _ => ModLoader.Vanilla,
+    };
+
     /// <summary>Cargadores de Modrinth que puede usar una instancia en una pestaña (null = esa pestaña no filtra por cargador).</summary>
     internal static IReadOnlyList<string>? InstanceLoaders(ModLoader loader, ContentType type) => type switch
     {
@@ -270,6 +285,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         if (ServerTarget is null)
             return;
         ServerTarget = null;
+        LockTabs(null);
         SelectType(ActiveType, keepText: true);
     }
 
@@ -372,7 +388,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     {
         ServerTarget = null;
         InstanceTarget = null;
-        UpdateTabLocks(null);
+        LockTabs(null);
         return OpenCoreAsync();
     }
 
@@ -532,7 +548,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     {
         ServerTarget = null; // desde la barra lateral es Explorar normal
         InstanceTarget = null;
-        UpdateTabLocks(null);
+        LockTabs(null);
         if (!_tagsLoaded)
         {
             ActiveType = type; // se selecciona al terminar de cargar las listas
@@ -633,8 +649,11 @@ public sealed partial class BrowseViewModel : ObservableObject
         if (ServerTarget is not { } target)
             return;
         var server = target.Server;
-        var loaders = ContentInstaller.ServerLoaders(server, ActiveType);
-        if (loaders is not null && ActiveType is ContentType.Mod or ContentType.Modpack)
+        // Shaders: los que cargan los jugadores con el cargador del servidor, igual que en una instancia.
+        var loaders = ActiveType == ContentType.Shader
+            ? InstanceLoaders(ClientLoader(server.Software), ContentType.Shader)
+            : ContentInstaller.ServerLoaders(server, ActiveType);
+        if (loaders is not null && ActiveType is ContentType.Mod or ContentType.Modpack or ContentType.Shader)
         {
             foreach (var loader in loaders)
             {
@@ -871,7 +890,7 @@ public sealed partial class BrowseViewModel : ObservableObject
             : [],
         OpenSourceOnly = OpenSourceOnly,
         // Un servidor Paper instala plugins: en Modrinth son su propio tipo de proyecto.
-        ProjectTypeOverride = ActiveType == ContentType.Mod && ServerTarget?.Server.Software == KonnorLauncher.Core.Hosting.ServerSoftware.Paper ? "plugin" : null,
+        ProjectTypeOverride = ActiveType == ContentType.Mod && ServerTarget?.Server.IsPluginServer == true ? "plugin" : null,
     };
 
     private async Task SearchAsync(TimeSpan delay, CancellationToken ct)

@@ -436,6 +436,9 @@ public sealed class ModrinthTests : IAsyncLifetime
         ContentInstaller.ServerBlockReason(vanilla, ContentType.DataPack).ShouldBeNull();
         ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Quilt), ContentType.Mod).ShouldBe(["quilt", "fabric"]);
         ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Paper), ContentType.Mod).ShouldBe(["paper", "spigot", "bukkit"]);
+        ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Purpur), ContentType.Mod).ShouldBe(["purpur", "paper", "spigot", "bukkit"]);
+        ContentInstaller.ServerLoaders(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Spigot), ContentType.Mod).ShouldBe(["spigot", "bukkit"]);
+        ContentInstaller.ServerBlockReason(Server(KonnorLauncher.Core.Hosting.ServerSoftware.Spigot), ContentType.Modpack).ShouldNotBeNull();
         await Should.ThrowAsync<ModrinthException>(() => CreateInstaller().InstallIntoServerAsync(vanilla, serverDir, serverDir + "/cliente", "sodium",
             ContentType.Mod, ct: TestContext.Current.CancellationToken));
     }

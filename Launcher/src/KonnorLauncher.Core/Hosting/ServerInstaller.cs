@@ -32,6 +32,9 @@ public sealed class ServerInstaller
     public const string VanillaJar = "server.jar";
     public const string EulaFile = "eula.txt";
 
+    /// <summary>BuildTools de SpigotMC: compila Spigot (y CraftBukkit) para la versión pedida.</summary>
+    public const string BuildToolsUrl = "https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar";
+
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger _logger;
     private readonly string _metaDir;
@@ -79,6 +82,48 @@ public sealed class ServerInstaller
                 await DownloadAsync(loaderHttp, build.Url, Path.Combine(dir, VanillaJar), build.Sha256, HashAlgorithmName.SHA256,
                     $"Descargando Paper {server.MinecraftVersion} (build {build.Build})", report, ct).ConfigureAwait(false);
                 server.LaunchArguments = ["-jar", VanillaJar];
+                break;
+            }
+
+            case ServerSoftware.Purpur:
+            {
+                var builds = ServerSoftwareCatalog.ParsePurpurBuilds(await loaderHttp.GetStringAsync(
+                    $"{ServerSoftwareCatalog.PurpurApi}/{Uri.EscapeDataString(server.MinecraftVersion)}", ct).ConfigureAwait(false));
+                var build = builds.FirstOrDefault(b => b.Version == server.LoaderVersion)
+                            ?? builds.FirstOrDefault(b => b.IsStable) ?? builds.FirstOrDefault()
+                            ?? throw new InvalidOperationException($"Purpur no tiene builds para {server.MinecraftVersion}");
+                var buildUrl = $"{ServerSoftwareCatalog.PurpurApi}/{Uri.EscapeDataString(server.MinecraftVersion)}/{Uri.EscapeDataString(build.Version)}";
+                // Su API publica el MD5 del jar: con él se comprueba que la descarga llegó entera.
+                string? md5 = null;
+                using (var info = System.Text.Json.JsonDocument.Parse(await loaderHttp.GetStringAsync(buildUrl, ct).ConfigureAwait(false)))
+                {
+                    if (info.RootElement.TryGetProperty("md5", out var hash))
+                        md5 = hash.GetString();
+                }
+
+                server.LoaderVersion = build.Version;
+                await DownloadAsync(loaderHttp, buildUrl + "/download", Path.Combine(dir, VanillaJar), md5, HashAlgorithmName.MD5,
+                    $"Descargando Purpur {server.MinecraftVersion} (build {build.Version})", report, ct).ConfigureAwait(false);
+                server.LaunchArguments = ["-jar", VanillaJar];
+                break;
+            }
+
+            case ServerSoftware.Spigot:
+            {
+                // Spigot no se distribuye compilado: BuildTools (de SpigotMC) descarga el código y lo compila aquí. La primera
+                // vez tarda varios minutos y usa ~1 GB de espacio temporal, que se borra al terminar.
+                var work = Path.Combine(dir, "buildtools");
+                Directory.CreateDirectory(work);
+                var buildTools = Path.Combine(work, "BuildTools.jar");
+                await DownloadAsync(loaderHttp, BuildToolsUrl, buildTools, null, default, "Descargando BuildTools de SpigotMC", report, ct).ConfigureAwait(false);
+                await RunInstallerAsync(java, work, ["-jar", buildTools, "--rev", server.MinecraftVersion, "--output-dir", Path.GetFullPath(dir)],
+                    $"Compilando Spigot {server.MinecraftVersion} (puede tardar varios minutos)…", report, ct).ConfigureAwait(false);
+                var jar = $"spigot-{server.MinecraftVersion}.jar";
+                if (!File.Exists(Path.Combine(dir, jar)))
+                    throw new InvalidOperationException($"BuildTools terminó, pero no dejó {jar}");
+                TryDeleteDirectory(work);
+                server.LoaderVersion = null;
+                server.LaunchArguments = ["-jar", jar];
                 break;
             }
 
@@ -395,6 +440,20 @@ public sealed class ServerInstaller
     private static void TryDelete(string path)
     {
         try { File.Delete(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>Carpeta de trabajo de BuildTools (código, Git, Maven…): se borra al terminar. Los .git son de solo lectura.</summary>
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (!Directory.Exists(path))
+                return;
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(path, recursive: true);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 }

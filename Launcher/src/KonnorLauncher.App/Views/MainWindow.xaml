@@ -638,96 +638,9 @@
                                                          IsChecked="{Binding DataContext.IsResourcePacksTab, RelativeSource={RelativeSource AncestorType=Window}}" />
                                         </StackPanel>
                                     </DockPanel>
-                                    <Border Style="{StaticResource GroupedList}">
-                                        <Grid>
-                                            <!-- Lista -->
-                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Focusable="False"
-                                                          Visibility="{Binding DataContext.ModsListView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
-                                                <ItemsControl ItemsSource="{Binding CurrentFiles}" Focusable="False">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate DataType="{x:Type vm:ModFileItem}">
-                                                            <Border Style="{StaticResource GroupedItemRow}"
-                                                                    MinHeight="{Binding DataContext.ModRowHeight, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                                <DockPanel>
-                                                                    <CheckBox DockPanel.Dock="Right" Style="{StaticResource SwitchCheckBox}" VerticalAlignment="Center"
-                                                                              IsChecked="{Binding IsEnabled}" IsEnabled="{Binding CanToggle}"
-                                                                              AutomationProperties.Name="{Binding Name, StringFormat=Activar {0}}" />
-                                                                    <Grid DockPanel.Dock="Left" Margin="0,0,12,0" VerticalAlignment="Center"
-                                                                          Width="{Binding DataContext.ModRowIcon, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                          Height="{Binding DataContext.ModRowIcon, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                                        <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="13"
-                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                   Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}"
-                                                                                   Foreground="{Binding DataContext.Loader, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource LoaderBrush}}" />
-                                                                        <Image Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                    </Grid>
-                                                                    <TextBlock x:Name="ModName" Text="{Binding Name}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                                </DockPanel>
-                                                            </Border>
-                                                            <DataTemplate.Triggers>
-                                                                <!-- Desactivado: el nombre apagado -->
-                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                    <Setter TargetName="ModName" Property="Foreground" Value="{StaticResource Ink3}" />
-                                                                </DataTrigger>
-                                                            </DataTemplate.Triggers>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
-                                            <!-- Cuadrícula: icono grande, nombre y su interruptor, como los iconos del Explorador de Windows -->
-                                            <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto" Focusable="False"
-                                                          Visibility="{Binding DataContext.ModsGridView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
-                                                <ItemsControl ItemsSource="{Binding CurrentFiles}" Focusable="False" Margin="8">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate DataType="{x:Type vm:ModFileItem}">
-                                                            <Border x:Name="Tile" Margin="4" Padding="8,12,8,10" CornerRadius="{StaticResource RadiusGroup}" Background="Transparent"
-                                                                    Width="{Binding DataContext.ModTileWidth, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                                <StackPanel>
-                                                                    <Grid HorizontalAlignment="Center"
-                                                                          Width="{Binding DataContext.ModTileIcon, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                          Height="{Binding DataContext.ModTileIcon, RelativeSource={RelativeSource AncestorType=Window}}">
-                                                                        <Border CornerRadius="10" Background="{StaticResource Surface}"
-                                                                                Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}">
-                                                                            <TextBlock Text="{StaticResource IconCube}" Style="{StaticResource Icon}" FontSize="20"
-                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                                       Foreground="{Binding DataContext.Loader, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource LoaderBrush}}" />
-                                                                        </Border>
-                                                                        <Image x:Name="TileIcon" Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                    </Grid>
-                                                                    <TextBlock x:Name="TileName" Text="{Binding Name}" FontSize="12.5" Margin="0,8,0,8" TextAlignment="Center"
-                                                                               TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="34" ToolTip="{Binding Name}" />
-                                                                    <!-- Margen negativo: compensa el hueco que el interruptor deja a la izquierda para su texto -->
-                                                                    <CheckBox Style="{StaticResource SwitchCheckBox}" HorizontalAlignment="Center" Margin="-16,0,0,0"
-                                                                              IsChecked="{Binding IsEnabled}" IsEnabled="{Binding CanToggle}"
-                                                                              AutomationProperties.Name="{Binding Name, StringFormat=Activar {0}}" />
-                                                                </StackPanel>
-                                                            </Border>
-                                                            <DataTemplate.Triggers>
-                                                                <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource RowHover}" />
-                                                                </Trigger>
-                                                                <!-- Desactivado: icono y nombre apagados -->
-                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                    <Setter TargetName="TileIcon" Property="Opacity" Value="0.4" />
-                                                                    <Setter TargetName="TileName" Property="Foreground" Value="{StaticResource Ink3}" />
-                                                                </DataTrigger>
-                                                            </DataTemplate.Triggers>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
-                                            <TextBlock Style="{StaticResource Hint}" FontSize="13.5" Margin="16" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                       TextAlignment="Center" MaxWidth="440" TextWrapping="Wrap"
-                                                       Text="{Binding DataContext.EmptyContentText, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                       Visibility="{Binding CurrentFiles.Count, Converter={StaticResource ZeroToVisible}}" />
-                                        </Grid>
-                                    </Border>
+                                    <views:ContentFilesView Files="{Binding CurrentFiles}"
+                                                            IconBrush="{Binding Loader, Converter={StaticResource LoaderBrush}}"
+                                                            EmptyText="{Binding DataContext.EmptyContentText, RelativeSource={RelativeSource AncestorType=Window}}" />
                                 </DockPanel>
                             </DockPanel>
                         </Border>

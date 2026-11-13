@@ -22,13 +22,28 @@ public sealed partial class ModFileItem : ObservableObject
     private ModFile _file;
     private bool _toggling;
 
-    public ModFileItem(string modsDir, ModFile file, bool canToggle)
+    public ModFileItem(string modsDir, ModFile file, bool canToggle, bool canRemove = false)
     {
         _modsDir = modsDir;
         _file = file;
         CanToggle = canToggle && !file.IsFolder; // una carpeta no se desactiva renombrándola
+        CanRemove = canRemove;
         _isEnabled = file.Enabled;
     }
+
+    /// <summary>Ruta en disco (archivo o carpeta), tal como está ahora (con <c>.disabled</c> si está desactivado).</summary>
+    public string FullPath => Path.Combine(_modsDir, _file.FileName);
+
+    public bool IsFolder => _file.IsFolder;
+
+    /// <summary>Se puede quitar desde la lista (en los servidores del Hosting).</summary>
+    public bool CanRemove { get; }
+
+    /// <summary>«Quitar»: lo hace quien lo mostró (pide confirmación y borra).</summary>
+    public event EventHandler? RemoveRequested;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void Remove() => RemoveRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Nombre sin la extensión (<c>sodium-fabric-0.6.jar</c> → <c>sodium-fabric-0.6</c>); una carpeta, tal cual.</summary>
     public string Name => _file.IsFolder ? _file.Name : Path.GetFileNameWithoutExtension(_file.Name);

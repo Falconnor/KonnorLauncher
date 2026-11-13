@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using KonnorLauncher.App.Services;
 using KonnorLauncher.Core.Configuration;
 using KonnorLauncher.Core.Hosting;
+using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Progress;
 using Microsoft.Extensions.Logging;
 
@@ -43,11 +44,6 @@ public enum ConsoleLevel
     Command,
     Launcher,
 }
-
-/// <summary>Un jugador del servidor: los que entraron alguna vez, con un punto verde si está conectado.</summary>
-
-/// <summary>Archivo de la carpeta de mods o plugins.</summary>
-public sealed record ContentFile(string Name, string Path, string SizeText, bool IsEnabled);
 
 /// <summary>
 /// Un servidor alojado: su fila en «Mis servidores» y su página (consola, configuración, jugadores,
@@ -134,7 +130,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
         {
             var text = Model.Summary;
             if (!string.IsNullOrWhiteSpace(Model.LoaderVersion))
-                text += Model.Software == ServerSoftware.Paper ? $" · build {Model.LoaderVersion}" : $" · {Model.LoaderVersion}";
+                text += Model.IsPluginServer ? $" · build {Model.LoaderVersion}" : $" · {Model.LoaderVersion}";
             return text + " · " + SystemMemory.Format(Model.MemoryMb);
         }
     }
@@ -1069,78 +1065,132 @@ public sealed partial class HostedServerViewModel : ObservableObject
     }
 
     // ══════════════════════════════════════════════════════════════════
-    // CONTENIDO (mods / plugins) Y CARPETAS
+    // CONTENIDO: mods o plugins, shaders, paquetes de recursos y data packs (como el de las instancias)
     // ══════════════════════════════════════════════════════════════════
 
-    public ObservableCollection<ContentFile> ContentFiles { get; } = [];
+    /// <summary>Mods o plugins (carpeta del servidor).</summary>
+    public ObservableCollection<ModFileItem> ModItems { get; } = [];
+
+    /// <summary>Shaders y paquetes de recursos: en la carpeta del cliente (los reciben los jugadores al sincronizar).</summary>
+    public ObservableCollection<ModFileItem> ShaderItems { get; } = [];
+    public ObservableCollection<ModFileItem> ResourcePackItems { get; } = [];
+
+    /// <summary>Data packs: en el mundo del servidor.</summary>
+    public ObservableCollection<ModFileItem> DataPackItems { get; } = [];
+
+    /// <summary>Pestaña: <c>mods</c>, <c>shaders</c>, <c>resourcepacks</c> o <c>datapacks</c>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsModsContent), nameof(IsShadersContent), nameof(IsResourcePacksContent), nameof(IsDataPacksContent),
+        nameof(CurrentItems), nameof(AddContentText), nameof(CanAddContent), nameof(EmptyContentText))]
+    private string _contentTab = "mods";
+
+    public bool IsModsContent { get => ContentTab == "mods"; set { if (value) ContentTab = "mods"; } }
+    public bool IsShadersContent { get => ContentTab == "shaders"; set { if (value) ContentTab = "shaders"; } }
+    public bool IsResourcePacksContent { get => ContentTab == "resourcepacks"; set { if (value) ContentTab = "resourcepacks"; } }
+    public bool IsDataPacksContent { get => ContentTab == "datapacks"; set { if (value) ContentTab = "datapacks"; } }
+
+    public ObservableCollection<ModFileItem> CurrentItems => ContentTab switch
+    {
+        "shaders" => ShaderItems,
+        "resourcepacks" => ResourcePackItems,
+        "datapacks" => DataPackItems,
+        _ => ModItems,
+    };
+
     public bool HasContentFolder => Model.ContentFolder is not null;
-    public string ContentTitle => Model.Software == ServerSoftware.Paper ? "Plugins" : "Mods";
-    public bool HasNoContent => HasContentFolder && ContentFiles.Count == 0;
+    public string ContentTitle => Model.IsPluginServer ? "Plugins" : "Mods";
+
+    public string AddContentText => ContentTab switch
+    {
+        "shaders" => "Añadir shader",
+        "resourcepacks" => "Añadir paquete",
+        "datapacks" => "Añadir data pack",
+        _ => Model.IsPluginServer ? "Añadir plugin" : "Añadir mod",
+    };
+
+    /// <summary>Un servidor Vanilla no carga mods ni plugins: en esa pestaña no hay nada que añadir.</summary>
+    public bool CanAddContent => ContentTab != "mods" || HasContentFolder;
+
+    public string EmptyContentText => ContentTab switch
+    {
+        "shaders" => "Todavía no hay shaders.",
+        "resourcepacks" => "Todavía no hay paquetes de recursos.",
+        "datapacks" => "Todavía no hay data packs.",
+        _ when !HasContentFolder => "Un servidor Vanilla no carga mods ni plugins. Para usarlos, crea un servidor Paper, Purpur, Spigot, Fabric, Forge, NeoForge o Quilt.",
+        _ => $"Todavía no hay {ContentTitle.ToLowerInvariant()}.",
+    };
 
     private string? ContentPath => Model.ContentFolder is { } folder ? Path.Combine(Directory, folder) : null;
+    private string ClientDir => _hosting.Store.GetClientDirectory(Id);
+    private string WorldDir => Path.Combine(Directory, ServerPropertiesFile.Load(PropertiesPath).Get("level-name", "world"));
 
     [RelayCommand]
     private void RefreshContent()
     {
-        ContentFiles.Clear();
-        if (ContentPath is { } dir && System.IO.Directory.Exists(dir))
+        Load(ModItems, ContentPath, InstanceContentKind.Mods);
+        Load(ShaderItems, Path.Combine(ClientDir, "shaderpacks"), InstanceContentKind.Shaders);
+        Load(ResourcePackItems, Path.Combine(ClientDir, "resourcepacks"), InstanceContentKind.ResourcePacks);
+        // Data packs: .zip y carpetas, como los paquetes de recursos.
+        Load(DataPackItems, Path.Combine(WorldDir, "datapacks"), InstanceContentKind.ResourcePacks);
+        OnPropertyChanged(nameof(CurrentItems));
+
+        void Load(ObservableCollection<ModFileItem> target, string? dir, InstanceContentKind kind)
         {
-            foreach (var file in new DirectoryInfo(dir).EnumerateFiles()
-                         .Where(f => f.Extension.Equals(".jar", StringComparison.OrdinalIgnoreCase) || f.Name.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase))
-                         .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-                ContentFiles.Add(new ContentFile(file.Name, file.FullName, FormatSize(file.Length), file.Extension.Equals(".jar", StringComparison.OrdinalIgnoreCase)));
+            target.Clear();
+            if (dir is null)
+                return;
+            IReadOnlyList<ModFile> files;
+            try
+            {
+                files = InstanceMods.List(dir, kind);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                files = [];
+            }
+
+            foreach (var file in files)
+            {
+                var item = new ModFileItem(dir, file, canToggle: true, canRemove: true);
+                item.Failed += (_, ex) => Error = $"No se pudo cambiar: {ex.Message}";
+                item.RemoveRequested += async (_, _) => await RemoveContentAsync(item);
+                target.Add(item);
+            }
         }
-
-        OnPropertyChanged(nameof(HasNoContent));
     }
-
-    public string AddContentText => Model.Software switch
-    {
-        ServerSoftware.Paper => "Añadir plugin",
-        ServerSoftware.Vanilla => "Explorar contenido",
-        _ => "Añadir mod",
-    };
 
     /// <summary>
-    /// Para instalar desde Explorar en este servidor: se abre en Mods (en Vanilla, que no carga mods, en Data
-    /// packs) y todas las pestañas instalan aquí con su cargador y su versión.
+    /// Para instalar desde Explorar en este servidor: la pestaña del contenido elegido, con el cargador y la versión del
+    /// servidor (desde Mods, también Modpacks).
     /// </summary>
-    public ServerInstallTarget InstallTarget => new(Id, Name, Model.Clone(), Directory, _hosting.Store.GetClientDirectory(Id),
-        Model.ContentFolder is null ? Core.Modrinth.ContentType.DataPack : Core.Modrinth.ContentType.Mod);
-
-    /// <summary>«Añadir mod»: Explorar con el cargador y la versión de este servidor.</summary>
-    [RelayCommand]
-    private void AddContent() => AddModsRequested?.Invoke(this, InstallTarget);
-
-    [RelayCommand]
-    private void ToggleContent(ContentFile? file)
+    public ServerInstallTarget InstallTarget => new(Id, Name, Model.Clone(), Directory, ClientDir, ContentTab switch
     {
-        if (file is null)
-            return;
-        try
-        {
-            var target = file.IsEnabled ? file.Path + ".disabled" : file.Path[..^".disabled".Length];
-            File.Move(file.Path, target);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Error = $"No se pudo cambiar: {ex.Message}";
-        }
+        "shaders" => Core.Modrinth.ContentType.Shader,
+        "resourcepacks" => Core.Modrinth.ContentType.ResourcePack,
+        "datapacks" => Core.Modrinth.ContentType.DataPack,
+        _ => Core.Modrinth.ContentType.Mod,
+    });
 
-        RefreshContent();
+    /// <summary>«Añadir»: Explorar en la pestaña de este contenido, instalando en este servidor.</summary>
+    [RelayCommand]
+    private void AddContent()
+    {
+        if (CanAddContent)
+            AddModsRequested?.Invoke(this, InstallTarget);
     }
 
-    [RelayCommand]
-    private async Task RemoveContentAsync(ContentFile? file)
+    private async Task RemoveContentAsync(ModFileItem item)
     {
-        if (file is null)
-            return;
-        var ok = await _confirm.ShowAsync($"Quitar {file.Name}", "El archivo se borra de la carpeta del servidor.", "Quitar", isDanger: true);
+        var where = ContentTab is "shaders" or "resourcepacks" ? "de la carpeta del cliente" : "del servidor";
+        var ok = await _confirm.ShowAsync($"Quitar {item.Name}", $"Se borra {where}.", "Quitar", isDanger: true);
         if (!ok)
             return;
         try
         {
-            File.Delete(file.Path);
+            if (item.IsFolder)
+                System.IO.Directory.Delete(item.FullPath, recursive: true);
+            else
+                File.Delete(item.FullPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

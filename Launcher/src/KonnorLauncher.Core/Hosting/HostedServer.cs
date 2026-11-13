@@ -13,6 +13,13 @@ public enum ServerSoftware
     Quilt,
     Forge,
     NeoForge,
+
+    // Al final: el JSON guarda el nombre, pero así el orden de los anteriores no cambia.
+    /// <summary>Variante de Paper con más opciones; carga los mismos plugins.</summary>
+    Purpur,
+
+    /// <summary>Compilado en el equipo con BuildTools (no se distribuye ya hecho); plugins de Bukkit y Spigot.</summary>
+    Spigot,
 }
 
 /// <summary>
@@ -57,16 +64,23 @@ public sealed class HostedServer
     [JsonIgnore]
     public bool IsModded => Software is ServerSoftware.Fabric or ServerSoftware.Quilt or ServerSoftware.Forge or ServerSoftware.NeoForge;
 
-    /// <summary>Carpeta de contenido propia del software: <c>plugins</c> en Paper, <c>mods</c> con un cargador.</summary>
+    /// <summary>Servidor de plugins (Paper, Purpur o Spigot): carpeta <c>plugins</c> y jugadores sin mods.</summary>
+    [JsonIgnore]
+    public bool IsPluginServer => IsPlugins(Software);
+
+    public static bool IsPlugins(ServerSoftware software) =>
+        software is ServerSoftware.Paper or ServerSoftware.Purpur or ServerSoftware.Spigot;
+
+    /// <summary>Carpeta de contenido propia del software: <c>plugins</c> en Paper, Purpur y Spigot; <c>mods</c> con un cargador.</summary>
     [JsonIgnore]
     public string? ContentFolder => Software switch
     {
-        ServerSoftware.Paper => "plugins",
+        ServerSoftware.Paper or ServerSoftware.Purpur or ServerSoftware.Spigot => "plugins",
         ServerSoftware.Vanilla => null,
         _ => "mods",
     };
 
-    /// <summary>Cargador que deben usar los jugadores (Paper y Vanilla: el juego sin cargador).</summary>
+    /// <summary>Cargador que deben usar los jugadores (servidores de plugins y Vanilla: el juego sin cargador).</summary>
     [JsonIgnore]
     public ModLoader ClientLoader => Software switch
     {

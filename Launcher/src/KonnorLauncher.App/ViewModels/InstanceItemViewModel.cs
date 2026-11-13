@@ -76,6 +76,12 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     /// <summary>No se pudo activar o desactivar un mod (la ventana lo registra).</summary>
     public event EventHandler<Exception>? ModToggleFailed;
 
+    /// <summary>«Quitar» en un mod, shader o paquete: la ventana pide confirmación y lo borra.</summary>
+    public event EventHandler<ModFileItem>? RemoveRequested;
+
+    /// <summary>Vuelve a leer las carpetas y las cifras (después de borrar algo).</summary>
+    public void RefreshContent() => Update(Model);
+
     public void Update(GameInstance model)
     {
         Model = model;
@@ -148,13 +154,14 @@ public sealed partial class InstanceItemViewModel : ObservableObject
         }
 
         target.Clear();
-        // El contenido de una instancia sincronizada lo decide su servidor: no se puede apagar.
-        var canToggle = !Model.IsSyncLocked;
+        // El contenido de una instancia sincronizada lo decide su servidor: no se puede apagar ni quitar.
+        var canChange = !Model.IsSyncLocked;
         foreach (var file in files)
         {
-            var item = new ModFileItem(dir, file, canToggle);
+            var item = new ModFileItem(dir, file, canChange, canRemove: canChange);
             item.Toggled += (_, _) => RefreshCounts();
             item.Failed += (_, ex) => ModToggleFailed?.Invoke(this, ex);
+            item.RemoveRequested += (_, _) => RemoveRequested?.Invoke(this, item);
             target.Add(item);
         }
     }

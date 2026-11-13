@@ -265,6 +265,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 var item = new InstanceItemViewModel(instance, _store.GetDirectory(instance.Id));
                 item.ModToggleFailed += (_, ex) => _logger.LogWarning(ex, "No se pudo activar o desactivar un mod de {Instance}", instance.Name);
+                item.RemoveRequested += async (_, file) => await RemoveInstanceFileAsync(item, file);
                 Instances.Add(item);
             }
 
@@ -345,6 +346,33 @@ public sealed partial class MainViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════
     // EXPLORAR CONTENIDO (Modrinth)
     // ══════════════════════════════════════════════════════════════════
+
+    /// <summary>«Quitar» un mod, shader o paquete de la instancia: se confirma y se borra del disco.</summary>
+    private async Task RemoveInstanceFileAsync(InstanceItemViewModel instance, ModFileItem file)
+    {
+        if (IsPlaying && SelectedInstance == instance)
+        {
+            SetAction("Cierra el juego para quitar archivos de la instancia.", null);
+            return;
+        }
+
+        if (!await Confirm.ShowAsync($"Quitar {file.Name}", "Se borra de la carpeta de la instancia.", "Quitar", isDanger: true))
+            return;
+        try
+        {
+            if (file.IsFolder)
+                Directory.Delete(file.FullPath, recursive: true);
+            else
+                File.Delete(file.FullPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "No se pudo quitar {File} de {Instance}", file.FullPath, instance.Name);
+            SetAction($"No se pudo quitar {file.Name}: {ex.Message}", null);
+        }
+
+        instance.RefreshContent();
+    }
 
     /// <summary>Pestaña del panel de la instancia: Mods, Shaders o Paquetes de recursos.</summary>
     [ObservableProperty]
