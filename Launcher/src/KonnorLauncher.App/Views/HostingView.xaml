@@ -262,7 +262,8 @@
                 <!-- ── Mis servidores ── -->
                 <Grid Visibility="{Binding IsList, Converter={StaticResource BoolToVisibility}}">
                     <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Servers}" Margin="0,0,6,0" Focusable="False">
+                        <StackPanel Margin="0,0,6,0">
+                        <ItemsControl ItemsSource="{Binding Servers}" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:HostedServerViewModel}">
                                     <Border Style="{StaticResource ServerRow}" Cursor="Hand" MouseLeftButtonUp="OnRowClick">
@@ -325,14 +326,44 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <!-- «Añadir servidor»: ocupa una fila, con el «+» donde va el icono de un servidor -->
+                        <Button Click="OnCreateClick" Cursor="Hand" FocusVisualStyle="{StaticResource FocusRingRow}" AutomationProperties.Name="Añadir servidor"
+                                Visibility="{Binding HasNoServers, Converter={StaticResource InverseBoolToVisibility}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                            CornerRadius="{StaticResource RadiusGroup}" Padding="14">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border x:Name="Tile" Width="52" Height="52" CornerRadius="12" Background="{StaticResource RowHover}">
+                                                <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="16" HorizontalAlignment="Center"
+                                                           Foreground="{StaticResource Ink3}" />
+                                            </Border>
+                                            <TextBlock x:Name="Label" Text="Añadir servidor" FontSize="16" FontWeight="SemiBold" Margin="14,0,0,0"
+                                                       VerticalAlignment="Center" Foreground="{StaticResource Ink2}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowFillHover}" />
+                                            <Setter TargetName="Tile" Property="Background" Value="{StaticResource PillGhostHover}" />
+                                            <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Ink}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        </StackPanel>
                     </ScrollViewer>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
                                 Visibility="{Binding HasNoServers, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="Todavía no tienes servidores" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Ink}" HorizontalAlignment="Center" />
-                        <TextBlock Text="Crea uno eligiendo la versión y el software (Vanilla, Paper, Fabric, Forge, NeoForge o Quilt): el launcher lo descarga, lo instala y lo gestiona desde aquí."
+                        <TextBlock Text="Crea uno eligiendo la versión y el software (Vanilla, Paper, Purpur, Spigot, Fabric, Forge, NeoForge o Quilt) o importa uno que ya tengas: el launcher lo gestiona desde aquí."
                                    Foreground="{StaticResource Ink2}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,16" />
-                        <Button Style="{StaticResource AccentButton}" HorizontalAlignment="Center" Padding="22,0" Content="Crear servidor"
-                                Click="OnCreateClick" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Style="{StaticResource AccentButton}" Padding="22,0" Content="Crear servidor" Click="OnCreateClick" />
+                            <Button Style="{StaticResource GlassButton}" Padding="18,0" Margin="10,0,0,0" Content="Importar servidor"
+                                    Command="{Binding ImportCommand}" AutomationProperties.Name="Importar un servidor existente" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
 
@@ -341,7 +372,17 @@
                               Visibility="{Binding IsCreate, Converter={StaticResource BoolToVisibility}}">
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="860" /><ColumnDefinition Width="0" /></Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,14,12">
-                        <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" />
+                        <!-- Importar un servidor que ya existe en otra carpeta, en vez de crear uno -->
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Height="34" FontSize="13.5" VerticalAlignment="Bottom"
+                                    Command="{Binding ImportCommand}" AutomationProperties.Name="Importar servidor">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8B5;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0" />
+                                    <TextBlock Text="Importar servidor" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" VerticalAlignment="Bottom" />
+                        </DockPanel>
                         <TextBox Style="{StaticResource GlassTextBox}" MaxLength="40" Tag="Por ejemplo: Survival con amigos"
                                  Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nombre del servidor" />
 
@@ -981,6 +1022,15 @@
                 <DockPanel x:Name="PlayerProfilePanel" DataContext="{Binding ProfileView}"
                            Visibility="{Binding DataContext.IsPlayerProfileOpen, ElementName=PlayersTabRoot, Converter={StaticResource BoolToVisibility}}">
                     <DockPanel.Resources>
+                        <!-- Equipo: como FactRow, con el icono del objeto delante del nombre (pixel art: sin suavizar) -->
+                        <DataTemplate x:Key="ItemFactRow" DataType="{x:Type vm:ProfileFact}">
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock DockPanel.Dock="Left" Width="170" Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink3}" VerticalAlignment="Center" />
+                                <Image DockPanel.Dock="Left" Source="{Binding Icon}" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor" Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}" />
+                                <TextBlock Text="{Binding Value}" FontSize="13" Foreground="{StaticResource Ink}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </DataTemplate>
                         <DataTemplate x:Key="FactRow" DataType="{x:Type vm:ProfileFact}">
                             <DockPanel Margin="0,0,0,8">
                                 <TextBlock DockPanel.Dock="Left" Width="170" Text="{Binding Label}" FontSize="13" Foreground="{StaticResource Ink3}" />
@@ -1228,7 +1278,7 @@
                             <Border Style="{StaticResource Section}">
                                 <StackPanel>
                                     <TextBlock Text="Equipo" Style="{StaticResource SectionTitle}" />
-                                    <ItemsControl ItemsSource="{Binding Equipment}" ItemTemplate="{StaticResource FactRow}" Focusable="False"
+                                    <ItemsControl ItemsSource="{Binding Equipment}" ItemTemplate="{StaticResource ItemFactRow}" Focusable="False"
                                                   Visibility="{Binding HasEquipment, Converter={StaticResource BoolToVisibility}}" />
                                     <TextBlock Text="No lleva nada equipado." FontSize="13" Foreground="{StaticResource Ink3}"
                                                Visibility="{Binding HasEquipment, Converter={StaticResource InverseBoolToVisibility}}" />
@@ -1241,7 +1291,7 @@
                                     <ItemsControl ItemsSource="{Binding Inventory}" Focusable="False" Visibility="{Binding HasInventory, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate><Border Style="{StaticResource ItemChip}"><TextBlock Text="{Binding}" FontSize="12.5" Foreground="{StaticResource Ink}" /></Border></DataTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ProfileItem}"><Border Style="{StaticResource ItemChip}"><StackPanel Orientation="Horizontal"><Image Source="{Binding Icon}" Width="18" Height="18" Margin="0,0,7,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor" Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}" /><TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Ink}" VerticalAlignment="Center" /></StackPanel></Border></DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                     <TextBlock Text="Inventario vacío." FontSize="13" Foreground="{StaticResource Ink3}"
@@ -1251,7 +1301,7 @@
                                     <ItemsControl ItemsSource="{Binding EnderChest}" Focusable="False" Visibility="{Binding HasEnderChest, Converter={StaticResource BoolToVisibility}}">
                                         <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate><Border Style="{StaticResource ItemChip}"><TextBlock Text="{Binding}" FontSize="12.5" Foreground="{StaticResource Ink}" /></Border></DataTemplate>
+                                            <DataTemplate DataType="{x:Type vm:ProfileItem}"><Border Style="{StaticResource ItemChip}"><StackPanel Orientation="Horizontal"><Image Source="{Binding Icon}" Width="18" Height="18" Margin="0,0,7,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor" Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}" /><TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{StaticResource Ink}" VerticalAlignment="Center" /></StackPanel></Border></DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>

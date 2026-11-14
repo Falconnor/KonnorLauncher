@@ -61,12 +61,15 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd" Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <Border x:Name="Tile" Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                    CornerRadius="{StaticResource RadiusButton}" Background="{StaticResource RowHover}">
-                                <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="14"
-                                           HorizontalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
-                            </Border>
+                                BorderThickness="{TemplateBinding BorderThickness}" Padding="24,0,14,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border x:Name="Tile" Width="44" Height="44" CornerRadius="{StaticResource RadiusButton}" Background="{StaticResource RowHover}">
+                                    <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="14"
+                                               HorizontalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                                </Border>
+                                <TextBlock Text="Añadir instancia" FontSize="15" Margin="12,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{TemplateBinding Foreground}" />
+                            </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -285,7 +288,7 @@
                                                 <ItemsPresenter />
                                                 <!-- Nueva instancia, justo debajo de la última -->
                                                 <Button Style="{StaticResource AddInstanceRow}" Command="{Binding NewInstanceCommand}"
-                                                        ToolTip="Nueva instancia" AutomationProperties.Name="Crear una instancia nueva" />
+                                                        AutomationProperties.Name="Añadir instancia" />
                                             </StackPanel>
                                         </ScrollViewer>
                                     </ControlTemplate>

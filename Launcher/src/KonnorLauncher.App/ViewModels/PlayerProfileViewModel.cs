@@ -67,7 +67,16 @@ public sealed record HudRow(string Label, IReadOnlyList<HudIcon> Icons, string V
 }
 
 /// <summary>Fila «etiqueta: valor» del perfil.</summary>
-public sealed record ProfileFact(string Label, string Value);
+public sealed record ProfileFact(string Label, string Value, ImageSource? Icon = null)
+{
+    public bool HasIcon => Icon is not null;
+}
+
+/// <summary>Un objeto del inventario o del cofre de Ender: su texto (nombre, cantidad, desgaste) y su icono del juego.</summary>
+public sealed record ProfileItem(string Text, ImageSource? Icon)
+{
+    public bool HasIcon => Icon is not null;
+}
 
 /// <summary>Barra del perfil (vida, hambre, armadura, experiencia, aire).</summary>
 public sealed record ProfileBar(string Label, string Value, double Ratio, string Color, IReadOnlyList<ProfileAction>? Actions = null)
@@ -125,9 +134,9 @@ public sealed class PlayerProfileViewModel
 
         Equipment = [.. EquipmentSlots
             .Where(s => profile.Equipment.ContainsKey(s.Slot))
-            .Select(s => new ProfileFact(s.Label, ItemText(profile.Equipment[s.Slot])))];
+            .Select(s => new ProfileFact(s.Label, ItemText(profile.Equipment[s.Slot]), ItemIcons.Get(profile.Equipment[s.Slot].Id)))];
         if (profile.HeldItem is { } held)
-            Equipment.Insert(0, new ProfileFact("En la mano", ItemText(held)));
+            Equipment.Insert(0, new ProfileFact("En la mano", ItemText(held), ItemIcons.Get(held.Id)));
 
         if (HudSprites.Available)
         {
@@ -145,8 +154,8 @@ public sealed class PlayerProfileViewModel
                     "heart/absorbing_full.png", "heart/absorbing_half.png"), $"+{Half(profile.Absorption)}", []));
         }
 
-        Inventory = [.. profile.Inventory.Select(ItemText)];
-        EnderChest = [.. profile.EnderChest.Select(ItemText)];
+        Inventory = [.. profile.Inventory.Select(i => new ProfileItem(ItemText(i), ItemIcons.Get(i.Id)))];
+        EnderChest = [.. profile.EnderChest.Select(i => new ProfileItem(ItemText(i), ItemIcons.Get(i.Id)))];
         Effects = [.. profile.Effects.Select(e => $"{e.DisplayName} {Roman(e.Level)}" + (e.SecondsLeft is { } s ? $" · {TimeSpan.FromSeconds(s):m\\:ss}" : " · ∞"))];
 
         Stats =
@@ -198,10 +207,10 @@ public sealed class PlayerProfileViewModel
     public IReadOnlyList<ProfileFact> Location { get; }
     public List<ProfileFact> Equipment { get; }
     public bool HasEquipment => Equipment.Count > 0;
-    public IReadOnlyList<string> Inventory { get; }
+    public IReadOnlyList<ProfileItem> Inventory { get; }
     public bool HasInventory => Inventory.Count > 0;
     public string InventoryTitle => $"Inventario ({Inventory.Count} de 36 huecos)";
-    public IReadOnlyList<string> EnderChest { get; }
+    public IReadOnlyList<ProfileItem> EnderChest { get; }
     public bool HasEnderChest => EnderChest.Count > 0;
     public string EnderChestTitle => $"Cofre de Ender ({EnderChest.Count} de 27 huecos)";
     public IReadOnlyList<string> Effects { get; }

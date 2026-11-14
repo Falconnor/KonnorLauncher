@@ -185,6 +185,21 @@ public sealed class ServerInstaller
             string.Join(' ', server.LaunchArguments));
     }
 
+    /// <summary>
+    /// Servidor importado (sus archivos ya están copiados): solo falta el Java de Mojang para su versión. Rellena
+    /// <see cref="HostedServer.JavaComponent"/>; el arranque viene de lo que se reconoció al importarlo.
+    /// </summary>
+    public async Task PrepareImportedAsync(HostedServer server, IProgress<LauncherProgress>? progress, CancellationToken ct = default)
+    {
+        var report = new ThrottledProgress(progress);
+        report.Report(new LauncherProgress(LauncherPhase.Installing, "Preparando Java…", null));
+        var (_, component, _) = await EnsureJavaAsync(server.MinecraftVersion, report, ct).ConfigureAwait(false);
+        server.JavaComponent = component;
+        report.Report(new LauncherProgress(LauncherPhase.Installing, "Servidor importado", 100));
+        _logger.LogInformation("Servidor {Id} importado: {Summary} {Loader} | {Args}", server.Id, server.Summary, server.LoaderVersion,
+            string.Join(' ', server.LaunchArguments));
+    }
+
     /// <summary>Escribe <c>eula=true</c> (el jugador aceptó el EULA de Minecraft al crear el servidor).</summary>
     public static void AcceptEula(string dir) =>
         File.WriteAllText(Path.Combine(dir, EulaFile),

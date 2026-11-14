@@ -422,6 +422,76 @@ public sealed partial class HostingViewModel : ObservableObject
         NewPortText = _hosting.Store.NextFreeGamePort().ToString();
     }
 
+    /// <summary>
+    /// «Importar servidor»: se elige la carpeta de un servidor que ya existe (hecho a mano, con otro programa o de otro
+    /// equipo), se reconoce qué es y, tras confirmarlo, se copia aquí. El original no se toca.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportAsync()
+    {
+        if (_dialogs.PickFolder("Carpeta del servidor a importar") is not { } source)
+            return;
+        source = Path.GetFullPath(source);
+        if (source.StartsWith(Path.GetFullPath(_hosting.Store.HostingDir), StringComparison.OrdinalIgnoreCase))
+        {
+            _dialogs.ShowWarning("Importar servidor", "Esa carpeta ya es de un servidor del Hosting.");
+            return;
+        }
+
+        ImportedServer? found;
+        long size;
+        try
+        {
+            (found, size) = await Task.Run(() => (ServerImporter.Detect(source), ServerImporter.CopySize(source)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _dialogs.ShowWarning("Importar servidor", $"No se pudo leer la carpeta: {ex.Message}");
+            return;
+        }
+
+        if (found is null)
+        {
+            _dialogs.ShowWarning("Importar servidor",
+                "No se encontró un servidor de Minecraft en esa carpeta (Vanilla, Paper, Purpur, Spigot, Fabric, Quilt, Forge o NeoForge). Elige la carpeta donde está su .jar.");
+            return;
+        }
+
+        var name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar));
+        var ok = await _confirm.ShowAsync($"Importar «{name}»",
+            $"{found.Summary}. Se copia a la carpeta del Hosting ({SystemMemory.Format((int)Math.Max(1, size / (1024 * 1024)))}); la carpeta original no se toca.",
+            "Importar", isDanger: false);
+        if (!ok)
+            return;
+
+        HostedServer model;
+        try
+        {
+            model = _hosting.Store.Create(new HostedServer
+            {
+                Name = name,
+                Software = found.Software,
+                MinecraftVersion = found.MinecraftVersion,
+                LoaderVersion = found.LoaderVersion,
+                LaunchArguments = [.. found.LaunchArguments],
+                MemoryMb = found.Software is ServerSoftware.Fabric or ServerSoftware.Quilt or ServerSoftware.Forge or ServerSoftware.NeoForge ? 6144 : 4096,
+                Publish = new ClientPublishSettings { Port = _hosting.Store.NextFreePublishPort() },
+            });
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            _dialogs.ShowWarning("Importar servidor", ex.Message);
+            return;
+        }
+
+        var vm = CreateViewModel(model);
+        Servers.Insert(0, vm);
+        OnPropertyChanged(nameof(HasNoServers));
+        Tab = HostingTab.Servers;
+        Selected = null;
+        await vm.ImportFromAsync(source);
+    }
+
     partial void OnTabChanged(HostingTab value)
     {
         if (value == HostingTab.Create && _loaded)

@@ -308,6 +308,48 @@ public sealed partial class HostedServerViewModel : ObservableObject
         ProgressValue = p.Percent ?? 0;
     }
 
+    /// <summary>
+    /// Servidor importado: copia los archivos de <paramref name="source"/> a su carpeta (con el progreso en su fila) y
+    /// prepara el Java de su versión. El original no se toca.
+    /// </summary>
+    public async Task ImportFromAsync(string source)
+    {
+        IsBusy = true;
+        Error = null;
+        ProgressText = "Copiando el servidor…";
+        _work = new CancellationTokenSource();
+        var model = Model.Clone();
+        try
+        {
+            var progress = new Progress<LauncherProgress>(OnProgress);
+            await Task.Run(() => ServerImporter.CopyAsync(source, Directory, progress, _work.Token));
+            await Task.Run(() => _hosting.Installer.PrepareImportedAsync(model, progress, _work.Token));
+            System.IO.Directory.CreateDirectory(_hosting.Store.GetClientDirectory(Id));
+            model.Installed = true;
+            _hosting.Store.Save(model);
+            Model = model;
+            OnPropertyChanged(nameof(Summary));
+            LoadSettings();
+            RefreshContent();
+        }
+        catch (OperationCanceledException)
+        {
+            Error = "Importación cancelada. Puedes eliminar este servidor y volver a importarlo.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or HttpRequestException or UnauthorizedAccessException
+                                       or System.Text.Json.JsonException or NotSupportedException)
+        {
+            _logger.LogWarning(ex, "No se pudo importar el servidor {Id} desde {Source}", Id, source);
+            Error = ex is HttpRequestException ? "Copiado, pero no se pudo descargar Java: revisa la conexión y usa «Reinstalar»." : $"No se pudo importar: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            IsProgressKnown = false;
+            OnPropertyChanged(nameof(StateText));
+        }
+    }
+
     /// <summary>Instala (o reinstala) el software del servidor; lo usa la creación y «Reinstalar».</summary>
     public async Task InstallAsync(bool acceptEula)
     {
@@ -452,11 +494,15 @@ public sealed partial class HostedServerViewModel : ObservableObject
             known = [];
         }
 
+        // Cada jugador sale en una sola lista: los baneados, solo en «Baneados».
+        var banned = BannedPlayersFile.Load(Directory).Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         // Resumen de cada uno (vida, hambre, nivel…) del último guardado del mundo.
         var uuids = known.ToDictionary(k => k.Name, k => k.Uuid, StringComparer.OrdinalIgnoreCase);
         var lastPing = Players.Where(p => p.IsOnline).ToDictionary(p => p.Name, p => p.PingMs, StringComparer.OrdinalIgnoreCase);
         Players.Clear();
         foreach (var name in known.Select(k => k.Name).Union(online, StringComparer.OrdinalIgnoreCase)
+                     .Where(n => !banned.Contains(n))
                      .OrderByDescending(online.Contains)
                      .ThenBy(n => n, StringComparer.OrdinalIgnoreCase))
         {
@@ -621,7 +667,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
             Error = $"No se pudo cambiar a {name}: {ex.Message}";
         }
 
-        RefreshWhitelist();
+        RefreshPlayers();
     }
 
     /// <summary>Retira a un jugador de la lista blanca (<c>/whitelist remove</c> en marcha; detenido, el archivo).</summary>
@@ -657,7 +703,7 @@ public sealed partial class HostedServerViewModel : ObservableObject
             Error = $"No se pudo quitar a {entry.Name} de {listName}: {ex.Message}";
         }
 
-        RefreshWhitelist();
+        RefreshPlayers();
     }
 
     // ── Perfil de un jugador ─────────────────────────────────────────────
