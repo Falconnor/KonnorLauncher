@@ -16,6 +16,9 @@ public enum HostingTab
 {
     Servers,
     Create,
+
+    /// <summary>Hosting de terceros (exaroton, Aternos, Hostinger, Modrinth…).</summary>
+    ThirdParty,
 }
 
 /// <summary>Software que se puede elegir al crear un servidor.</summary>
@@ -43,8 +46,9 @@ public sealed partial class HostingViewModel : ObservableObject
     private int _loaderRequest;
 
     public HostingViewModel(HostingService hosting, ServerSoftwareCatalog catalog, ConfirmViewModel confirm, IDialogService dialogs,
-        ILogger<HostingViewModel> logger)
+        ThirdPartyViewModel thirdParty, ILogger<HostingViewModel> logger)
     {
+        ThirdParty = thirdParty;
         _hosting = hosting;
         _catalog = catalog;
         _confirm = confirm;
@@ -75,16 +79,28 @@ public sealed partial class HostingViewModel : ObservableObject
     // ══════════════════════════════════════════════════════════════════
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsServersTab), nameof(IsCreateTab), nameof(IsList), nameof(IsCreate))]
+    [NotifyPropertyChangedFor(nameof(IsServersTab), nameof(IsCreateTab), nameof(IsThirdPartyTab), nameof(IsList), nameof(IsCreate), nameof(IsThirdParty))]
     private HostingTab _tab = HostingTab.Servers;
+
+    /// <summary>Pestaña «Terceros»: servidores en otros hostings.</summary>
+    public ThirdPartyViewModel ThirdParty { get; }
 
     /// <summary>Servidor abierto (su página ocupa la sección).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDetail), nameof(IsList), nameof(IsCreate))]
+    [NotifyPropertyChangedFor(nameof(IsDetail), nameof(IsList), nameof(IsCreate), nameof(IsThirdParty))]
     private HostedServerViewModel? _selected;
 
-    public bool IsServersTab { get => Tab == HostingTab.Servers; set { if (value) { Tab = HostingTab.Servers; Selected = null; } } }
+    /// <summary>«Mis servidores» (también mientras se crea uno: «Crear servidor» se abre desde la fila «Añadir servidor»).</summary>
+    public bool IsServersTab
+    {
+        get => Tab is HostingTab.Servers or HostingTab.Create;
+        set { if (value) { Tab = HostingTab.Servers; Selected = null; } }
+    }
+
     public bool IsCreateTab { get => Tab == HostingTab.Create; set { if (value) { Tab = HostingTab.Create; Selected = null; } } }
+
+    public bool IsThirdPartyTab { get => Tab == HostingTab.ThirdParty; set { if (value) { Tab = HostingTab.ThirdParty; Selected = null; } } }
+    public bool IsThirdParty => Selected is null && Tab == HostingTab.ThirdParty;
     public bool IsDetail => Selected is not null;
     public bool IsList => Selected is null && Tab == HostingTab.Servers;
     public bool IsCreate => Selected is null && Tab == HostingTab.Create;
@@ -494,6 +510,13 @@ public sealed partial class HostingViewModel : ObservableObject
 
     partial void OnTabChanged(HostingTab value)
     {
+        if (value == HostingTab.ThirdParty)
+        {
+            _ = ThirdParty.ShowAsync();
+            ThirdParty.Resume();
+        }
+        else
+            ThirdParty.Pause();
         if (value == HostingTab.Create && _loaded)
             NewPortText = _hosting.Store.NextFreeGamePort().ToString();
     }

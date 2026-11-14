@@ -32,6 +32,37 @@ public sealed partial class InstanceItemViewModel : ObservableObject
     /// <summary>Cargador tal como se muestra (da el color del icono).</summary>
     [ObservableProperty] private ModLoader _loader;
     [ObservableProperty] private bool _isSynced;
+
+    /// <summary>
+    /// Instancia sincronizada: si su servidor de Minecraft está encendido (true), apagado (false) o aún no se sabe (null).
+    /// Lo comprueba la ventana cada poco (punto verde o rojo en el icono).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ServerStateText))]
+    private bool? _serverOnline;
+
+    public string ServerStateText => ServerOnline switch
+    {
+        true => "Servidor encendido",
+        false => "Servidor apagado",
+        _ => "Comprobando el servidor…",
+    };
+
+    /// <summary>
+    /// Dirección del servidor de Minecraft de una instancia sincronizada: la que publica para entrar directamente o, si
+    /// no hay, el mismo equipo que la sincronización con el puerto de Minecraft.
+    /// </summary>
+    public Core.Servers.ServerAddress? GameAddress
+    {
+        get
+        {
+            if (!IsSynced)
+                return null;
+            if (Core.Servers.ServerAddress.TryParse(Model.ServerAutoJoin, out var join))
+                return join;
+            return Uri.TryCreate(Model.ServerUrl, UriKind.Absolute, out var url) && Core.Servers.ServerAddress.TryParse(url.Host, out var host) ? host : null;
+        }
+    }
     [ObservableProperty] private string _syncText = string.Empty;
     [ObservableProperty] private bool _hasUpdate;
     [ObservableProperty] private string _updateText = string.Empty;

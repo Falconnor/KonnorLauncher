@@ -247,12 +247,12 @@
                             <TextBlock Text="Mis servidores" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
-                    <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="HostingTabs" IsChecked="{Binding IsCreateTab}"
-                                 AutomationProperties.Name="Crear servidor" ToolTip="Elegir versión y software, descargarlo e instalarlo">
+                    <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="HostingTabs" IsChecked="{Binding IsThirdPartyTab}"
+                                 AutomationProperties.Name="Terceros" ToolTip="Servidores en otros hostings: exaroton, Aternos, Hostinger, Modrinth…">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,8,0"
+                            <TextBlock Text="&#xE774;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" />
-                            <TextBlock Text="Crear servidor" VerticalAlignment="Center" />
+                            <TextBlock Text="Terceros" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
                 </StackPanel>
@@ -482,6 +482,286 @@
                     </StackPanel>
                     </Grid>
                 </ScrollViewer>
+
+                <!-- ── Terceros: servidores en otros hostings ── -->
+                <Grid DataContext="{Binding ThirdParty}"
+                      Visibility="{Binding DataContext.IsThirdParty, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.Resources>
+                        <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
+                        <!-- Punto de estado: verde en línea -->
+                        <Style x:Key="OnlineDot" TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                            <Setter Property="Fill" Value="{StaticResource Offline}" />
+                            <Setter Property="Margin" Value="0,0,7,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                        <!-- Etiqueta del proveedor -->
+                        <Style x:Key="ProviderChip" TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                            <Setter Property="CornerRadius" Value="6" />
+                            <Setter Property="Padding" Value="8,2" />
+                            <Setter Property="Margin" Value="10,0,0,0" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </Grid.Resources>
+
+                    <!-- Lista -->
+                    <Grid Visibility="{Binding IsList, Converter={StaticResource BoolToVisibility}}">
+                        <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="0,0,6,0">
+                                <DockPanel Margin="2,0,0,12">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallGlass}" Content="Actualizar" Command="{Binding RefreshCommand}" />
+                                    <TextBlock Text="{Binding ListError}" Foreground="{StaticResource ErrorText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"
+                                               Visibility="{Binding ListError, Converter={StaticResource TextToVisibility}}" />
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding Items}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:ThirdPartyServerItem}">
+                                            <!-- Toda la fila abre el servidor (sus botones hacen lo suyo y no la abren) -->
+                                            <Border Style="{StaticResource ServerRow}" Cursor="Hand">
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick" CommandParameter="{Binding}"
+                                                                  Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                </Border.InputBindings>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <!-- El icono del hosting (Aternos, exaroton…); sin él, la inicial -->
+                                                    <Border Width="52" Height="52" CornerRadius="12" Background="{StaticResource TileBackground}" Margin="0,0,14,0" VerticalAlignment="Top">
+                                                        <Grid>
+                                                            <TextBlock Text="{Binding Initial}" FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource Ink2}"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                            <Image Source="{Binding Icon}" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}" />
+                                                        </Grid>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis" />
+                                                            <Border Style="{StaticResource ProviderChip}">
+                                                                <TextBlock Text="{Binding ProviderName}" FontSize="12" Foreground="{StaticResource Ink}" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Address}" FontSize="13" Foreground="{StaticResource Ink2}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"
+                                                                   Visibility="{Binding Address, Converter={StaticResource TextToVisibility}}" />
+                                                        <WrapPanel Margin="0,8,0,0">
+                                                            <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                                                                <Ellipse Style="{StaticResource OnlineDot}" />
+                                                                <TextBlock Text="{Binding StatusText}" Style="{StaticResource Meta}" Margin="0" />
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding PlayersText}" Style="{StaticResource Meta}" Margin="0,0,14,0"
+                                                                       Visibility="{Binding PlayersText, Converter={StaticResource TextToVisibility}}" />
+                                                            <TextBlock Text="{Binding Software}" Style="{StaticResource Meta}" Margin="0"
+                                                                       Visibility="{Binding Software, Converter={StaticResource TextToVisibility}}" />
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Style="{StaticResource IconOnlyButton}" Width="34" Height="34" FontSize="13" Content="{StaticResource IconDelete}" Margin="0,0,8,0"
+                                                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                ToolTip="Quitar de la lista" AutomationProperties.Name="{Binding Name, StringFormat=Quitar {0}}" />
+                                                        <Button Style="{StaticResource AccentButton}" Height="34" Padding="18,0" Content="Iniciar"
+                                                                Command="{Binding DataContext.StartServerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                Visibility="{Binding CanStart, Converter={StaticResource BoolToVisibility}}"
+                                                                AutomationProperties.Name="{Binding Name, StringFormat=Iniciar {0}}" />
+                                                        <Button Style="{StaticResource GlassButton}" Height="34" Padding="18,0" Content="Detener"
+                                                                Command="{Binding DataContext.StopServerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                                                Visibility="{Binding CanStop, Converter={StaticResource BoolToVisibility}}"
+                                                                AutomationProperties.Name="{Binding Name, StringFormat=Detener {0}}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <!-- «Añadir hosting»: una fila, como «Añadir servidor» -->
+                                <Button Command="{Binding StartAddCommand}" Cursor="Hand" FocusVisualStyle="{StaticResource FocusRingRow}" AutomationProperties.Name="Añadir hosting">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                                    CornerRadius="{StaticResource RadiusGroup}" Padding="14">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border x:Name="Tile" Width="52" Height="52" CornerRadius="12" Background="{StaticResource RowHover}">
+                                                        <TextBlock Text="{StaticResource IconAdd}" Style="{StaticResource Icon}" FontSize="16" HorizontalAlignment="Center"
+                                                                   Foreground="{StaticResource Ink3}" />
+                                                    </Border>
+                                                    <TextBlock x:Name="Label" Text="Añadir hosting" FontSize="16" FontWeight="SemiBold" Margin="14,0,0,0"
+                                                               VerticalAlignment="Center" Foreground="{StaticResource Ink2}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowFillHover}" />
+                                                    <Setter TargetName="Tile" Property="Background" Value="{StaticResource PillGhostHover}" />
+                                                    <Setter TargetName="Label" Property="Foreground" Value="{StaticResource Ink}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <TextBlock Text="Cargando…" Style="{StaticResource Meta}" Margin="2,12,0,0"
+                                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- Añadir -->
+                    <ScrollViewer Template="{StaticResource GlassScrollViewer}" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding IsAdding, Converter={StaticResource BoolToVisibility}}">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="860" /><ColumnDefinition Width="0" /></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,14,12">
+                            <TextBlock Text="Hosting" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
+                            <ItemsControl ItemsSource="{Binding Options}" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ThirdPartyOption}">
+                                        <Button Style="{StaticResource SoftwareCard}" AutomationProperties.Name="{Binding Name}"
+                                                Command="{Binding DataContext.SelectOptionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}">
+                                            <StackPanel>
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Right" Text="{StaticResource IconCheck}" Style="{StaticResource Icon}" FontSize="11"
+                                                               Foreground="{StaticResource Ok}" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" />
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Description}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- exaroton: el token de la cuenta -->
+                            <StackPanel Margin="0,14,0,0" Visibility="{Binding NeedsToken, Converter={StaticResource BoolToVisibility}}">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource SmallGlass}" Content="Crear token en exaroton" Command="{Binding OpenExarotonTokensCommand}" />
+                                    <TextBlock Text="Token de la API" Style="{StaticResource FieldLabel}" VerticalAlignment="Bottom" />
+                                </DockPanel>
+                                <TextBox Style="{StaticResource GlassTextBox}" Tag="Pega aquí el token de tu cuenta" Margin="0,6,0,0"
+                                         Text="{Binding NewToken, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Token de exaroton" />
+                            </StackPanel>
+
+                            <!-- Panel web: nombre, panel y dirección -->
+                            <StackPanel Margin="0,14,0,0" Visibility="{Binding NeedsPanel, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource GlassTextBox}" MaxLength="40" Tag="Por ejemplo: Survival con amigos"
+                                         Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Nombre" />
+                                <TextBlock Text="Panel" Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
+                                <TextBox Style="{StaticResource GlassTextBox}" Tag="https://…"
+                                         Text="{Binding NewPanelUrl, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Dirección del panel" />
+                                <TextBlock Text="Dirección del servidor" Style="{StaticResource FieldLabel}" Margin="0,14,0,0" />
+                                <TextBox Style="{StaticResource GlassTextBox}" Tag="Opcional: miservidor.aternos.me"
+                                         Text="{Binding NewJoinAddress, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Dirección del servidor" />
+                            </StackPanel>
+
+                            <DockPanel Margin="0,22,0,0">
+                                <Button DockPanel.Dock="Left" Style="{StaticResource QuietButton}" Content="Cancelar" Command="{Binding CancelAddCommand}" Margin="0,0,8,0" />
+                                <Button DockPanel.Dock="Left" Style="{StaticResource AccentButton}" Padding="24,0" Height="40" Content="Añadir"
+                                        Command="{Binding SaveCommand}" AutomationProperties.Name="Añadir hosting" />
+                                <TextBlock Text="{Binding AddError}" Foreground="{StaticResource ErrorText}" FontSize="13" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" Margin="16,0,0,0" />
+                            </DockPanel>
+                        </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+
+                    <!-- Un servidor abierto -->
+                    <DockPanel Visibility="{Binding IsDetail, Converter={StaticResource BoolToVisibility}}">
+                        <!-- Cabecera: volver, nombre, estado y acciones -->
+                        <Grid DockPanel.Dock="Top" Margin="0,0,0,12" DataContext="{Binding Selected}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button Style="{StaticResource IconOnlyButton}" Content="&#xE72B;" FontSize="13" Width="34" Height="34" VerticalAlignment="Center" Margin="0,0,12,0"
+                                    Command="{Binding DataContext.ThirdParty.BackCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    ToolTip="Volver" AutomationProperties.Name="Volver a Terceros" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Source="{Binding Icon}" Width="22" Height="22" Margin="0,0,10,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
+                                           Visibility="{Binding HasIcon, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+                                    <Border Style="{StaticResource ProviderChip}">
+                                        <TextBlock Text="{Binding ProviderName}" FontSize="12" Foreground="{StaticResource Ink}" />
+                                    </Border>
+                                </StackPanel>
+                                <WrapPanel Margin="0,4,0,0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,14,0">
+                                        <Ellipse Style="{StaticResource OnlineDot}" />
+                                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource Meta}" Margin="0" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Address}" Style="{StaticResource Meta}" Margin="0,0,14,0"
+                                               Visibility="{Binding Address, Converter={StaticResource TextToVisibility}}" />
+                                    <TextBlock Text="{Binding PlayersText}" Style="{StaticResource Meta}" Margin="0"
+                                               Visibility="{Binding PlayersText, Converter={StaticResource TextToVisibility}}" />
+                                </WrapPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Style="{StaticResource SmallGlass}" Content="Abrir en el navegador" Margin="0,0,8,0"
+                                        Command="{Binding DataContext.ThirdParty.OpenInBrowserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                <Button Style="{StaticResource SmallGlass}" Content="Reiniciar" Margin="0,0,8,0"
+                                        Command="{Binding DataContext.ThirdParty.RestartServerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Visibility="{Binding CanStop, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Style="{StaticResource AccentButton}" Height="34" Padding="18,0" Content="Iniciar"
+                                        Command="{Binding DataContext.ThirdParty.StartServerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Visibility="{Binding CanStart, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Style="{StaticResource GlassButton}" Height="34" Padding="18,0" Content="Detener"
+                                        Command="{Binding DataContext.ThirdParty.StopServerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Visibility="{Binding CanStop, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding DetailError}" Foreground="{StaticResource ErrorText}" FontSize="13" TextWrapping="Wrap" Margin="2,0,0,10"
+                                   Visibility="{Binding DetailError, Converter={StaticResource TextToVisibility}}" />
+
+                        <Grid>
+                            <!-- exaroton: jugadores y consola -->
+                            <DockPanel Visibility="{Binding IsExarotonDetail, Converter={StaticResource BoolToVisibility}}">
+                                <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Height="36" Padding="16,0" Margin="8,0,0,0" Content="Enviar"
+                                            Command="{Binding SendCommandCommand}" IsDefault="False" />
+                                    <TextBox x:Name="ThirdPartyCommandBox" Style="{StaticResource GlassTextBox}" Tag="Comando (sin /), por ejemplo: say Hola"
+                                             Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}" KeyDown="OnThirdPartyCommandKeyDown"
+                                             AutomationProperties.Name="Comando para el servidor de exaroton" />
+                                </DockPanel>
+                                <Border DockPanel.Dock="Right" Width="200" Margin="10,0,0,0" Style="{StaticResource Section}">
+                                    <StackPanel>
+                                        <TextBlock Text="Jugadores" Style="{StaticResource SectionTitle}" />
+                                        <ItemsControl ItemsSource="{Binding Selected.Players}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate><TextBlock Text="{Binding}" FontSize="13" Foreground="{StaticResource Ink}" Margin="0,0,0,6" /></DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="Nadie conectado." FontSize="13" Foreground="{StaticResource Ink3}"
+                                                   Visibility="{Binding Selected.Players.Count, Converter={StaticResource ZeroToVisible}}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Background="{StaticResource ConsoleFill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1" CornerRadius="{StaticResource RadiusGroup}">
+                                    <TextBox x:Name="ThirdPartyConsole" Text="{Binding ConsoleText, Mode=OneWay}" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                             Foreground="{StaticResource Ink}" FontFamily="Cascadia Mono, Consolas" FontSize="12.5" Padding="12,10" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Consola del servidor de exaroton" />
+                                </Border>
+                            </DockPanel>
+
+                            <!-- Panel web del hosting, dentro del launcher (la sesión se recuerda) -->
+                            <Border x:Name="ThirdPartyPanelHost" CornerRadius="{StaticResource RadiusGroup}" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                    ClipToBounds="True" Background="#FF0B0E13"
+                                    Visibility="{Binding IsPanelDetail, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock x:Name="ThirdPartyPanelMessage" Text="Cargando el panel…" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" />
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                </Grid>
             </Grid>
         </DockPanel>
 

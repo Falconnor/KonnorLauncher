@@ -321,13 +321,21 @@
                                                         </Ellipse>
                                                     </Grid>
                                                 </Border>
-                                                <!-- Verde: sincronizada con su servidor; ámbar: con una actualización; sin punto: normal -->
-                                                <Ellipse Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}">
+                                                <!-- Actualización del servidor pendiente: marco amarillo alrededor del icono -->
+                                                <Ellipse Stroke="{StaticResource Warn}" StrokeThickness="2.5" IsHitTestVisible="False"
+                                                         Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}" />
+                                                <!-- Instancia sincronizada: su servidor encendido (verde), apagado (rojo) o comprobándose (gris).
+                                                     Sin sincronizar, sin punto. -->
+                                                <Ellipse Visibility="{Binding IsSynced, Converter={StaticResource BoolToVisibility}}" ToolTip="{Binding ServerStateText}">
                                                     <Ellipse.Style>
                                                         <Style TargetType="Ellipse" BasedOn="{StaticResource PresenceDot}">
+                                                            <Setter Property="Fill" Value="{StaticResource Ink3}" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasUpdate}" Value="True">
-                                                                    <Setter Property="Fill" Value="{StaticResource Warn}" />
+                                                                <DataTrigger Binding="{Binding ServerOnline}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding ServerOnline}" Value="False">
+                                                                    <Setter Property="Fill" Value="{StaticResource Danger}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>

@@ -52,6 +52,7 @@ public sealed partial class MainViewModel : ObservableObject
         ConfirmViewModel confirm,
         IDialogService dialogs,
         LauncherUpdater updater,
+        Core.Servers.ServerStatusClient serverStatus,
         ILogger<MainViewModel> logger)
     {
         Updater = updater;
@@ -61,6 +62,9 @@ public sealed partial class MainViewModel : ObservableObject
         _store = store;
         _sync = sync;
         _dialogs = dialogs;
+        _serverStatus = serverStatus;
+        _serverTimer.Tick += async (_, _) => await CheckSyncedServersAsync();
+        _serverTimer.Start();
         _logger = logger;
         Options = options;
         Account = account;
@@ -278,6 +282,55 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         UpdatePlayEnabled();
+        _ = CheckSyncedServersAsync(); // las filas son nuevas: su punto vuelve a comprobarse
+    }
+
+    // ── Servidor de las instancias sincronizadas: encendido o apagado (punto del icono) ──
+
+    private readonly Core.Servers.ServerStatusClient _serverStatus;
+    private readonly System.Windows.Threading.DispatcherTimer _serverTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private bool _checkingServers;
+
+    /// <summary>
+    /// Comprueba el servidor de cada instancia sincronizada: primero directamente (como la lista de servidores del juego,
+    /// llega también a la red local) y, si no responde, con mcstatus.io (resuelve las direcciones de algunos hostings).
+    /// </summary>
+    public async Task CheckSyncedServersAsync()
+    {
+        if (_checkingServers)
+            return;
+        _checkingServers = true;
+        try
+        {
+            var synced = Instances.Where(i => i.IsSynced).ToList();
+            await Task.WhenAll(synced.Select(async item =>
+            {
+                if (item.GameAddress is not { } address)
+                {
+                    item.ServerOnline = null;
+                    return;
+                }
+
+                var status = await Core.Servers.ServerPinger.PingAsync(address, TimeSpan.FromSeconds(3));
+                if (status is null)
+                {
+                    try
+                    {
+                        status = await _serverStatus.GetAsync(address);
+                    }
+                    catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+                    {
+                        status = null;
+                    }
+                }
+
+                item.ServerOnline = status?.Online == true;
+            }));
+        }
+        finally
+        {
+            _checkingServers = false;
+        }
     }
 
     partial void OnHasInstancesChanged(bool value)

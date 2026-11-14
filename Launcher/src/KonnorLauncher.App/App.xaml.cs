@@ -184,6 +184,20 @@ public partial class App : Application
             AutomaticDecompression = System.Net.DecompressionMethods.All,
         });
 
+        // Iconos de los hostings de terceros (el favicon de su web).
+        services.AddHttpClient(SiteIcons.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(15);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        });
+
+        // Hosting de terceros: API de exaroton (el token lo añade el cliente en cada petición).
+        services.AddHttpClient(KonnorLauncher.Core.Hosting.Exaroton.ExarotonClient.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(30);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        });
+
         // IP pública para la sección Hosting (api.ipify.org devuelve solo la IP en texto).
         services.AddHttpClient(NetworkAccess.HttpClientName, c =>
         {
@@ -239,6 +253,8 @@ public partial class App : Application
         services.AddSingleton<BrowseViewModel>();
         services.AddSingleton<SkinsViewModel>();
         services.AddSingleton<ServersViewModel>();
+        services.AddSingleton(_ => new ThirdPartyStore(LauncherPaths.DataDir));
+        services.AddSingleton<ThirdPartyViewModel>();
         services.AddSingleton<HostingViewModel>();
         services.AddSingleton<UsernamePromptViewModel>();
         services.AddSingleton<InstanceEditorViewModel>();
