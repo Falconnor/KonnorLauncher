@@ -483,6 +483,7 @@
                             <DataTemplate DataType="{x:Type vm:BrowseTab}">
                                 <RadioButton Style="{StaticResource TopTabSmall}" Height="50" GroupName="BrowseTabs" IsChecked="{Binding IsActive}"
                                              IsEnabled="{Binding IsEnabled}"
+                                             Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVisibility}}"
                                              AutomationProperties.Name="{Binding Label}" ToolTip="{Binding Label}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Icon}" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"
@@ -1162,9 +1163,11 @@
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- Categoría -->
-                                <Border Height="1" Background="{StaticResource InnerStroke}" />
-                                <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsCategoryExpanded}" AutomationProperties.Name="Categoría">
+                                <!-- Categoría (FTB no tiene) -->
+                                <Border Height="1" Background="{StaticResource InnerStroke}"
+                                        Visibility="{Binding ShowCategories, Converter={StaticResource BoolToVisibility}}" />
+                                <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsCategoryExpanded}" AutomationProperties.Name="Categoría"
+                                              Visibility="{Binding ShowCategories, Converter={StaticResource BoolToVisibility}}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Categoría" Style="{StaticResource GroupTitle}" />
                                         <TextBlock Text="{Binding CategoryActiveText}" Style="{StaticResource GroupActive}" />
@@ -1239,17 +1242,19 @@
                                                   Visibility="{Binding IsEnvironmentExpanded, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
-                                <!-- Licencia (plegado) -->
-                                <Border Height="1" Background="{StaticResource InnerStroke}" />
-                                <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsLicenseExpanded}" AutomationProperties.Name="Licencia">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Licencia" Style="{StaticResource GroupTitle}" />
-                                        <TextBlock Text="{Binding LicenseActiveText}" Style="{StaticResource GroupActive}" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OpenSourceOnly}" Margin="0,0,0,10" FontSize="13.5"
-                                          Content="Solo código abierto" Foreground="{StaticResource Ink2}"
-                                          Visibility="{Binding IsLicenseExpanded, Converter={StaticResource BoolToVisibility}}" />
+                                <!-- Licencia (plegado; solo Modrinth la filtra) -->
+                                <StackPanel Visibility="{Binding IsModrinthStore, Converter={StaticResource BoolToVisibility}}">
+                                    <Border Height="1" Background="{StaticResource InnerStroke}" />
+                                    <ToggleButton Style="{StaticResource GroupHeader}" IsChecked="{Binding IsLicenseExpanded}" AutomationProperties.Name="Licencia">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Licencia" Style="{StaticResource GroupTitle}" />
+                                            <TextBlock Text="{Binding LicenseActiveText}" Style="{StaticResource GroupActive}" />
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <CheckBox Style="{StaticResource SwitchCheckBox}" IsChecked="{Binding OpenSourceOnly}" Margin="0,0,0,10" FontSize="13.5"
+                                              Content="Solo código abierto" Foreground="{StaticResource Ink2}"
+                                              Visibility="{Binding IsLicenseExpanded, Converter={StaticResource BoolToVisibility}}" />
+                                </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
 

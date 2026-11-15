@@ -62,6 +62,12 @@ public sealed class LauncherSettings
     public const string KeyModsView = "mods.view";
     public const string KeyModsSize = "mods.size";
 
+    /// <summary>Tienda de Explorar: <c>modrinth</c>, <c>curseforge</c> o <c>ftb</c>.</summary>
+    public const string KeyStore = "store.source";
+
+    /// <summary>Clave de la API de CurseForge, cifrada con el usuario de Windows.</summary>
+    public const string KeyCurseForgeKey = "store.curseforge.key";
+
     /// <summary>Memoria por defecto si el archivo no dice nada.</summary>
     public const string DefaultMemory = "4G";
 
@@ -112,6 +118,9 @@ public sealed class LauncherSettings
         Properties.Get(KeyThemeMode).Trim().Equals("solid", StringComparison.OrdinalIgnoreCase));
 
     public bool OpenLogOnCrash => ParseBool(Properties.Get(KeyOpenLogOnCrash));
+
+    /// <summary>Tienda de Explorar (valor desconocido = Modrinth).</summary>
+    public Modrinth.StoreKind Store => Stores.ContentStores.Parse(Properties.Get(KeyStore));
 
     /// <summary>Valor que se guarda para <paramref name="value"/> en <c>launcher.on_play</c>.</summary>
     public static string FormatOnPlay(LauncherOnPlay value) => value switch

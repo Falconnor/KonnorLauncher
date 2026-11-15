@@ -1,4 +1,4 @@
-<UserControl x:Class="KonnorLauncher.App.Views.OptionsOverlay"
+﻿<UserControl x:Class="KonnorLauncher.App.Views.OptionsOverlay"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -11,6 +11,35 @@
              IsVisibleChanged="OnIsVisibleChanged">
     <UserControl.Resources>
         <conv:TextToVisibilityConverter x:Key="TextToVisibility" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <SolidColorBrush x:Key="RowFill" Color="#0AFFFFFF" />
+        <SolidColorBrush x:Key="RowFillHover" Color="#12FFFFFF" />
+
+        <!-- Tienda de Explorar: tarjeta con su icono, nombre y lo que tiene -->
+        <Style x:Key="StoreCard" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{StaticResource RowFill}" BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusRow}" Padding="14,12" Margin="0,0,8,8">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowFillHover}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowSelected}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- Chips (RAM, tamaño de ventana): opciones como botones de segmento -->
         <Style x:Key="ChipItem" TargetType="ListBoxItem">
@@ -368,6 +397,51 @@
                                         <TextBlock Text="Abrir el registro si el juego falla" Style="{StaticResource RowTitle}" />
                                     </CheckBox>
                                 </Border>
+                            </StackPanel>
+
+                            <!-- ── Tienda ── -->
+                            <StackPanel Visibility="{Binding IsStoreSection, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Tienda de Explorar" Style="{StaticResource FieldLabel}" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding StoreOptions}" Focusable="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:StoreOption}">
+                                            <Button Style="{StaticResource StoreCard}" AutomationProperties.Name="{Binding Name}"
+                                                    Command="{Binding DataContext.SelectStoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{StaticResource IconCheck}" Style="{StaticResource Icon}" FontSize="11"
+                                                                   VerticalAlignment="Center" Foreground="{StaticResource Ok}"
+                                                                   Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                                        <Border Width="30" Height="30" CornerRadius="8" Background="{StaticResource RowFillHover}" Margin="0,0,10,0">
+                                                            <Grid>
+                                                                <TextBlock Text="{Binding Initial}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" Foreground="{StaticResource Ink2}"
+                                                                           Visibility="{Binding HasIcon, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                                <Image Source="{Binding Icon}" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality" />
+                                                            </Grid>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                    <TextBlock Text="{Binding Description}" FontSize="12.5" Foreground="{StaticResource Ink3}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- CurseForge: la clave de la API del jugador -->
+                                <StackPanel Margin="0,14,8,0" Visibility="{Binding NeedsCurseForgeKey, Converter={StaticResource BoolToVisibility}}">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource GlassButton}" Content="Obtener clave" Command="{Binding OpenCurseForgeKeysCommand}" />
+                                        <TextBlock Text="Clave de la API de CurseForge" Style="{StaticResource FieldLabel}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                                    </DockPanel>
+                                    <TextBox Style="{StaticResource GlassTextBox}" Tag="Pega aquí tu clave" Margin="0,8,0,0"
+                                             Text="{Binding CurseForgeKey, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Clave de la API de CurseForge" />
+                                </StackPanel>
                             </StackPanel>
 
                             <!-- ── Almacenamiento ── -->

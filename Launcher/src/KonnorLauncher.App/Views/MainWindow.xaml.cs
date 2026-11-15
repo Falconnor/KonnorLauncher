@@ -174,12 +174,97 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Sorpresa: 10 clics rápidos en la K del logo ─────────────────────────
+
+    private const int EasterEggClicks = 10;
+
+    /// <summary>Tiempo máximo entre un clic y el siguiente para que cuenten como seguidos.</summary>
+    private static readonly TimeSpan EasterEggGap = TimeSpan.FromMilliseconds(450);
+
+    private int _logoClicks;
+    private DateTime _lastLogoClick;
+
+    private bool IsEasterEggOpen => EasterEgg.Visibility == Visibility.Visible;
+
+    /// <summary>
+    /// Clic en la K. Se maneja aquí (no llega al de la ventana): los clics seguidos no maximizan ni restauran la
+    /// ventana como un doble clic en la barra de título. Arrastrar desde la K sigue moviendo la ventana, pero solo
+    /// cuando el ratón se mueve (si se arrastrara en cada clic, Windows se quedaría con el siguiente).
+    /// </summary>
+    private void OnLogoMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _logoPress = e.GetPosition(this);
+        var now = DateTime.UtcNow;
+        _logoClicks = now - _lastLogoClick <= EasterEggGap ? _logoClicks + 1 : 1;
+        _lastLogoClick = now;
+        if (_logoClicks >= EasterEggClicks)
+        {
+            _logoClicks = 0;
+            _logoPress = null;
+            ShowEasterEgg();
+        }
+    }
+
+    private Point? _logoPress;
+
+    private void OnLogoMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_logoPress is not { } start || e.LeftButton != MouseButtonState.Pressed)
+        {
+            _logoPress = null;
+            return;
+        }
+
+        var delta = e.GetPosition(this) - start;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+        _logoPress = null;
+        _logoClicks = 0;
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private void ShowEasterEgg()
+    {
+        EasterEgg.Visibility = Visibility.Visible;
+        var duration = new Duration(TimeSpan.FromMilliseconds(SystemParameters.ClientAreaAnimation ? 220 : 0));
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        EasterEgg.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration));
+        EasterEggScale.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(0.85, 1, duration) { EasingFunction = ease });
+        EasterEggScale.BeginAnimation(ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(0.85, 1, duration) { EasingFunction = ease });
+    }
+
+    private void HideEasterEgg()
+    {
+        EasterEgg.BeginAnimation(OpacityProperty, null);
+        EasterEgg.Opacity = 0;
+        EasterEgg.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Clic en cualquier parte de la sorpresa: se cierra (sin arrastrar ni maximizar la ventana).</summary>
+    private void OnEasterEggClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        HideEasterEgg();
+    }
+
     /// <summary>Esc cierra el overlay abierto como si se pulsara CANCELAR.</summary>
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape)
             return;
-        if (_viewModel.IsBrowsing && !AnyOverlayOpen() && _viewModel.Browse.CloseTopmost())
+        if (IsEasterEggOpen)
+        {
+            HideEasterEgg();
+            e.Handled = true;
+        }
+        else if (_viewModel.IsBrowsing && !AnyOverlayOpen() && _viewModel.Browse.CloseTopmost())
         {
             e.Handled = true;
         }
@@ -224,7 +309,7 @@ public partial class MainWindow : Window
     }
 
     private bool AnyOverlayOpen() =>
-        _viewModel.UsernamePrompt.IsOpen || _viewModel.Confirm.IsOpen || _viewModel.Editor.IsOpen
+        IsEasterEggOpen || _viewModel.UsernamePrompt.IsOpen || _viewModel.Confirm.IsOpen || _viewModel.Editor.IsOpen
         || _viewModel.Account.IsOpen || _viewModel.Options.IsOpen || _viewModel.Browse.InstallDialog.IsOpen;
 
     /// <summary>Tecla /: lleva a la búsqueda de Explorar (salvo si ya se está escribiendo).</summary>

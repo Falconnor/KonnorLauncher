@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,6 +9,8 @@ using KonnorLauncher.App.Services;
 using KonnorLauncher.App.Theming;
 using KonnorLauncher.Core.Configuration;
 using KonnorLauncher.Core.Launching;
+using KonnorLauncher.Core.Modrinth;
+using KonnorLauncher.Core.Stores;
 using KonnorLauncher.Core.Paths;
 using KonnorLauncher.Core.Theming;
 using Microsoft.Extensions.Logging;
@@ -28,8 +31,26 @@ public enum OptionsSection
     Window,
     Theme,
     Launcher,
+    Store,
     Storage,
     About,
+}
+
+/// <summary>Tienda de Explorar que se puede elegir en Opciones → Tienda.</summary>
+public sealed partial class StoreOption(StoreKind kind, string name, string description, string icon) : ObservableObject
+{
+    public StoreKind Kind { get; } = kind;
+    public string Name { get; } = name;
+    public string Description { get; } = description;
+    public Uri IconUrl { get; } = new(icon);
+    public string Initial => Name[..1];
+    [ObservableProperty] private bool _isSelected;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIcon))]
+    private ImageSource? _icon;
+
+    public bool HasIcon => Icon is not null;
 }
 
 /// <summary>Entrada de la barra lateral de Opciones.</summary>
@@ -81,15 +102,74 @@ public sealed partial class OptionsViewModel : ObservableObject
 
     private readonly LauncherSettings _settings;
     private readonly IDialogService _dialogs;
+    private readonly ContentStores _stores;
+    private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<OptionsViewModel> _logger;
 
-    public OptionsViewModel(LauncherSettings settings, IDialogService dialogs, LauncherUpdater updater, ILogger<OptionsViewModel> logger)
+    public OptionsViewModel(LauncherSettings settings, IDialogService dialogs, LauncherUpdater updater, ContentStores stores,
+        IHttpClientFactory httpFactory, ILogger<OptionsViewModel> logger)
     {
         Updater = updater;
         _settings = settings;
         _dialogs = dialogs;
+        _stores = stores;
+        _httpFactory = httpFactory;
         _logger = logger;
         SelectedSection = Sections[0];
+        SelectedStore = StoreOptions[0];
+    }
+
+    // ── Tienda ──
+
+    public IReadOnlyList<StoreOption> StoreOptions { get; } =
+    [
+        new(StoreKind.Modrinth, "Modrinth", "Mods, modpacks, paquetes de recursos, data packs y shaders", "https://modrinth.com/favicon.ico"),
+        new(StoreKind.CurseForge, "CurseForge", "Mods, modpacks, paquetes de recursos, data packs y shaders", "https://console.curseforge.com/favicon.ico"),
+        new(StoreKind.Ftb, "FTB", "Modpacks de Feed The Beast", "https://www.feed-the-beast.com/fav/android-icon-192x192.png"),
+    ];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NeedsCurseForgeKey))]
+    private StoreOption _selectedStore;
+
+    /// <summary>Clave de la API de CurseForge (se guarda cifrada).</summary>
+    [ObservableProperty] private string _curseForgeKey = string.Empty;
+
+    public bool NeedsCurseForgeKey => SelectedStore.Kind == StoreKind.CurseForge;
+
+    partial void OnSelectedStoreChanged(StoreOption value)
+    {
+        foreach (var option in StoreOptions)
+            option.IsSelected = option == value;
+        if (Error.Length > 0 && SelectedSection.Section == OptionsSection.Store)
+            Error = string.Empty;
+    }
+
+    partial void OnCurseForgeKeyChanged(string value)
+    {
+        if (Error.Length > 0 && SelectedSection.Section == OptionsSection.Store)
+            Error = string.Empty;
+    }
+
+    [RelayCommand]
+    private void SelectStore(StoreOption option) => SelectedStore = option;
+
+    [RelayCommand]
+    private static void OpenCurseForgeKeys()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(CurseForgeClient.KeysPage) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task LoadStoreIconsAsync()
+    {
+        foreach (var option in StoreOptions.Where(o => o.Icon is null))
+            option.Icon = await SiteIcons.GetAsync(_httpFactory, option.IconUrl);
     }
 
     /// <summary>Actualizaciones del launcher (Acerca de): estado y «Buscar».</summary>
@@ -107,6 +187,7 @@ public sealed partial class OptionsViewModel : ObservableObject
         new(OptionsSection.Window, "Ventana", ""),
         new(OptionsSection.Theme, "Tema", ""),
         new(OptionsSection.Launcher, "Launcher", ""),
+        new(OptionsSection.Store, "Tienda", "\uE719"),
         new(OptionsSection.Storage, "Almacenamiento", ""),
         new(OptionsSection.About, "Acerca de", ""),
     ];
@@ -298,6 +379,8 @@ public sealed partial class OptionsViewModel : ObservableObject
     [
         new("Minecraft (Mojang Studios)", "El juego: versiones, librerías, recursos, Java y texturas de las skins", "", "https://www.minecraft.net"),
         new("Modrinth", "Mods, modpacks, paquetes de recursos, shaders y lista de servidores", "", "https://modrinth.com"),
+        new("CurseForge", "Mods, modpacks, paquetes de recursos y shaders (con tu clave de la API)", "", "https://www.curseforge.com"),
+        new("Feed The Beast", "Modpacks de FTB", "", "https://www.feed-the-beast.com"),
         new("MineSkin", "Firma de las skins para que se vean en los servidores", "", "https://mineskin.org"),
     ];
 
@@ -309,6 +392,7 @@ public sealed partial class OptionsViewModel : ObservableObject
     public bool IsWindowSection => SelectedSection.Section == OptionsSection.Window;
     public bool IsThemeSection => SelectedSection.Section == OptionsSection.Theme;
     public bool IsLauncherSection => SelectedSection.Section == OptionsSection.Launcher;
+    public bool IsStoreSection => SelectedSection.Section == OptionsSection.Store;
     public bool IsStorageSection => SelectedSection.Section == OptionsSection.Storage;
     public bool IsAboutSection => SelectedSection.Section == OptionsSection.About;
 
@@ -338,6 +422,7 @@ public sealed partial class OptionsViewModel : ObservableObject
         OnPropertyChanged(nameof(IsWindowSection));
         OnPropertyChanged(nameof(IsThemeSection));
         OnPropertyChanged(nameof(IsLauncherSection));
+        OnPropertyChanged(nameof(IsStoreSection));
         OnPropertyChanged(nameof(IsStorageSection));
         OnPropertyChanged(nameof(IsAboutSection));
     }
@@ -393,6 +478,10 @@ public sealed partial class OptionsViewModel : ObservableObject
         _savedTheme = _settings.Theme;
         LoadTheme(_savedTheme);
 
+        SelectedStore = StoreOptions.First(o => o.Kind == _settings.Store);
+        CurseForgeKey = TokenProtector.Unprotect(_settings.Properties.Get(LauncherSettings.KeyCurseForgeKey)) ?? string.Empty;
+        _ = LoadStoreIconsAsync();
+
         Error = string.Empty;
         SelectedSection = Sections[0];
         IsOpen = true;
@@ -422,6 +511,14 @@ public sealed partial class OptionsViewModel : ObservableObject
             return;
         }
 
+        var curseForgeKey = CurseForgeKey.Trim();
+        if (SelectedStore.Kind == StoreKind.CurseForge && curseForgeKey.Length == 0)
+        {
+            Error = "Para usar CurseForge, pega tu clave de la API.";
+            SelectedSection = Sections.First(s => s.Section == OptionsSection.Store);
+            return;
+        }
+
         var theme = DraftTheme;
         _settings.Properties.SetMany(
         [
@@ -438,7 +535,10 @@ public sealed partial class OptionsViewModel : ObservableObject
             new(LauncherSettings.KeyThemeGlass, theme.GlassPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new(LauncherSettings.KeyThemeBackground, theme.BackgroundPath ?? string.Empty),
             new(LauncherSettings.KeyThemeMode, theme.Solid ? "solid" : "translucent"),
+            new(LauncherSettings.KeyStore, ContentStores.Format(SelectedStore.Kind)),
+            new(LauncherSettings.KeyCurseForgeKey, curseForgeKey.Length == 0 ? string.Empty : TokenProtector.Protect(curseForgeKey)),
         ]);
+        _stores.Select(SelectedStore.Kind);
         _savedTheme = theme;
         ThemePalette.Current.Apply(theme);
         CleanBackgrounds(keep: theme.BackgroundPath);

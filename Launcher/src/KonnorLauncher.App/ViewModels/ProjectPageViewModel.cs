@@ -328,7 +328,12 @@ public sealed partial class ProjectPageViewModel : ObservableObject
         Add("Discord", "", details.DiscordUrl);
         foreach (var donation in details.DonationUrls)
             Add($"Donar ({BrowseText.Category(donation.Platform)})", "", donation.Url);
-        Add("Ver en Modrinth", "", $"https://modrinth.com/{Uri.EscapeDataString(details.ProjectType)}/{Uri.EscapeDataString(details.Slug)}");
+        Add($"Ver en {KonnorLauncher.Core.Stores.ContentStores.KindOf(details.Id) switch
+        {
+            KonnorLauncher.Core.Modrinth.StoreKind.CurseForge => "CurseForge",
+            KonnorLauncher.Core.Modrinth.StoreKind.Ftb => "FTB",
+            _ => "Modrinth",
+        }}", "", details.WebUrl);
 
         foreach (var name in new[] { nameof(HasLinks), nameof(EnvironmentText), nameof(LicenseText), nameof(PublishedText),
                      nameof(UpdatedText), nameof(DownloadsText), nameof(FollowersText) })

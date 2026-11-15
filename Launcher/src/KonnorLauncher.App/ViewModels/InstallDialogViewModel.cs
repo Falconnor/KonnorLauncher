@@ -38,7 +38,7 @@ public sealed partial class InstallDialogViewModel : ObservableObject
 {
     private static readonly ModLoader[] ModLoaders = [ModLoader.Fabric, ModLoader.Forge, ModLoader.NeoForge, ModLoader.Quilt];
 
-    private readonly ModrinthClient _client;
+    private readonly KonnorLauncher.Core.Stores.ContentStores _client;
     private readonly InstanceStore _store;
     private readonly LoaderVersionService _loaderVersions;
     private readonly ILogger<InstallDialogViewModel> _logger;
@@ -49,7 +49,7 @@ public sealed partial class InstallDialogViewModel : ObservableObject
     private ContentType _type;
     private List<ProjectVersion> _versions = [];
 
-    public InstallDialogViewModel(ModrinthClient client, InstanceStore store, LoaderVersionService loaderVersions,
+    public InstallDialogViewModel(KonnorLauncher.Core.Stores.ContentStores client, InstanceStore store, LoaderVersionService loaderVersions,
         ILogger<InstallDialogViewModel> logger)
     {
         _client = client;
@@ -159,7 +159,7 @@ public sealed partial class InstallDialogViewModel : ObservableObject
     private bool Accepts(ProjectVersion version) => _type switch
     {
         ContentType.Mod => version.Loaders.Any(l => ParseLoader(l) is not null),
-        ContentType.DataPack => version.Loaders.Contains("datapack"),
+        ContentType.DataPack => version.Loaders.Contains("datapack") || version.Loaders.Count == 0,
         ContentType.ResourcePack => version.Loaders.Contains("minecraft") || version.Loaders.Count == 0,
         _ => true,
     };

@@ -229,7 +229,17 @@ public partial class App : Application
         services.AddSingleton<GameLauncher>();
         services.AddSingleton<PlayWorkflow>();
         services.AddSingleton(sp => new ModrinthClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<ModrinthClient>>()));
-        services.AddSingleton<ContentInstaller>();
+        // Tiendas de Explorar: Modrinth, CurseForge (con la clave del jugador) y FTB.
+        services.AddSingleton(sp => new KonnorLauncher.Core.Stores.CurseForgeClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(),
+            () => TokenProtector.Unprotect(sp.GetRequiredService<LauncherSettings>().Properties.Get(LauncherSettings.KeyCurseForgeKey)),
+            sp.GetRequiredService<ILogger<KonnorLauncher.Core.Stores.CurseForgeClient>>()));
+        services.AddSingleton(sp => new KonnorLauncher.Core.Stores.FtbClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<KonnorLauncher.Core.Stores.FtbClient>>()));
+        services.AddSingleton(sp => new KonnorLauncher.Core.Stores.ContentStores(sp.GetRequiredService<ModrinthClient>(),
+            sp.GetRequiredService<KonnorLauncher.Core.Stores.CurseForgeClient>(), sp.GetRequiredService<KonnorLauncher.Core.Stores.FtbClient>(),
+            sp.GetRequiredService<LauncherSettings>().Store));
+        services.AddSingleton(sp => new ContentInstaller(sp.GetRequiredService<ModrinthClient>(), sp.GetRequiredService<InstanceStore>(),
+            sp.GetRequiredService<ILogger<ContentInstaller>>(), sp.GetRequiredService<KonnorLauncher.Core.Stores.ContentStores>()));
         services.AddSingleton(sp => new MineSkinClient(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>(), sp.GetRequiredService<ILogger<MineSkinClient>>()));
         services.AddSingleton(sp => new SkinLibrary(System.IO.Path.Combine(LauncherPaths.PlayerDir, "skins"), sp.GetRequiredService<ILogger<SkinLibrary>>()));
         services.AddSingleton<IconLoader>();

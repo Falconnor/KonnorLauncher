@@ -21,6 +21,9 @@ public sealed partial class BrowseTab(ContentType type, string label, string ico
     /// <summary>false = bloqueada (al instalar en una instancia solo se puede usar la pestaña con la que se abrió).</summary>
     [ObservableProperty] private bool _isEnabled = true;
 
+    /// <summary>La tienda elegida tiene este tipo (FTB solo tiene modpacks): si no, la pestaña no se ve.</summary>
+    [ObservableProperty] private bool _isAvailable = true;
+
     partial void OnIsActiveChanged(bool value)
     {
         if (value)

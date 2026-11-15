@@ -9,7 +9,7 @@ namespace KonnorLauncher.Core.Modrinth;
 /// Cliente de la API v2 de Modrinth (solo lectura, sin cuenta). Modrinth pide identificar el programa
 /// en el User-Agent; lo pone el HttpClient con nombre <see cref="HttpClientName"/>.
 /// </summary>
-public sealed class ModrinthClient
+public sealed class ModrinthClient : IContentStore
 {
     public const string HttpClientName = "modrinth";
     public const string DefaultBaseUrl = "https://api.modrinth.com/v2";
@@ -38,6 +38,10 @@ public sealed class ModrinthClient
     }
 
     public string BaseUrl { get; }
+
+    public StoreKind Kind => StoreKind.Modrinth;
+    public string Name => "Modrinth";
+    public bool Supports(ContentType type) => true;
 
     internal HttpClient Http => _httpFactory.CreateClient(HttpClientName);
 

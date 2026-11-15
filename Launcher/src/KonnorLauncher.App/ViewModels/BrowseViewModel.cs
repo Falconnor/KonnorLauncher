@@ -5,12 +5,13 @@ using CommunityToolkit.Mvvm.Input;
 using KonnorLauncher.App.Services;
 using KonnorLauncher.Core.Instances;
 using KonnorLauncher.Core.Modrinth;
+using KonnorLauncher.Core.Stores;
 using Microsoft.Extensions.Logging;
 
 namespace KonnorLauncher.App.ViewModels;
 
 /// <summary>
-/// Página "Explorar contenido": busca en Modrinth por tipo (modpacks, mods, paquetes de recursos, data
+/// Página "Explorar contenido": busca en la tienda elegida en Opciones (Modrinth, CurseForge o FTB) por tipo (modpacks, mods, paquetes de recursos, data
 /// packs y shaders), con filtros, orden y paginación, e instala en la instancia elegida.
 /// Los modpacks se instalan como una instancia nueva. Los servidores tienen su propia sección.
 /// </summary>
@@ -19,7 +20,14 @@ public sealed partial class BrowseViewModel : ObservableObject
     /// <summary>Espera tras el último cambio antes de buscar (así no se busca a cada tecla).</summary>
     private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(250);
 
-    private readonly ModrinthClient _client;
+    private readonly ContentStores _stores;
+
+    /// <summary>
+    /// Tienda en la que se busca: la elegida en Opciones; al instalar en un servidor de Hosting, Modrinth (sus
+    /// modpacks y plugins indican en qué lado funcionan). Sus listas de filtros y sus páginas se piden de nuevo al cambiar.
+    /// </summary>
+    private IContentStore _client;
+
     private readonly ContentInstaller _installer;
     private readonly InstanceStore _store;
     private readonly IconLoader _icons;
@@ -49,21 +57,25 @@ public sealed partial class BrowseViewModel : ObservableObject
     private const int ProjectCacheSize = 30;
 
     /// <summary>La primera página de la última sesión: se muestra al instante y se actualiza por detrás.</summary>
-    private static string SavedFirstPageFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, "explorar-primera-pagina.json");
+    private string SavedFirstPageFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, $"explorar-primera-pagina{CacheSuffix}.json");
+
+    /// <summary>Las copias en disco de Modrinth conservan su nombre; las de las otras tiendas llevan la suya.</summary>
+    private string CacheSuffix => _client.Kind == StoreKind.Modrinth ? string.Empty : "-" + ContentStores.Format(_client.Kind);
 
     private sealed record SavedPage(string Query, SearchPage Page);
 
     /// <summary>Las listas de filtros (categorías, cargadores y versiones) de la última sesión.</summary>
-    private static string SavedTagsFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, "explorar-filtros.json");
+    private string SavedTagsFile => Path.Combine(KonnorLauncher.Core.Paths.LauncherPaths.CacheDir, $"explorar-filtros{CacheSuffix}.json");
 
     private sealed record SavedTags(IReadOnlyList<CategoryTag> Categories, IReadOnlyList<LoaderTag> Loaders, IReadOnlyList<GameVersionTag> Versions);
     private bool _suspend; // mientras se reconstruyen los filtros no se lanza una búsqueda por cada cambio
     private TaskCompletionSource<string?>? _worldChoice;
 
-    public BrowseViewModel(ModrinthClient client, ContentInstaller installer, InstanceStore store, IconLoader icons,
+    public BrowseViewModel(ContentStores stores, ContentInstaller installer, InstanceStore store, IconLoader icons,
         InstallDialogViewModel installDialog, ILogger<BrowseViewModel> logger)
     {
-        _client = client;
+        _stores = stores;
+        _client = stores.Current;
         _installer = installer;
         _store = store;
         _icons = icons;
@@ -79,6 +91,52 @@ public sealed partial class BrowseViewModel : ObservableObject
             new BrowseTab(ContentType.Shader, "Shaders", "", OnTabSelected),
         ];
         GoToPageCommand = new RelayCommand<int>(page => { Page = page; ScheduleSearch(resetPage: false, immediate: true); });
+        UpdateAvailableTabs();
+
+        // Otra tienda en Opciones: si Explorar ya se abrió, se rehace con ella.
+        stores.Changed += (_, _) =>
+        {
+            var wasLoaded = _tagsLoaded;
+            if (UseStore() && wasLoaded)
+                _ = OpenCoreAsync();
+        };
+    }
+
+    /// <summary>Nombre de la tienda en la que se busca.</summary>
+    public string StoreName => _client.Name;
+
+    /// <summary>Entorno (cliente o servidor) y licencia: solo los filtra Modrinth.</summary>
+    public bool IsModrinthStore => _client.Kind == StoreKind.Modrinth;
+
+    /// <summary>
+    /// Elige la tienda en la que buscar (la de Opciones; Modrinth al instalar en un servidor). Si cambia, olvida sus
+    /// filtros y páginas y oculta las pestañas que no tiene. Devuelve si cambió.
+    /// </summary>
+    private bool UseStore()
+    {
+        var store = ServerTarget is null ? _stores.Current : _stores.Modrinth;
+        if (ReferenceEquals(store, _client))
+            return false;
+        _client = store;
+        _tagsLoaded = false;
+        _tagsTask = null;
+        (_categoryTags, _loaderTags, _versionTags) = ([], [], []);
+        _pageCache.Clear();
+        Results.Clear();
+        UpdateAvailableTabs();
+        OnPropertyChanged(nameof(StoreName));
+        OnPropertyChanged(nameof(IsModrinthStore));
+        OnPropertyChanged(nameof(ShowEnvironment));
+        return true;
+    }
+
+    /// <summary>Solo las pestañas de lo que tiene la tienda (FTB: modpacks); si la actual no está, la primera que haya.</summary>
+    private void UpdateAvailableTabs()
+    {
+        foreach (var tab in Tabs)
+            tab.IsAvailable = _client.Supports(tab.Type);
+        if (!_client.Supports(ActiveType))
+            ActiveType = Tabs.First(t => t.IsAvailable).Type;
     }
 
     /// <summary>"¿Dónde instalar?" (lo muestra la ventana como diálogo).</summary>
@@ -116,6 +174,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         Notice = null;
         ServerTarget = target;
         InstanceTarget = null;
+        UseStore();
         // Como en las instancias: solo la pestaña de lo que se va a añadir. Desde Mods también Modpacks (un modpack
         // entero se instala en el servidor como sus mods).
         LockTabs(target.StartType == ContentType.Mod ? [ContentType.Mod, ContentType.Modpack] : [target.StartType]);
@@ -152,6 +211,13 @@ public sealed partial class BrowseViewModel : ObservableObject
         Notice = null;
         ServerTarget = null;
         InstanceTarget = instance;
+        UseStore();
+        if (!_client.Supports(type))
+        {
+            ShowNotice($"{_client.Name} no tiene {Tabs.First(t => t.Type == type).Label.ToLowerInvariant()}. Elige otra tienda en Opciones → Tienda.", error: true);
+            return;
+        }
+
         UpdateTabLocks(type);
         if (!_tagsLoaded)
         {
@@ -286,6 +352,12 @@ public sealed partial class BrowseViewModel : ObservableObject
             return;
         ServerTarget = null;
         LockTabs(null);
+        if (UseStore())
+        {
+            _ = OpenCoreAsync();
+            return;
+        }
+
         SelectType(ActiveType, keepText: true);
     }
 
@@ -367,7 +439,8 @@ public sealed partial class BrowseViewModel : ObservableObject
     public string SearchPlaceholder => $"Buscar {Tabs.First(t => t.Type == ActiveType).Label.ToLowerInvariant()}…";
 
     public bool ShowFeatures => Features.Count > 0;
-    public bool ShowEnvironment => ActiveType is ContentType.Mod or ContentType.Modpack;
+    public bool ShowCategories => Categories.Count > 0;
+    public bool ShowEnvironment => IsModrinthStore && ActiveType is ContentType.Mod or ContentType.Modpack;
     public bool ShowLoaders => Loaders.Count > 1;
     public int ActiveFilterCount => Chips.Count;
     public string CategoryActiveText => ActiveText(Categories.Count(c => c.State != CategoryState.None));
@@ -388,6 +461,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     {
         ServerTarget = null;
         InstanceTarget = null;
+        UseStore();
         LockTabs(null);
         return OpenCoreAsync();
     }
@@ -405,9 +479,9 @@ public sealed partial class BrowseViewModel : ObservableObject
             catch (Exception ex)
             {
                 // Sin las listas de categorías y versiones no se pueden mostrar los filtros.
-                _logger.LogWarning(ex, "No se pudieron cargar las etiquetas de Modrinth");
+                _logger.LogWarning(ex, "No se pudieron cargar las etiquetas de {Store}", _client.Name);
                 IsLoading = false;
-                Error = ex is ModrinthException ? ex.Message : "No se pudo conectar con Modrinth.";
+                Error = ex is ModrinthException ? ex.Message : $"No se pudo conectar con {_client.Name}.";
                 return;
             }
         }
@@ -427,7 +501,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         async Task LoadAsync()
         {
             // Las de la última sesión, al instante; las nuevas se piden por detrás para la próxima búsqueda
-            if (await ReadSavedTagsAsync() is { } saved)
+            if (await ReadSavedTagsAsync(SavedTagsFile) is { } saved)
             {
                 (_categoryTags, _loaderTags, _versionTags) = (saved.Categories, saved.Loaders, saved.Versions);
                 _tagsLoaded = true;
@@ -441,13 +515,17 @@ public sealed partial class BrowseViewModel : ObservableObject
 
     private async Task FetchTagsAsync()
     {
-        var categories = _client.GetCategoriesAsync();
-        var loaders = _client.GetLoadersAsync();
-        var versions = _client.GetGameVersionsAsync();
+        var store = _client;
+        var file = SavedTagsFile;
+        var categories = store.GetCategoriesAsync();
+        var loaders = store.GetLoadersAsync();
+        var versions = _stores.Modrinth.GetGameVersionsAsync(); // las versiones de Minecraft son las mismas en todas
         await Task.WhenAll(categories, loaders, versions);
+        if (!ReferenceEquals(store, _client))
+            return; // se cambió de tienda mientras tanto
         (_categoryTags, _loaderTags, _versionTags) = (categories.Result, loaders.Result, versions.Result);
         _tagsLoaded = true;
-        await SaveAsync(SavedTagsFile, new SavedTags(_categoryTags, _loaderTags, _versionTags));
+        await SaveAsync(file, new SavedTags(_categoryTags, _loaderTags, _versionTags));
     }
 
     private async Task RefreshTagsAsync()
@@ -462,13 +540,13 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
     }
 
-    private static async Task<SavedTags?> ReadSavedTagsAsync()
+    private static async Task<SavedTags?> ReadSavedTagsAsync(string file)
     {
         try
         {
-            if (!File.Exists(SavedTagsFile))
+            if (!File.Exists(file))
                 return null;
-            await using var stream = File.OpenRead(SavedTagsFile);
+            await using var stream = File.OpenRead(file);
             var saved = await System.Text.Json.JsonSerializer.DeserializeAsync<SavedTags>(stream);
             return saved is { Categories.Count: > 0, Loaders.Count: > 0, Versions.Count: > 0 } ? saved : null;
         }
@@ -489,8 +567,8 @@ public sealed partial class BrowseViewModel : ObservableObject
         {
             await LoadTagsAsync();
             var query = BuildQuery() with { Page = 1 };
-            var key = query.ToQueryString();
-            var saved = await ReadSavedFirstPageAsync(key);
+            var key = PageKey(query);
+            var saved = await ReadSavedFirstPageAsync(SavedFirstPageFile, key);
             if (saved is not null && !_pageCache.ContainsKey(key))
                 _pageCache[key] = (DateTime.UtcNow, Task.FromResult(saved));
 
@@ -509,13 +587,13 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
     }
 
-    private static async Task<SearchPage?> ReadSavedFirstPageAsync(string key)
+    private static async Task<SearchPage?> ReadSavedFirstPageAsync(string file, string key)
     {
         try
         {
-            if (!File.Exists(SavedFirstPageFile))
+            if (!File.Exists(file))
                 return null;
-            await using var stream = File.OpenRead(SavedFirstPageFile);
+            await using var stream = File.OpenRead(file);
             var saved = await System.Text.Json.JsonSerializer.DeserializeAsync<SavedPage>(stream);
             return saved is not null && saved.Query == key ? saved.Page : null; // otra pestaña u orden: no sirve
         }
@@ -525,7 +603,10 @@ public sealed partial class BrowseViewModel : ObservableObject
         }
     }
 
-    private static Task SaveFirstPageAsync(string key, SearchPage page) => SaveAsync(SavedFirstPageFile, new SavedPage(key, page));
+    private Task SaveFirstPageAsync(string key, SearchPage page) => SaveAsync(SavedFirstPageFile, new SavedPage(key, page));
+
+    /// <summary>Clave de una página en la caché: la tienda y la consulta.</summary>
+    private string PageKey(SearchQuery query) => ContentStores.Format(_client.Kind) + "|" + query.ToQueryString();
 
     /// <summary>Guarda una copia en la caché del disco (si falla no pasa nada: la próxima vez se pide).</summary>
     private static async Task SaveAsync<T>(string file, T value)
@@ -548,6 +629,9 @@ public sealed partial class BrowseViewModel : ObservableObject
     {
         ServerTarget = null; // desde la barra lateral es Explorar normal
         InstanceTarget = null;
+        UseStore();
+        if (!_client.Supports(type))
+            type = ActiveType; // la tienda no tiene ese tipo (FTB: solo modpacks)
         LockTabs(null);
         if (!_tagsLoaded)
         {
@@ -637,6 +721,7 @@ public sealed partial class BrowseViewModel : ObservableObject
         ApplyServerLocks();
         ApplyInstanceLocks();
         OnPropertyChanged(nameof(ShowFeatures));
+        OnPropertyChanged(nameof(ShowCategories));
         OnPropertyChanged(nameof(ShowLoaders));
     }
 
@@ -929,11 +1014,11 @@ public sealed partial class BrowseViewModel : ObservableObject
         catch (Exception ex)
         {
             if (ex is not ModrinthException)
-                _logger.LogWarning(ex, "Error inesperado buscando en Modrinth");
+                _logger.LogWarning(ex, "Error inesperado buscando en {Store}", _client.Name);
             Results.Clear();
             TotalHits = 0;
             RebuildPages();
-            Error = ex is ModrinthException ? ex.Message : "No se pudo buscar en Modrinth.";
+            Error = ex is ModrinthException ? ex.Message : $"No se pudo buscar en {_client.Name}.";
         }
 
         IsLoading = false;
@@ -950,7 +1035,7 @@ public sealed partial class BrowseViewModel : ObservableObject
     /// </summary>
     private Task<SearchPage> GetPageAsync(SearchQuery query)
     {
-        var key = query.ToQueryString();
+        var key = PageKey(query);
         if (_pageCache.TryGetValue(key, out var cached) && DateTime.UtcNow - cached.At < PageCacheLifetime
                                                         && !cached.Page.IsFaulted && !cached.Page.IsCanceled)
             return cached.Page;
@@ -1031,13 +1116,18 @@ public sealed partial class BrowseViewModel : ObservableObject
                 // Si hay filtros de versión o de cargador, se instala la versión del modpack que los cumple.
                 var loaders = Loaders.Where(l => l.IsActive).Select(l => l.Value).ToList();
                 var versions = GameVersions.Where(v => v.IsActive).Select(v => v.Value).ToList();
+                var skipped = new List<string>();
                 var instance = await Task.Run(() => _installer.InstallModpackAsync(card.Hit.ProjectId, card.Hit.Title, progress,
-                    loaders: loaders, gameVersions: versions, versionId: versionId));
+                    loaders: loaders, gameVersions: versions, versionId: versionId, skipped: skipped));
                 // El icono del modpack pasa a ser el de la instancia (sin icono, se quedan las iniciales).
                 await _icons.SaveAsPngAsync(card.Hit.IconUrl,
                     Path.Combine(_store.GetDirectory(instance.Id), InstanceItemViewModel.IconFileName));
                 card.State = CardState.Installed;
-                ShowNotice($"Instancia «{instance.Name}» creada con {card.Title}. Al pulsar JUGAR se instala {instance.Summary}.");
+                if (skipped.Count > 0)
+                    ShowNotice($"Instancia «{instance.Name}» creada con {card.Title}, sin {skipped.Count} archivo(s) que su autor no permite descargar " +
+                               $"fuera de CurseForge: {string.Join(", ", skipped.Take(5))}{(skipped.Count > 5 ? "…" : string.Empty)}. Añádelos a mano.", error: true);
+                else
+                    ShowNotice($"Instancia «{instance.Name}» creada con {card.Title}. Al pulsar JUGAR se instala {instance.Summary}.");
                 InstanceCreated?.Invoke(this, instance);
                 return;
             }
@@ -1216,8 +1306,8 @@ public sealed partial class BrowseViewModel : ObservableObject
 
         if (_projectCache.Count >= ProjectCacheSize)
             _projectCache.Remove(_projectCache.MinBy(e => e.Value.At).Key);
-        var details = _client.GetProjectAsync(projectId, CancellationToken.None);
-        var versions = _client.GetVersionsAsync(projectId, ct: CancellationToken.None);
+        var details = _stores.GetProjectAsync(projectId, CancellationToken.None);
+        var versions = _stores.GetVersionsAsync(projectId, ct: CancellationToken.None);
         _projectCache[projectId] = (DateTime.UtcNow, details, versions);
         return (details, versions);
     }

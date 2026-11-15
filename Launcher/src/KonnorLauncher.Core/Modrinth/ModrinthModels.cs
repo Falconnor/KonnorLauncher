@@ -165,6 +165,12 @@ public sealed record ProjectDetails
     public string? DiscordUrl { get; init; }
     public IReadOnlyList<DonationLink> DonationUrls { get; init; } = [];
     public IReadOnlyList<GalleryImage> Gallery { get; init; } = [];
+
+    /// <summary>Página del proyecto en su tienda (null = la de Modrinth, que se forma con su tipo y su slug).</summary>
+    public string? PageUrl { get; init; }
+
+    [JsonIgnore]
+    public string WebUrl => PageUrl ?? $"https://modrinth.com/{Uri.EscapeDataString(ProjectType)}/{Uri.EscapeDataString(Slug)}";
 }
 
 public sealed record ProjectLicense

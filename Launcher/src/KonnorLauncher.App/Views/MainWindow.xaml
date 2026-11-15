@@ -176,8 +176,10 @@
 
                     <!-- Marca: arriba a la izquierda, a la altura de la cabecera -->
                     <StackPanel Grid.Column="0" Grid.Row="0" Orientation="Horizontal" Margin="24,0,14,0" VerticalAlignment="Center">
+                        <!-- La K recibe clics dentro de la barra de título (10 seguidos: sorpresa); arrastrar desde ella sigue moviendo la ventana -->
                         <Image Source="pack://application:,,,/Assets/icon.png" Width="24" Height="24"
-                               RenderOptions.BitmapScalingMode="HighQuality" />
+                               RenderOptions.BitmapScalingMode="HighQuality" WindowChrome.IsHitTestVisibleInChrome="True"
+                               MouseLeftButtonDown="OnLogoMouseLeftButtonDown" MouseMove="OnLogoMouseMove" />
                         <TextBlock Text="Konnor Launcher" FontFamily="{StaticResource DisplayFont}" FontSize="15" FontWeight="SemiBold"
                                    Margin="10,0,0,0" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding LauncherVersionText}" FontSize="10.5" Foreground="{StaticResource Ink3}"
@@ -751,6 +753,26 @@
                                   Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
             <views:UsernamePromptOverlay DataContext="{Binding UsernamePrompt}"
                                          Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}" />
+
+            <!-- Sorpresa de la K: clic en cualquier parte o Esc para cerrar -->
+            <Grid x:Name="EasterEgg" Visibility="Collapsed" Background="#B3000000" Cursor="Hand" Opacity="0"
+                  MouseLeftButtonDown="OnEasterEggClick">
+                <Border CornerRadius="18" ClipToBounds="True" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        MaxWidth="460" MaxHeight="460" RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                        <ScaleTransform x:Name="EasterEggScale" ScaleX="0.85" ScaleY="0.85" />
+                    </Border.RenderTransform>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="40" ShadowDepth="0" Opacity="0.6" />
+                    </Border.Effect>
+                    <Border CornerRadius="18">
+                        <Border.Background>
+                            <ImageBrush ImageSource="pack://application:,,,/Assets/gato.png" Stretch="UniformToFill" />
+                        </Border.Background>
+                        <Rectangle Width="460" Height="460" />
+                    </Border>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

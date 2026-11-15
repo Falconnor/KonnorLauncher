@@ -33,17 +33,24 @@ public static class SiteIcons
 
     /// <summary>Icono del hosting; null si su web no tiene o no se pudo descargar (se ve la inicial).</summary>
     public static Task<ImageSource?> GetAsync(IHttpClientFactory httpFactory, ThirdPartyEntry entry) =>
-        SiteOf(entry) is { } site ? Loaded.GetOrAdd(site.Host, _ => LoadAsync(httpFactory, site)) : Task.FromResult<ImageSource?>(null);
+        SiteOf(entry) is { } site
+            ? Loaded.GetOrAdd(site.Host, _ => LoadAsync(httpFactory, new Uri(site, "/favicon.ico"), site.Host + ".ico"))
+            : Task.FromResult<ImageSource?>(null);
 
-    private static async Task<ImageSource?> LoadAsync(IHttpClientFactory httpFactory, Uri site)
+    /// <summary>Un icono por su dirección (cuando la web no lo sirve en <c>/favicon.ico</c>); null si no se pudo descargar.</summary>
+    public static Task<ImageSource?> GetAsync(IHttpClientFactory httpFactory, Uri icon) =>
+        Loaded.GetOrAdd(icon.AbsoluteUri, _ => LoadAsync(httpFactory, icon,
+            $"{icon.Host}-{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(icon.AbsolutePath)))[..8]}.ico"));
+
+    private static async Task<ImageSource?> LoadAsync(IHttpClientFactory httpFactory, Uri icon, string fileName)
     {
-        var file = Path.Combine(CacheDir, site.Host + ".ico");
+        var file = Path.Combine(CacheDir, fileName);
         try
         {
             byte[]? data = File.Exists(file) ? await File.ReadAllBytesAsync(file).ConfigureAwait(false) : null;
             if (data is null)
             {
-                using var response = await httpFactory.CreateClient(HttpClientName).GetAsync(new Uri(site, "/favicon.ico")).ConfigureAwait(false);
+                using var response = await httpFactory.CreateClient(HttpClientName).GetAsync(icon).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxBytes)
                     return null;
                 data = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);

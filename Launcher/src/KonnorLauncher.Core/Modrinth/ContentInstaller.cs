@@ -35,15 +35,24 @@ public sealed class ContentInstaller
     private const int ParallelDownloads = 4;
 
     private readonly ModrinthClient _client;
+    private readonly Stores.ContentStores? _stores;
     private readonly InstanceStore _store;
     private readonly ILogger _logger;
 
-    public ContentInstaller(ModrinthClient client, InstanceStore store, ILogger<ContentInstaller>? logger = null)
+    /// <summary>
+    /// Con <paramref name="stores"/>, también instala de CurseForge y FTB (cada proyecto de la tienda de su
+    /// identificador); sin ellas, solo de Modrinth.
+    /// </summary>
+    public ContentInstaller(ModrinthClient client, InstanceStore store, ILogger<ContentInstaller>? logger = null, Stores.ContentStores? stores = null)
     {
         _client = client;
+        _stores = stores;
         _store = store;
         _logger = (ILogger?)logger ?? NullLogger.Instance;
     }
+
+    /// <summary>De dónde salen proyectos y versiones: la tienda de cada identificador (o Modrinth).</summary>
+    private IContentStore Source => (IContentStore?)_stores ?? _client;
 
     // ── Compatibilidad ──────────────────────────────────────────────────────
 
@@ -149,7 +158,7 @@ public sealed class ContentInstaller
 
         progress?.Report(new InstallProgress("Buscando una versión compatible…", null));
         var version = versionId is not null
-            ? await _client.GetVersionAsync(versionId, ct).ConfigureAwait(false)
+            ? await Source.GetVersionAsync(versionId, ct).ConfigureAwait(false)
             : await PickVersionAsync(projectId, CompatibleLoaders(instance, type), GameVersion(instance), ct).ConfigureAwait(false)
               ?? throw new ModrinthException(NoVersionText(instance, type));
         if (version.ProjectId != projectId)
@@ -260,7 +269,7 @@ public sealed class ContentInstaller
 
         progress?.Report(new InstallProgress("Buscando una versión compatible…", null));
         var version = versionId is not null
-            ? await _client.GetVersionAsync(versionId, ct).ConfigureAwait(false)
+            ? await Source.GetVersionAsync(versionId, ct).ConfigureAwait(false)
             : await PickVersionAsync(projectId, loaders, gameVersion, ct).ConfigureAwait(false)
               ?? throw new ModrinthException($"No hay ninguna versión para este servidor (Minecraft {gameVersion}).");
         if (version.ProjectId != projectId)
@@ -302,7 +311,7 @@ public sealed class ContentInstaller
 
     private async Task<ProjectVersion?> PickVersionAsync(string projectId, IReadOnlyList<string>? loaders, string? gameVersion, CancellationToken ct)
     {
-        var versions = await _client.GetVersionsAsync(projectId, loaders,
+        var versions = await Source.GetVersionsAsync(projectId, loaders,
             gameVersion is null ? null : [gameVersion], ct).ConfigureAwait(false);
         return Pick(versions);
     }
@@ -318,6 +327,8 @@ public sealed class ContentInstaller
         Dictionary<string, IndexEntry> index, IProgress<InstallProgress>? progress, CancellationToken ct)
     {
         var file = version.PrimaryFile ?? throw new ModrinthException("La versión no tiene archivo para descargar.");
+        if (file.Url.Length == 0)
+            throw new ModrinthException($"El autor de {file.Filename} no permite descargarlo fuera de CurseForge: descárgalo desde su página.");
         if (!IsSafeFileName(file.Filename))
             throw new ModrinthException($"Nombre de archivo no válido: {file.Filename}");
 
@@ -351,7 +362,7 @@ public sealed class ContentInstaller
             ProjectVersion? resolved;
             if (dependency.VersionId is { Length: > 0 } versionId)
             {
-                resolved = await _client.GetVersionAsync(versionId, ct).ConfigureAwait(false);
+                resolved = await Source.GetVersionAsync(versionId, ct).ConfigureAwait(false);
             }
             else if (dependency.ProjectId is { Length: > 0 } projectId)
             {
@@ -391,8 +402,11 @@ public sealed class ContentInstaller
     /// </summary>
     public async Task<GameInstance> InstallModpackAsync(string projectId, string title, IProgress<InstallProgress>? progress = null,
         CancellationToken ct = default, IReadOnlyCollection<string>? loaders = null, IReadOnlyCollection<string>? gameVersions = null,
-        string? versionId = null)
+        string? versionId = null, ICollection<string>? skipped = null)
     {
+        if (Stores.ContentStores.KindOf(projectId) != StoreKind.Modrinth)
+            return await InstallStoreModpackAsync(projectId, title, progress, ct, loaders, gameVersions, versionId, skipped).ConfigureAwait(false);
+
         progress?.Report(new InstallProgress("Buscando la última versión del modpack…", null));
         static bool IsPack(ProjectVersion v) => v.PrimaryFile?.Filename.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase) == true;
         var versions = await _client.GetVersionsAsync(projectId, ct: ct).ConfigureAwait(false);
@@ -457,6 +471,8 @@ public sealed class ContentInstaller
     public async Task<int> InstallModpackIntoServerAsync(Hosting.HostedServer server, string serverDir, string clientDir, string projectId,
         IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? versionId = null)
     {
+        if (Stores.ContentStores.KindOf(projectId) != StoreKind.Modrinth)
+            throw new ModrinthException("Los modpacks de un servidor se instalan desde Modrinth.");
         if (ServerBlockReason(server, ContentType.Modpack) is { } reason)
             throw new ModrinthException(reason);
         var loaders = ServerLoaders(server, ContentType.Modpack)!;
@@ -510,6 +526,166 @@ public sealed class ContentInstaller
         }
     }
 
+    // ── Modpacks de CurseForge y FTB ────────────────────────────────────────
+
+    /// <summary>Modpack de otra tienda listo para instalar: su versión de Minecraft, su cargador y sus archivos.</summary>
+    private sealed record StorePack(string Minecraft, ModLoader Loader, string? LoaderVersion, IReadOnlyList<MrpackFile> Files,
+        IReadOnlyList<string> Skipped, string? Archive = null, string? Overrides = null);
+
+    /// <summary>
+    /// Como <see cref="InstallModpackAsync"/>, para un modpack de CurseForge (un .zip con <c>manifest.json</c>) o de
+    /// FTB (una lista de archivos). Lo que no se puede descargar (en CurseForge, los archivos cuyo autor no lo
+    /// permite fuera de su app) se omite y se añade a <paramref name="skipped"/>.
+    /// </summary>
+    private async Task<GameInstance> InstallStoreModpackAsync(string projectId, string title, IProgress<InstallProgress>? progress,
+        CancellationToken ct, IReadOnlyCollection<string>? loaders, IReadOnlyCollection<string>? gameVersions, string? versionId,
+        ICollection<string>? skipped)
+    {
+        var stores = _stores ?? throw new ModrinthException("Este modpack no es de Modrinth.");
+        progress?.Report(new InstallProgress("Buscando la última versión del modpack…", null));
+        var versions = await stores.GetVersionsAsync(projectId, ct: ct).ConfigureAwait(false);
+        if (versionId is not null)
+            versions = versions.Where(v => v.Id == versionId).ToList();
+        var version = Pick(versions.Where(v => (loaders is not { Count: > 0 } || v.Loaders.Intersect(loaders, StringComparer.OrdinalIgnoreCase).Any())
+                                               && (gameVersions is not { Count: > 0 } || v.GameVersions.Intersect(gameVersions).Any())))
+                      ?? Pick(versions)
+                      ?? throw new ModrinthException("Este modpack no tiene ninguna versión para descargar.");
+
+        var pack = Stores.ContentStores.KindOf(projectId) == StoreKind.Ftb
+            ? await ReadFtbPackAsync(stores.Ftb, version, ct).ConfigureAwait(false)
+            : await ReadCurseForgePackAsync(stores.CurseForge, version, progress, ct).ConfigureAwait(false);
+        GameInstance? created = null;
+        try
+        {
+            created = _store.Create(new GameInstance
+            {
+                Name = UniqueName(title),
+                MinecraftVersion = pack.Minecraft,
+                Loader = pack.Loader,
+                LoaderChannel = pack.Loader == ModLoader.Vanilla ? LoaderChannel.Stable : LoaderChannel.Specific,
+                LoaderVersion = pack.LoaderVersion,
+            });
+            var instanceDir = _store.GetDirectory(created.Id);
+            await DownloadPackFilesAsync(pack.Files, instanceDir, progress, ct, parallel: ParallelDownloads * 2).ConfigureAwait(false);
+            if (pack.Archive is not null && pack.Overrides is not null)
+            {
+                progress?.Report(new InstallProgress("Copiando la configuración del modpack…", null));
+                using var archive = ZipFile.OpenRead(pack.Archive);
+                ExtractOverrides(archive, instanceDir, [pack.Overrides], null, ct);
+            }
+
+            foreach (var name in pack.Skipped)
+                skipped?.Add(name);
+            _logger.LogInformation("Modpack {Project} instalado como {Instance} ({Files} archivos, {Skipped} omitidos)",
+                projectId, created.Id, pack.Files.Count, pack.Skipped.Count);
+            return created;
+        }
+        catch
+        {
+            if (created is not null)
+                TryDeleteInstance(created.Id);
+            throw;
+        }
+        finally
+        {
+            if (pack.Archive is not null)
+                TryDeleteFile(pack.Archive);
+        }
+    }
+
+    private async Task<StorePack> ReadCurseForgePackAsync(Stores.CurseForgeClient curseForge, ProjectVersion version,
+        IProgress<InstallProgress>? progress, CancellationToken ct)
+    {
+        var file = version.PrimaryFile ?? throw new ModrinthException("Este modpack no tiene ninguna versión para descargar.");
+        if (file.Url.Length == 0)
+            throw new ModrinthException("El autor de este modpack no permite descargarlo fuera de CurseForge.");
+        var temp = Path.Combine(Path.GetTempPath(), $"konnor-modpack-{Guid.NewGuid():N}.zip");
+        try
+        {
+            await DownloadAsync(file.Url, file.Hashes, file.Size, temp,
+                new Progress<double>(p => progress?.Report(new InstallProgress("Descargando el modpack…", p))), ct).ConfigureAwait(false);
+            Stores.CurseForgeManifest manifest;
+            using (var archive = ZipFile.OpenRead(temp))
+                manifest = Stores.CurseForgeManifest.Read(archive);
+
+            progress?.Report(new InstallProgress("Buscando los mods del modpack…", null));
+            var wanted = manifest.Files.Where(f => f.Required).ToList();
+            var files = await curseForge.GetFilesAsync(wanted.Select(f => f.FileId), ct).ConfigureAwait(false);
+            var mods = (await curseForge.GetModsAsync(files.Select(f => f.ModId), ct).ConfigureAwait(false))
+                .DistinctBy(m => m.Id).ToDictionary(m => m.Id);
+            var result = new List<MrpackFile>();
+            var skipped = new List<string>();
+            foreach (var f in files)
+            {
+                var sha1 = f.Hashes.FirstOrDefault(h => h.Algo == 1)?.Value;
+                mods.TryGetValue(f.ModId, out var mod);
+                if (f.DownloadUrl is not { Length: > 0 } url || sha1 is null || !IsSafeFileName(f.FileName))
+                {
+                    skipped.Add(mod?.Name ?? f.FileName);
+                    continue;
+                }
+
+                var folder = Stores.CurseForgeClient.FolderOf(mod?.ClassId ?? Stores.CurseForgeClient.ClassMods);
+                result.Add(new MrpackFile($"{folder}/{f.FileName}", url, new FileHashes { Sha1 = sha1 }, f.FileLength));
+            }
+
+            var found = files.Select(f => f.Id).ToHashSet();
+            skipped.AddRange(wanted.Where(f => !found.Contains(f.FileId)).Select(f => $"#{f.ProjectId}"));
+            return new StorePack(manifest.Minecraft, manifest.Loader, manifest.LoaderVersion, result, skipped, temp, manifest.Overrides + "/");
+        }
+        catch
+        {
+            TryDeleteFile(temp);
+            throw;
+        }
+    }
+
+    private static async Task<StorePack> ReadFtbPackAsync(Stores.FtbClient ftb, ProjectVersion version, CancellationToken ct)
+    {
+        var (packId, versionId) = Stores.FtbClient.ParseVersionId(version.Id);
+        var data = await ftb.GetVersionFilesAsync(packId, versionId, ct).ConfigureAwait(false);
+        var minecraft = data.Targets.FirstOrDefault(t => t.Type == "game" && t.Name == "minecraft")?.Version
+                        ?? throw new ModrinthException("El modpack no indica su versión de Minecraft.");
+        var loaderTarget = data.Targets.FirstOrDefault(t => t.Type == "modloader");
+        var loader = loaderTarget?.Name.ToLowerInvariant() switch
+        {
+            "forge" => ModLoader.Forge,
+            "neoforge" => ModLoader.NeoForge,
+            "fabric" => ModLoader.Fabric,
+            "quilt" => ModLoader.Quilt,
+            null => ModLoader.Vanilla,
+            _ => throw new ModrinthException($"El modpack usa un cargador que el launcher no admite ({loaderTarget?.Name})."),
+        };
+
+        var files = new List<MrpackFile>();
+        var skipped = new List<string>();
+        foreach (var file in data.Files.Where(f => !f.Serveronly))
+        {
+            var folder = file.Path.Replace('\\', '/').Trim().TrimStart('.').Trim('/');
+            var hashes = file.Hashes is { } h && (h.Sha1 is { Length: > 0 } || h.Sha512 is { Length: > 0 }) ? h : new FileHashes { Sha1 = file.Sha1 };
+            if (file.Url.Length == 0 || (hashes.Sha1 is not { Length: > 0 } && hashes.Sha512 is not { Length: > 0 }))
+            {
+                skipped.Add(file.Name);
+                continue;
+            }
+
+            files.Add(new MrpackFile(folder.Length == 0 ? file.Name : $"{folder}/{file.Name}", file.Url, hashes, file.Size));
+        }
+
+        return new StorePack(minecraft, loader, loader == ModLoader.Vanilla ? null : loaderTarget!.Version, files, skipped);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     /// <summary>Archivos de un servidor de Hosting que un modpack no puede sustituir.</summary>
     private static void RejectServerFile(string relative)
     {
@@ -537,12 +713,12 @@ public sealed class ContentInstaller
     }
 
     private async Task DownloadPackFilesAsync(IReadOnlyList<MrpackFile> files, string instanceDir, IProgress<InstallProgress>? progress,
-        CancellationToken ct)
+        CancellationToken ct, int parallel = ParallelDownloads)
     {
         var total = Math.Max(1, files.Sum(f => Math.Max(0, f.Size)));
         long done = 0;
         var finished = 0;
-        await Parallel.ForEachAsync(files, new ParallelOptions { MaxDegreeOfParallelism = ParallelDownloads, CancellationToken = ct },
+        await Parallel.ForEachAsync(files, new ParallelOptions { MaxDegreeOfParallelism = parallel, CancellationToken = ct },
             async (file, token) =>
             {
                 var destination = SafePackPath(instanceDir, file.Path);
